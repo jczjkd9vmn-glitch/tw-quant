@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+data/*.sqlite
+!data/tw_quant.sqlite
+data/*.sqlite3
+data/*.db
+.env
+logs/*
+!logs/.gitkeep
+
+# Streamlit runtime logs
+streamlit*.log

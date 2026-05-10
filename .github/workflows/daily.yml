@@ -1,0 +1,53 @@
+name: Daily Taiwan Stock Paper Trading
+
+on:
+  workflow_dispatch:
+  schedule:
+    # GitHub Actions cron uses UTC. 12:30 UTC = 20:30 Asia/Taipei.
+    - cron: "30 12 * * 1-5"
+
+permissions:
+  contents: write
+
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run tests
+        run: python -m pytest
+
+      - name: Backfill recent trading data
+        run: python scripts/backfill.py --days 10 --timeout 30 --retries 3 --sleep 1
+
+      - name: Run daily paper trading workflow
+        run: python scripts/run_all_daily.py --capital 1000000
+
+      - name: Commit updated data and reports
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/ reports/
+          if git diff --cached --quiet; then
+            echo "No data or report changes to commit."
+          else
+            git commit -m "chore: update daily quant data and reports"
+            git push
+          fi

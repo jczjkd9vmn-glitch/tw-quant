@@ -1,0 +1,34 @@
+database:
+  url: sqlite:///data/tw_quant.sqlite
+
+data:
+  market: TSE
+  request_timeout_seconds: 15
+  stop_on_data_anomaly: true
+  twse_url: https://www.twse.com.tw/rwd/zh/afterTrading/MI_INDEX
+
+strategy:
+  minimum_total_score: 70
+  min_history_days: 40
+  max_candidates: 20
+  weights:
+    trend: 0.30
+    momentum: 0.25
+    fundamental: 0.15
+    chip: 0.15
+    risk: 0.15
+
+risk:
+  initial_equity: 1000000
+  max_position_pct: 0.10
+  max_portfolio_exposure_pct: 0.60
+  max_trade_risk_pct: 0.01
+  default_stop_loss_pct: 0.08
+  min_liquidity_value: 5000000
+  max_volatility_20: 0.08
+
+backtest:
+  initial_cash: 1000000
+  top_n: 10
+  transaction_cost_bps: 14.25
+  max_holding_days: 20

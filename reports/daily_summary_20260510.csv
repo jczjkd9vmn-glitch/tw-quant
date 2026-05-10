@@ -1,2 +1,2 @@
-﻿trade_date,scored_rows,candidate_rows,risk_pass_rows,new_positions,open_positions,closed_positions,unrealized_pnl,realized_pnl,total_equity,status,error_step,error_message
-2026-05-10,0,0,0,0,0,0,0.0,0.0,1000000.0,FAILED,run_daily,DataQualityError: TWSE payload has no stock daily closing table
+﻿trade_date,scored_rows,candidate_rows,risk_pass_rows,new_positions,open_positions,closed_positions,unrealized_pnl,realized_pnl,total_equity,requested_date,fallback_date,fallback_reason,status,error_step,error_message
+2026-05-08,1328,20,6,0,6,0,0.0,0.0,1000000.0,2026-05-10,2026-05-08,no trading data,OK_WITH_FALLBACK,,

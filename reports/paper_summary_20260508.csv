@@ -1,2 +1,2 @@
-﻿trade_date,total_capital,invested_value,market_value,cash,unrealized_pnl,realized_pnl,total_equity,open_positions,closed_positions
-2026-05-08,1000000.0,599542.06,599542.06,400457.94,0.0,0.0,1000000.0,6,0
+﻿trade_date,total_capital,invested_value,market_value,cash,unrealized_pnl,realized_pnl,total_equity,total_cost,realized_pnl_after_cost,total_equity_after_cost,open_positions,closed_positions
+2026-05-08,1000000.0,599542.06,599542.06,400457.94,0.0,0.0,1000000.0,0.0,0.0,1000000.0,6,0

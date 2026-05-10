@@ -54,3 +54,8 @@ jobs:
             git commit -m "chore: update daily quant data and reports"
             git push
           fi
+
+      - name: Send daily notification
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python scripts/send_daily_notification.py

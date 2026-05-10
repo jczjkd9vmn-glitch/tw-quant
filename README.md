@@ -253,6 +253,28 @@ HTML 報表會以繁體中文顯示系統狀態總覽、今日候選股、通過
 5. `Folder` 選 `/docs`。
 6. 儲存後等待 GitHub Pages 部署完成，即可用手機瀏覽 `docs/index.html` 對應的公開頁面。
 
+### Discord 每日通知
+
+GitHub Actions 每日流程會在產生 HTML 報表並提交資料後執行：
+
+```powershell
+python scripts/send_daily_notification.py
+```
+
+通知內容會以繁體中文顯示執行狀態、原始執行日期、實際交易日、是否使用 fallback、候選股數、通過風控數、新增持倉數、目前持倉數、未實現損益、已實現損益、總資產與 GitHub Pages 報表網址。
+
+設定 Discord Webhook：
+
+1. 在 Discord 頻道建立 Webhook，複製 Webhook URL。
+2. 到 GitHub repo 的 `Settings`。
+3. 點選 `Secrets and variables` → `Actions`。
+4. 點選 `New repository secret`。
+5. Name 填入 `DISCORD_WEBHOOK_URL`。
+6. Secret 填入 Discord Webhook URL。
+7. 儲存後，下次 GitHub Actions 執行完成會自動發送通知。
+
+若未設定 `DISCORD_WEBHOOK_URL`，workflow 只會顯示 warning 並略過通知，不會因此失敗。
+
 ## 歷史資料回補
 
 依指定日期區間回補：

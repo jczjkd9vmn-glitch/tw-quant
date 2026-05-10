@@ -19,6 +19,8 @@ def test_daily_github_actions_workflow_exists_and_contains_required_steps() -> N
     assert "python scripts/backfill.py --days 10 --timeout 30 --retries 3 --sleep 1" in text
     assert "python scripts/run_all_daily.py --capital 1000000 --allow-fallback-latest" in text
     assert "python scripts/generate_html_report.py" in text
+    assert "python scripts/send_daily_notification.py" in text
+    assert "DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}" in text
     assert "git add data/ reports/ docs/" in text
     assert "git diff --cached --quiet" in text
 
@@ -46,3 +48,4 @@ def test_readme_documents_github_actions_setup() -> None:
     assert "GitHub Pages 設定方式" in readme
     assert "Deploy from a branch" in readme
     assert "/docs" in readme
+    assert "DISCORD_WEBHOOK_URL" in readme

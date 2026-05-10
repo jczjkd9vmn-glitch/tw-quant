@@ -2,35 +2,37 @@ from __future__ import annotations
 
 import pandas as pd
 
-from tw_quant.trading.paper import POSITION_COLUMNS, find_latest_risk_pass_report, run_paper_trade
+from tw_quant.trading.paper import (
+    PENDING_ORDER_COLUMNS,
+    POSITION_COLUMNS,
+    find_latest_risk_pass_report,
+    run_paper_trade,
+)
 
 
-def test_paper_trade_creates_positions_and_trade_log(tmp_path) -> None:
+def test_paper_trade_creates_pending_orders_without_same_day_open_positions(tmp_path) -> None:
     _write_risk_report(tmp_path, "20260508")
 
     result = run_paper_trade(reports_dir=tmp_path, capital=1_000_000)
 
     assert result.warning == ""
-    assert result.positions_path is not None
-    assert result.positions_path.exists()
-    assert result.trades_path.exists()
-    assert len(result.new_positions) == 2
-    assert len(result.positions) == 2
-    assert list(result.positions.columns) == POSITION_COLUMNS
+    assert result.positions_path is None
+    assert result.pending_orders_path is not None
+    assert result.pending_orders_path.exists()
+    assert not result.trades_path.exists()
+    assert result.new_positions.empty
+    assert result.positions.empty
+    assert len(result.pending_orders) == 2
+    assert list(result.pending_orders.columns) == PENDING_ORDER_COLUMNS
 
-    first = result.positions[result.positions["stock_id"] == "00891"].iloc[0]
+    first = result.pending_orders[result.pending_orders["stock_id"] == "00891"].iloc[0]
     assert first["stock_name"] == "中信關鍵半導體"
-    assert first["entry_price"] == 34.19
-    assert first["shares"] == int(100_000 // 34.19)
-    assert first["position_value"] == round(first["shares"] * 34.19, 2)
-    assert first["status"] == "OPEN"
-
-    trades = pd.read_csv(result.trades_path, dtype={"stock_id": str})
-    assert len(trades) == 2
-    assert set(trades["stock_id"]) == {"00891", "3528"}
+    assert first["signal_date"] == "2026-05-08"
+    assert first["planned_entry_date"] == "NEXT_AVAILABLE_TRADING_DAY"
+    assert first["status"] == "PENDING"
 
 
-def test_paper_trade_skips_existing_open_positions(tmp_path) -> None:
+def test_paper_trade_preserves_existing_open_positions_without_rebuilding(tmp_path) -> None:
     _write_risk_report(tmp_path, "20260508")
     existing = pd.DataFrame(
         [
@@ -52,11 +54,13 @@ def test_paper_trade_skips_existing_open_positions(tmp_path) -> None:
     result = run_paper_trade(reports_dir=tmp_path, capital=1_000_000)
 
     trades = pd.read_csv(result.trades_path, dtype={"stock_id": str})
-    assert result.skipped_existing == ["00891"]
-    assert len(result.new_positions) == 1
-    assert len(trades) == 2
+    assert result.skipped_existing == []
+    assert result.new_positions.empty
+    assert len(result.pending_orders) == 2
+    assert len(trades) == 1
     assert len(trades[trades["stock_id"] == "00891"]) == 1
-    assert len(result.positions) == 2
+    assert len(result.positions) == 1
+    assert list(result.positions.columns) == POSITION_COLUMNS
 
 
 def test_paper_trade_warns_when_no_risk_report(tmp_path) -> None:

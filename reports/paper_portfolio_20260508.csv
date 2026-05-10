@@ -1,7 +1,7 @@
-﻿trade_date,stock_id,stock_name,entry_price,shares,position_value,stop_loss_price,suggested_position_pct,status,current_price,market_value,unrealized_pnl,unrealized_pnl_pct,holding_days,stop_loss_hit,exit_date,exit_price,realized_pnl,realized_pnl_pct,exit_reason
-2026-05-08,3528,安馳,91.0,1098,99918.0,85.39,0.1,OPEN,91.0,99918.0,0.0,0.0,0,False,,,,,
-2026-05-08,3033,威健,43.85,2280,99978.0,40.6,0.1,OPEN,43.85,99978.0,0.0,0.0,0,False,,,,,
-2026-05-08,2376,技嘉,317.0,315,99855.0,293.43,0.1,OPEN,317.0,99855.0,0.0,0.0,0,False,,,,,
-2026-05-08,3416,融程電,175.5,569,99859.5,163.0,0.1,OPEN,175.5,99859.5,0.0,0.0,0,False,,,,,
-2026-05-08,00891,中信關鍵半導體,34.19,2924,99971.56,32.27,0.1,OPEN,34.19,99971.56,0.0,0.0,0,False,,,,,
-2026-05-08,6206,飛捷,119.0,840,99960.0,110.93,0.1,OPEN,119.0,99960.0,0.0,0.0,0,False,,,,,
+﻿signal_date,planned_entry_date,actual_entry_date,entry_price_source,trade_date,stock_id,stock_name,entry_price,shares,position_value,stop_loss_price,suggested_position_pct,status,current_price,market_value,unrealized_pnl,unrealized_pnl_pct,holding_days,stop_loss_hit,exit_date,exit_price,realized_pnl,realized_pnl_pct,exit_reason
+,,,,2026-05-08,3528,安馳,91.0,1098,99918.0,85.39,0.1,OPEN,91.0,99918.0,0.0,0.0,0,False,,,,,
+,,,,2026-05-08,3033,威健,43.85,2280,99978.0,40.6,0.1,OPEN,43.85,99978.0,0.0,0.0,0,False,,,,,
+,,,,2026-05-08,2376,技嘉,317.0,315,99855.0,293.43,0.1,OPEN,317.0,99855.0,0.0,0.0,0,False,,,,,
+,,,,2026-05-08,3416,融程電,175.5,569,99859.5,163.0,0.1,OPEN,175.5,99859.5,0.0,0.0,0,False,,,,,
+,,,,2026-05-08,00891,中信關鍵半導體,34.19,2924,99971.56,32.27,0.1,OPEN,34.19,99971.56,0.0,0.0,0,False,,,,,
+,,,,2026-05-08,6206,飛捷,119.0,840,99960.0,110.93,0.1,OPEN,119.0,99960.0,0.0,0.0,0,False,,,,,

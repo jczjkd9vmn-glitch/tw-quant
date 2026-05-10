@@ -10,6 +10,10 @@ import pandas as pd
 
 
 POSITION_COLUMNS = [
+    "signal_date",
+    "planned_entry_date",
+    "actual_entry_date",
+    "entry_price_source",
     "trade_date",
     "stock_id",
     "stock_name",
@@ -21,15 +25,40 @@ POSITION_COLUMNS = [
     "status",
 ]
 
+PENDING_ENTRY_MARKER = "NEXT_AVAILABLE_TRADING_DAY"
+
+PENDING_ORDER_COLUMNS = [
+    "signal_date",
+    "planned_entry_date",
+    "actual_entry_date",
+    "stock_id",
+    "stock_name",
+    "signal_close",
+    "total_score",
+    "stop_loss_price",
+    "suggested_position_pct",
+    "status",
+    "entry_price",
+    "entry_price_source",
+    "shares",
+    "position_value",
+    "skipped_reason",
+    "warning",
+    "reason",
+    "risk_reason",
+]
+
 
 @dataclass(frozen=True)
 class PaperTradeResult:
     trade_date: pd.Timestamp | None
     source_report: Path | None
     positions_path: Path | None
+    pending_orders_path: Path | None
     trades_path: Path
     positions: pd.DataFrame
     new_positions: pd.DataFrame
+    pending_orders: pd.DataFrame
     skipped_existing: list[str]
     warning: str = ""
 
@@ -46,9 +75,11 @@ def run_paper_trade(
             trade_date=None,
             source_report=None,
             positions_path=None,
+            pending_orders_path=None,
             trades_path=trades_path,
             positions=pd.DataFrame(columns=POSITION_COLUMNS),
             new_positions=pd.DataFrame(columns=POSITION_COLUMNS),
+            pending_orders=pd.DataFrame(columns=PENDING_ORDER_COLUMNS),
             skipped_existing=[],
             warning="no risk_pass_candidates report found",
         )
@@ -60,49 +91,44 @@ def run_paper_trade(
             trade_date=pd.to_datetime(trade_date) if trade_date else None,
             source_report=source_report,
             positions_path=None,
+            pending_orders_path=None,
             trades_path=trades_path,
             positions=pd.DataFrame(columns=POSITION_COLUMNS),
             new_positions=pd.DataFrame(columns=POSITION_COLUMNS),
+            pending_orders=pd.DataFrame(columns=PENDING_ORDER_COLUMNS),
             skipped_existing=[],
             warning=f"risk pass report is empty: {source_report}",
         )
 
     report_dir.mkdir(parents=True, exist_ok=True)
     existing_trades = _load_trades(trades_path)
-    existing_open_ids = set(existing_trades[existing_trades["status"] == "OPEN"]["stock_id"])
+    open_positions = _open_positions(existing_trades)
+    trade_date = pd.to_datetime(candidates["trade_date"].iloc[0])
+    pending_path = report_dir / f"pending_orders_{trade_date.strftime('%Y%m%d')}.csv"
+    existing_pending = _load_pending_orders(pending_path)
+    existing_order_ids = set(existing_pending["stock_id"]) if not existing_pending.empty else set()
 
-    new_rows: list[dict] = []
-    skipped_existing: list[str] = []
+    pending_rows: list[dict] = []
     for _, row in candidates.iterrows():
         stock_id = str(row["stock_id"]).strip()
-        if stock_id in existing_open_ids:
-            skipped_existing.append(stock_id)
+        if stock_id in existing_order_ids:
             continue
+        pending_rows.append(_build_pending_order(row))
 
-        position = _build_position(row, capital)
-        if position["shares"] <= 0:
-            continue
-        new_rows.append(position)
-        existing_open_ids.add(stock_id)
-
-    new_positions = pd.DataFrame(new_rows, columns=POSITION_COLUMNS)
-    all_trades = _append_trades(existing_trades, new_positions)
-    if not all_trades.empty:
-        all_trades.to_csv(trades_path, index=False, encoding="utf-8-sig")
-
-    open_positions = _open_positions(all_trades)
-    trade_date = pd.to_datetime(candidates["trade_date"].iloc[0])
-    positions_path = report_dir / f"paper_positions_{trade_date.strftime('%Y%m%d')}.csv"
-    open_positions.to_csv(positions_path, index=False, encoding="utf-8-sig")
+    new_pending = pd.DataFrame(pending_rows, columns=PENDING_ORDER_COLUMNS)
+    all_pending = _merge_pending_orders(existing_pending, new_pending)
+    all_pending.to_csv(pending_path, index=False, encoding="utf-8-sig")
 
     return PaperTradeResult(
         trade_date=trade_date,
         source_report=source_report,
-        positions_path=positions_path,
+        positions_path=None,
+        pending_orders_path=pending_path,
         trades_path=trades_path,
         positions=open_positions,
-        new_positions=new_positions,
-        skipped_existing=skipped_existing,
+        new_positions=pd.DataFrame(columns=POSITION_COLUMNS),
+        pending_orders=all_pending,
+        skipped_existing=[],
     )
 
 
@@ -118,22 +144,26 @@ def find_latest_risk_pass_report(reports_dir: str | Path) -> Path | None:
     return sorted(candidates, key=lambda item: item[0])[-1][1]
 
 
-def _build_position(row: pd.Series, capital: float) -> dict:
-    entry_price = float(row["close"])
-    suggested_pct = float(row["suggested_position_pct"])
-    target_value = float(capital) * suggested_pct
-    shares = int(target_value // entry_price) if entry_price > 0 else 0
-    position_value = round(shares * entry_price, 2)
+def _build_pending_order(row: pd.Series) -> dict:
     return {
-        "trade_date": str(row["trade_date"]),
+        "signal_date": str(row["trade_date"]),
+        "planned_entry_date": PENDING_ENTRY_MARKER,
+        "actual_entry_date": "",
         "stock_id": str(row["stock_id"]).strip(),
         "stock_name": str(row["stock_name"]),
-        "entry_price": entry_price,
-        "shares": shares,
-        "position_value": position_value,
+        "signal_close": float(row["close"]),
+        "total_score": float(row.get("total_score", 0)),
         "stop_loss_price": float(row["stop_loss_price"]),
-        "suggested_position_pct": suggested_pct,
-        "status": "OPEN",
+        "suggested_position_pct": float(row["suggested_position_pct"]),
+        "status": "PENDING",
+        "entry_price": "",
+        "entry_price_source": "",
+        "shares": "",
+        "position_value": "",
+        "skipped_reason": "",
+        "warning": "",
+        "reason": str(row.get("reason", "")),
+        "risk_reason": str(row.get("risk_reason", "")),
     }
 
 
@@ -147,6 +177,31 @@ def _load_trades(trades_path: Path) -> pd.DataFrame:
     frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
     frame["status"] = frame["status"].fillna("").astype(str)
     return frame.copy()
+
+
+def _load_pending_orders(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        return pd.DataFrame(columns=PENDING_ORDER_COLUMNS)
+    frame = pd.read_csv(path, dtype={"stock_id": str})
+    for column in PENDING_ORDER_COLUMNS:
+        if column not in frame.columns:
+            frame[column] = ""
+        frame[column] = frame[column].fillna("").astype(object)
+    frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
+    frame["status"] = frame["status"].fillna("").astype(str)
+    return frame[PENDING_ORDER_COLUMNS].copy()
+
+
+def _merge_pending_orders(existing: pd.DataFrame, new_orders: pd.DataFrame) -> pd.DataFrame:
+    if existing.empty:
+        return new_orders.copy()
+    if new_orders.empty:
+        return existing.copy()
+    combined = pd.concat([existing, new_orders], ignore_index=True)
+    combined["stock_id"] = combined["stock_id"].astype(str).str.strip()
+    return combined.drop_duplicates(subset=["signal_date", "stock_id"], keep="first")[
+        PENDING_ORDER_COLUMNS
+    ].reset_index(drop=True)
 
 
 def _append_trades(existing: pd.DataFrame, new_positions: pd.DataFrame) -> pd.DataFrame:

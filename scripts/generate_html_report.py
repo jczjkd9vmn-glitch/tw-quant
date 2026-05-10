@@ -22,6 +22,10 @@ COLUMN_LABELS = {
     "candidate_rows": "候選股數",
     "risk_pass_rows": "通過風控數",
     "new_positions": "新增持倉數",
+    "pending_orders": "待進場筆數",
+    "executed_orders": "今日成交筆數",
+    "skipped_orders": "跳過進場筆數",
+    "entry_price_source_warnings": "成交價格警示數",
     "open_positions": "目前持倉數",
     "closed_positions": "已平倉數",
     "unrealized_pnl": "未實現損益",
@@ -50,6 +54,13 @@ COLUMN_LABELS = {
     "shares": "股數",
     "position_value": "投入金額",
     "status": "狀態",
+    "signal_date": "訊號日",
+    "planned_entry_date": "計畫進場日",
+    "actual_entry_date": "實際進場日",
+    "signal_close": "訊號日收盤價",
+    "entry_price_source": "成交價格來源",
+    "skipped_reason": "跳過原因",
+    "warning": "警示",
     "current_price": "目前價格",
     "unrealized_pnl_pct": "未實現損益率",
     "holding_days": "持有天數",
@@ -70,6 +81,10 @@ STATUS_LABELS = {
     "OPEN": "持有中",
     "CLOSED": "已出場",
     "STOP_LOSS": "停損出場",
+    "PENDING": "待進場",
+    "EXECUTED": "已成交",
+    "SKIPPED_EXISTING_POSITION": "已有持倉，略過",
+    "OPEN": "持有中",
     "no trading data": "無交易資料",
     "True": "是",
     "False": "否",
@@ -77,6 +92,11 @@ STATUS_LABELS = {
     "false": "否",
     "1": "是",
     "0": "否",
+}
+
+ENTRY_PRICE_SOURCE_LABELS = {
+    "OPEN": "開盤價",
+    "CLOSE_FALLBACK": "收盤價 fallback",
 }
 
 
@@ -100,11 +120,22 @@ INTEGER_COLUMNS = {
     "new_positions",
     "open_positions",
     "closed_positions",
+    "pending_orders",
+    "executed_orders",
+    "skipped_orders",
+    "entry_price_source_warnings",
     "shares",
     "holding_days",
 }
-STATUS_COLUMNS = {"status", "exit_reason", "fallback_reason", "is_candidate", "risk_pass", "stop_loss_hit"}
-DATE_COLUMNS = {"trade_date", "requested_date", "fallback_date", "exit_date"}
+STATUS_COLUMNS = {
+    "status",
+    "exit_reason",
+    "fallback_reason",
+    "is_candidate",
+    "risk_pass",
+    "stop_loss_hit",
+}
+DATE_COLUMNS = {"trade_date", "requested_date", "fallback_date", "exit_date", "signal_date", "actual_entry_date"}
 
 
 def generate_html_report(
@@ -120,6 +151,7 @@ def generate_html_report(
     risk_pass = _read_latest_csv(report_dir, "risk_pass_candidates_*.csv")
     paper_trades = _read_csv(report_dir / "paper_trades.csv")
     paper_summary = _read_latest_csv(report_dir, "paper_summary_*.csv")
+    pending_orders = _read_all_csv(report_dir, "pending_orders_*.csv")
 
     html = _render_page(
         daily_summary=daily_summary,
@@ -128,6 +160,7 @@ def generate_html_report(
         risk_pass=risk_pass,
         paper_trades=paper_trades,
         paper_summary=paper_summary,
+        pending_orders=pending_orders,
     )
 
     output_path = report_dir / "index.html"
@@ -146,6 +179,7 @@ def _render_page(
     risk_pass: pd.DataFrame,
     paper_trades: pd.DataFrame,
     paper_summary: pd.DataFrame,
+    pending_orders: pd.DataFrame,
 ) -> str:
     latest_summary = _first_row(daily_summary)
     open_positions = _filter_status(paper_trades, "OPEN")
@@ -209,14 +243,40 @@ def _render_page(
                 ),
             ),
             _section(
-                "目前紙上持倉",
+                "待進場清單",
+                _table(
+                    pending_orders,
+                    [
+                        "signal_date",
+                        "planned_entry_date",
+                        "actual_entry_date",
+                        "stock_id",
+                        "stock_name",
+                        "signal_close",
+                        "entry_price",
+                        "entry_price_source",
+                        "shares",
+                        "position_value",
+                        "status",
+                        "skipped_reason",
+                        "warning",
+                    ],
+                    "目前尚無待進場資料",
+                    max_rows=50,
+                ),
+            ),
+            _section(
+                "已成交持倉",
                 _table(
                     open_positions,
                     [
+                        "signal_date",
                         "trade_date",
+                        "actual_entry_date",
                         "stock_id",
                         "stock_name",
                         "entry_price",
+                        "entry_price_source",
                         "shares",
                         "market_value",
                         "unrealized_pnl",
@@ -225,7 +285,7 @@ def _render_page(
                         "holding_days",
                         "status",
                     ],
-                    "目前尚無紙上交易紀錄",
+                    "目前尚無已成交持倉",
                     max_rows=50,
                 ),
             ),
@@ -243,6 +303,10 @@ def _render_page(
                         "scored_rows",
                         "candidate_rows",
                         "risk_pass_rows",
+                        "pending_orders",
+                        "executed_orders",
+                        "skipped_orders",
+                        "entry_price_source_warnings",
                         "open_positions",
                         "closed_positions",
                         "unrealized_pnl",
@@ -253,7 +317,7 @@ def _render_page(
                     max_rows=10,
                 ),
             ),
-            _section("非交易日 fallback 說明", _fallback_note(latest_summary)),
+            _section("非交易日替代交易日說明", _fallback_note(latest_summary)),
             "</main>",
             "</body>",
             "</html>",
@@ -273,6 +337,9 @@ def _status_overview(summary: dict[str, object]) -> str:
         ("已評分標的數", _format_cell("scored_rows", summary.get("scored_rows"))),
         ("候選股數", _format_cell("candidate_rows", summary.get("candidate_rows"))),
         ("通過風控數", _format_cell("risk_pass_rows", summary.get("risk_pass_rows"))),
+        ("待進場筆數", _format_cell("pending_orders", summary.get("pending_orders"))),
+        ("今日成交筆數", _format_cell("executed_orders", summary.get("executed_orders"))),
+        ("跳過進場筆數", _format_cell("skipped_orders", summary.get("skipped_orders"))),
         ("目前持倉數", _format_cell("open_positions", summary.get("open_positions"))),
         ("已平倉數", _format_cell("closed_positions", summary.get("closed_positions"))),
         ("未實現損益", _format_cell("unrealized_pnl", summary.get("unrealized_pnl"))),
@@ -372,7 +439,12 @@ def _table(frame: pd.DataFrame, columns: list[str], empty_message: str, max_rows
 def _format_cell(column: str, value: object) -> str:
     if _is_blank(value):
         return "-"
+    if str(value).strip() == "NEXT_AVAILABLE_TRADING_DAY":
+        return "下一個有效交易日"
 
+    if column == "entry_price_source":
+        text = str(value).strip()
+        return ENTRY_PRICE_SOURCE_LABELS.get(text, text)
     if column in STATUS_COLUMNS:
         text = str(value).strip()
         return STATUS_LABELS.get(text, text)
@@ -422,6 +494,14 @@ def _read_latest_csv(report_dir: Path, pattern: str) -> pd.DataFrame:
     if latest is None:
         return pd.DataFrame()
     return _read_csv(latest)
+
+
+def _read_all_csv(report_dir: Path, pattern: str) -> pd.DataFrame:
+    frames = [_read_csv(path) for path in _sorted_report_files(report_dir, pattern)]
+    frames = [frame for frame in frames if not frame.empty]
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
 
 
 def _read_recent_summaries(report_dir: Path) -> pd.DataFrame:

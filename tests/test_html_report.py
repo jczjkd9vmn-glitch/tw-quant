@@ -18,10 +18,11 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert "系統狀態總覽" in html
     assert "今日候選股" in html
     assert "通過風控股票" in html
-    assert "目前紙上持倉" in html
+    assert "待進場清單" in html
+    assert "已成交持倉" in html
     assert "紙上交易績效" in html
     assert "最近每日 summary" in html
-    assert "非交易日 fallback 說明" in html
+    assert "非交易日替代交易日說明" in html
 
 
 def test_generate_html_report_creates_docs_index_for_github_pages(tmp_path: Path) -> None:
@@ -83,7 +84,8 @@ def test_generate_html_report_handles_missing_data_with_chinese_messages(tmp_pat
 
     assert "目前尚無每日 summary" in html
     assert "目前尚無候選股資料" in html
-    assert "目前尚無紙上交易紀錄" in html
+    assert "目前尚無待進場資料" in html
+    assert "目前尚無已成交持倉" in html
     assert "目前尚無已平倉交易" in html
 
 
@@ -133,10 +135,32 @@ def _write_reports(path: Path) -> None:
     )
     candidates.to_csv(path / "candidates_20260508.csv", index=False, encoding="utf-8-sig")
     candidates.to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "signal_date": "2026-05-08",
+                "planned_entry_date": "NEXT_AVAILABLE_TRADING_DAY",
+                "actual_entry_date": "",
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "signal_close": 1000.0,
+                "entry_price": "",
+                "entry_price_source": "",
+                "shares": "",
+                "position_value": "",
+                "status": "PENDING",
+                "skipped_reason": "",
+                "warning": "",
+            }
+        ]
+    ).to_csv(path / "pending_orders_20260508.csv", index=False, encoding="utf-8-sig")
 
     pd.DataFrame(
         [
             {
+                "signal_date": "2026-05-08",
+                "actual_entry_date": "2026-05-09",
+                "entry_price_source": "OPEN",
                 "trade_date": "2026-05-08",
                 "stock_id": "2330",
                 "stock_name": "台積電",

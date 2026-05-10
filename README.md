@@ -73,7 +73,7 @@ python scripts/run_daily.py --date 20260510 --allow-fallback-latest
 
 ## 一鍵每日流程
 
-依序執行每日抓取與評分、候選股匯出、建立新紙上持倉、更新紙上損益：
+依序執行每日抓取與評分、候選股匯出、建立待進場委託、執行到期委託、更新紙上損益：
 
 ```powershell
 python scripts/run_all_daily.py --date 20260508 --capital 1000000
@@ -242,7 +242,7 @@ reports/index.html
 docs/index.html
 ```
 
-HTML 報表會以繁體中文顯示系統狀態總覽、今日候選股、通過風控股票、目前紙上持倉、紙上交易績效、最近每日 summary 與非交易日 fallback 說明。GitHub Actions 每日流程會在 `run_all_daily.py` 後自動產生此報表，並將 `reports/index.html` 與 `docs/index.html` 一併提交回 repo。
+HTML 報表會以繁體中文顯示系統狀態總覽、今日候選股、通過風控股票、待進場清單、已成交持倉、紙上交易績效、最近每日 summary 與非交易日替代交易日說明。GitHub Actions 每日流程會在 `run_all_daily.py` 後自動產生此報表，並將 `reports/index.html` 與 `docs/index.html` 一併提交回 repo。
 
 ### GitHub Pages 設定方式
 
@@ -261,7 +261,7 @@ GitHub Actions 每日流程會在產生 HTML 報表並提交資料後執行：
 python scripts/send_daily_notification.py
 ```
 
-通知內容會以繁體中文顯示執行狀態、原始執行日期、實際交易日、是否使用 fallback、候選股數、通過風控數、新增持倉數、目前持倉數、未實現損益、已實現損益、總資產與 GitHub Pages 報表網址。
+通知內容會以繁體中文顯示執行狀態、原始執行日期、實際交易日、是否使用替代交易日、候選股數、通過風控數、待進場筆數、今日成交筆數、跳過進場筆數、新增持倉數、目前持倉數、未實現損益、已實現損益、總資產與 GitHub Pages 報表網址。
 
 設定 Discord Webhook：
 
@@ -345,7 +345,7 @@ reports/risk_pass_candidates_YYYYMMDD.csv
 
 ## 模擬交易
 
-用最新的 `risk_pass_candidates_YYYYMMDD.csv` 建立模擬持倉：
+用最新的 `risk_pass_candidates_YYYYMMDD.csv` 建立待進場委託。收盤後產生訊號，不會用同一天收盤價直接建立 `OPEN` 持倉：
 
 ```powershell
 python scripts/paper_trade.py
@@ -357,14 +357,33 @@ python scripts/paper_trade.py
 python scripts/paper_trade.py --capital 1000000
 ```
 
-模擬交易會依 `suggested_position_pct` 計算每檔投入金額，使用候選股收盤價作為模擬進場價，並輸出：
+輸出檔案：
 
 ```text
-reports/paper_positions_YYYYMMDD.csv
+reports/pending_orders_YYYYMMDD.csv
+```
+
+待進場委託會記錄 `signal_date`、`planned_entry_date`、股票、停損價、建議部位與狀態 `PENDING`。若 SQLite 尚無下一個有效交易日資料，`planned_entry_date` 會先標記為 `NEXT_AVAILABLE_TRADING_DAY`。
+
+執行到期待進場委託：
+
+```powershell
+python scripts/execute_pending_orders.py
+```
+
+或使用同一個 CLI：
+
+```powershell
+python scripts/paper_trade.py --mode execute
+```
+
+執行邏輯會從 SQLite 找出 `signal_date` 之後第一個有價格資料的有效交易日，優先使用該日開盤價作為 `entry_price`；若開盤價缺失或無效，才 fallback 使用收盤價，並記錄 `entry_price_source=CLOSE_FALLBACK` 與 warning。成交後寫入：
+
+```text
 reports/paper_trades.csv
 ```
 
-若同一檔股票已存在 `OPEN` 未平倉紀錄，系統會跳過該股票，不會重複買進。此功能只建立紙上交易紀錄，不會真實下單。
+若尚無下一個有效交易日資料，委託維持 `PENDING` 並等待下次執行。若同一檔股票已存在 `OPEN` 未平倉紀錄，委託會改為 `SKIPPED_EXISTING_POSITION`，不會重複買進。既有舊版 `OPEN` 持倉會保留，不會刪除或重建。此功能只建立紙上交易紀錄，不會真實下單。
 
 ## 每日紙上持倉更新
 

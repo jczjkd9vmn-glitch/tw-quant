@@ -28,9 +28,12 @@ def test_build_notification_message_uses_traditional_chinese_and_fallback_url(mo
     assert "執行狀態：成功，使用最近有效交易日" in message
     assert "原始執行日期：2026-05-10" in message
     assert "實際交易日：2026-05-08" in message
-    assert "是否使用 fallback：是（無交易資料，使用 2026-05-08）" in message
+    assert "是否使用替代交易日：是（無交易資料，使用 2026-05-08）" in message
     assert "候選股數：20" in message
     assert "通過風控數：6" in message
+    assert "待進場筆數：4" in message
+    assert "今日成交筆數：2" in message
+    assert "跳過進場筆數：1" in message
     assert "新增持倉數：0" in message
     assert "目前持倉數：6" in message
     assert "未實現損益：+1,234" in message
@@ -104,6 +107,9 @@ def _summary_row() -> dict[str, object]:
         "fallback_reason": "no trading data",
         "candidate_rows": 20,
         "risk_pass_rows": 6,
+        "pending_orders": 4,
+        "executed_orders": 2,
+        "skipped_orders": 1,
         "new_positions": 0,
         "open_positions": 6,
         "unrealized_pnl": 1234.0,

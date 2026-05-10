@@ -16,6 +16,7 @@ from tw_quant.data.pipeline import run_daily_pipeline
 from tw_quant.reporting.export import export_latest_candidates
 from tw_quant.trading.paper import run_paper_trade
 from tw_quant.trading.paper_update import update_paper_positions
+from tw_quant.trading.pending import execute_pending_orders
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,10 @@ class DailyWorkflowSummary:
     unrealized_pnl: float
     realized_pnl: float
     total_equity: float
+    pending_orders: int = 0
+    executed_orders: int = 0
+    skipped_orders: int = 0
+    entry_price_source_warnings: int = 0
     requested_date: str = ""
     fallback_date: str = ""
     fallback_reason: str = ""
@@ -46,6 +51,7 @@ class DailyWorkflowResult:
     daily_result: Any | None = None
     export_result: Any | None = None
     paper_result: Any | None = None
+    execute_result: Any | None = None
     update_result: Any | None = None
 
 
@@ -60,13 +66,14 @@ def run_all_daily(
     run_daily_func: Callable[..., Any] = run_daily_pipeline,
     export_func: Callable[..., Any] = export_latest_candidates,
     paper_func: Callable[..., Any] = run_paper_trade,
+    execute_func: Callable[..., Any] = execute_pending_orders,
     update_func: Callable[..., Any] = update_paper_positions,
 ) -> DailyWorkflowResult:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
     summary_values = _empty_summary(trade_date, capital)
     messages: list[str] = []
-    daily_result = export_result = paper_result = update_result = None
+    daily_result = export_result = paper_result = execute_result = update_result = None
 
     try:
         (
@@ -154,13 +161,13 @@ def run_all_daily(
             if getattr(paper_result, "warning", ""):
                 messages.append(f"paper_trade warning {paper_result.warning}")
             else:
-                summary_values["new_positions"] = len(paper_result.new_positions)
+                pending_count = _count_status(getattr(paper_result, "pending_orders", pd.DataFrame()), "PENDING")
+                summary_values["pending_orders"] = pending_count
                 summary_values["open_positions"] = len(paper_result.positions)
                 messages.append(
                     "paper_trade OK "
-                    f"new_positions={len(paper_result.new_positions)} "
-                    f"open_positions={len(paper_result.positions)} "
-                    f"skipped_existing={len(paper_result.skipped_existing)}"
+                    f"pending_orders={pending_count} "
+                    f"open_positions={len(paper_result.positions)}"
                 )
         except Exception as exc:
             return _failed_result(
@@ -172,6 +179,37 @@ def run_all_daily(
                 daily_result=daily_result,
                 export_result=export_result,
                 paper_result=paper_result,
+            )
+
+        try:
+            execute_result = execute_func(engine=engine, reports_dir=report_dir, capital=capital)
+            pending_count = _count_status(execute_result.pending_orders, "PENDING")
+            warning_count = _count_entry_price_warnings(execute_result)
+            summary_values["pending_orders"] = pending_count
+            summary_values["executed_orders"] = len(execute_result.executed_orders)
+            summary_values["skipped_orders"] = len(execute_result.skipped_orders)
+            summary_values["entry_price_source_warnings"] = warning_count
+            summary_values["new_positions"] = len(execute_result.executed_orders)
+            messages.append(
+                "execute_pending_orders OK "
+                f"pending_orders={pending_count} "
+                f"executed_orders={len(execute_result.executed_orders)} "
+                f"skipped_orders={len(execute_result.skipped_orders)} "
+                f"entry_price_source_warnings={warning_count}"
+            )
+            for warning in getattr(execute_result, "warnings", []):
+                messages.append(f"execute_pending_orders warning {warning}")
+        except Exception as exc:
+            return _failed_result(
+                report_dir,
+                summary_values,
+                messages,
+                "execute_pending_orders",
+                exc,
+                daily_result=daily_result,
+                export_result=export_result,
+                paper_result=paper_result,
+                execute_result=execute_result,
             )
 
     if skip_update:
@@ -204,6 +242,7 @@ def run_all_daily(
                 daily_result=daily_result,
                 export_result=export_result,
                 paper_result=paper_result,
+                execute_result=execute_result,
                 update_result=update_result,
             )
 
@@ -218,6 +257,7 @@ def run_all_daily(
         daily_result=daily_result,
         export_result=export_result,
         paper_result=paper_result,
+        execute_result=execute_result,
         update_result=update_result,
     )
 
@@ -258,6 +298,10 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "unrealized_pnl": 0.0,
         "realized_pnl": 0.0,
         "total_equity": float(capital),
+        "pending_orders": 0,
+        "executed_orders": 0,
+        "skipped_orders": 0,
+        "entry_price_source_warnings": 0,
         "requested_date": requested_date,
         "fallback_date": "",
         "fallback_reason": "",
@@ -315,6 +359,19 @@ def _merge_update_summary(summary_values: dict[str, Any], update_summary: pd.Dat
     summary_values["unrealized_pnl"] = float(row.get("unrealized_pnl", 0.0))
     summary_values["realized_pnl"] = float(row.get("realized_pnl", 0.0))
     summary_values["total_equity"] = float(row.get("total_equity", summary_values["total_equity"]))
+
+
+def _count_status(frame: pd.DataFrame, status: str) -> int:
+    if frame.empty or "status" not in frame.columns:
+        return 0
+    return int((frame["status"].fillna("").astype(str) == status).sum())
+
+
+def _count_entry_price_warnings(execute_result: Any) -> int:
+    executed = getattr(execute_result, "executed_orders", pd.DataFrame())
+    if executed.empty or "entry_price_source" not in executed.columns:
+        return 0
+    return int((executed["entry_price_source"].fillna("").astype(str) == "CLOSE_FALLBACK").sum())
 
 
 def _write_summary(report_dir: Path, summary: DailyWorkflowSummary) -> Path:

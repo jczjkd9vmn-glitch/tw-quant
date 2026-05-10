@@ -21,6 +21,7 @@ def test_run_all_daily_success_writes_summary(tmp_path) -> None:
         run_daily_func=_fake_run_daily,
         export_func=_fake_export,
         paper_func=_fake_paper,
+        execute_func=_fake_execute,
         update_func=_fake_update,
     )
 
@@ -29,7 +30,10 @@ def test_run_all_daily_success_writes_summary(tmp_path) -> None:
     assert result.summary.scored_rows == 1328
     assert result.summary.candidate_rows == 20
     assert result.summary.risk_pass_rows == 6
-    assert result.summary.new_positions == 6
+    assert result.summary.pending_orders == 4
+    assert result.summary.executed_orders == 2
+    assert result.summary.skipped_orders == 1
+    assert result.summary.new_positions == 2
     assert result.summary.open_positions == 6
     assert result.summary.closed_positions == 0
     assert result.summary.unrealized_pnl == 1234.5
@@ -41,6 +45,7 @@ def test_run_all_daily_success_writes_summary(tmp_path) -> None:
     assert any("run_daily OK" in message for message in result.messages)
     assert any("export_candidates OK" in message for message in result.messages)
     assert any("paper_trade OK" in message for message in result.messages)
+    assert any("execute_pending_orders OK" in message for message in result.messages)
     assert any("update_paper_positions OK" in message for message in result.messages)
 
 
@@ -55,6 +60,7 @@ def test_run_all_daily_skip_paper_trade_and_update(tmp_path) -> None:
         run_daily_func=_fake_run_daily,
         export_func=_fake_export,
         paper_func=_must_not_run,
+        execute_func=_must_not_run,
         update_func=_must_not_run,
     )
 
@@ -78,6 +84,7 @@ def test_run_all_daily_step_failure_is_summarized_without_traceback(tmp_path) ->
         run_daily_func=_fake_run_daily,
         export_func=broken_export,
         paper_func=_fake_paper,
+        execute_func=_fake_execute,
         update_func=_fake_update,
     )
 
@@ -116,6 +123,7 @@ def test_run_all_daily_without_date_falls_back_to_latest_sqlite_date(tmp_path) -
         run_daily_func=fake_run_daily,
         export_func=_fake_export,
         paper_func=_fake_paper,
+        execute_func=_fake_execute,
         update_func=_fake_update,
     )
 
@@ -153,6 +161,7 @@ def test_run_all_daily_fallback_overwrites_requested_date_failed_summary(tmp_pat
         run_daily_func=fake_run_daily,
         export_func=_fake_export,
         paper_func=_fake_paper,
+        execute_func=_fake_execute,
         update_func=_fake_flat_update,
     )
 
@@ -185,6 +194,7 @@ def test_run_all_daily_without_sqlite_data_fails_when_fallback_is_enabled(tmp_pa
         run_daily_func=_fake_run_daily,
         export_func=_fake_export,
         paper_func=_fake_paper,
+        execute_func=_fake_execute,
         update_func=_fake_update,
     )
 
@@ -208,6 +218,7 @@ def test_run_all_daily_with_explicit_date_runs_requested_date_normally(tmp_path)
         run_daily_func=fake_run_daily,
         export_func=_fake_export,
         paper_func=_fake_paper,
+        execute_func=_fake_execute,
         update_func=_fake_update,
     )
 
@@ -273,8 +284,36 @@ def _fake_paper(*_args, **_kwargs):
         trade_date=pd.Timestamp("2026-05-08"),
         new_positions=pd.DataFrame({"stock_id": range(6)}),
         positions=pd.DataFrame({"stock_id": range(6)}),
+        pending_orders=pd.DataFrame(
+            {"stock_id": range(6), "status": ["PENDING", "PENDING", "PENDING", "PENDING", "EXECUTED", "SKIPPED_EXISTING_POSITION"]}
+        ),
         skipped_existing=[],
         warning="",
+    )
+
+
+def _fake_execute(*_args, **_kwargs):
+    return SimpleNamespace(
+        pending_orders=pd.DataFrame(
+            {
+                "stock_id": range(7),
+                "status": [
+                    "PENDING",
+                    "PENDING",
+                    "PENDING",
+                    "PENDING",
+                    "EXECUTED",
+                    "EXECUTED",
+                    "SKIPPED_EXISTING_POSITION",
+                ],
+                "entry_price_source": ["", "", "", "", "OPEN", "CLOSE_FALLBACK", ""],
+            }
+        ),
+        executed_orders=pd.DataFrame(
+            {"stock_id": [1, 2], "entry_price_source": ["OPEN", "CLOSE_FALLBACK"]}
+        ),
+        skipped_orders=pd.DataFrame({"stock_id": [3]}),
+        warnings=["2330: 開盤價缺失或無效，改用收盤價成交"],
     )
 
 

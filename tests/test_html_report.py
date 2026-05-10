@@ -24,6 +24,21 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert "非交易日 fallback 說明" in html
 
 
+def test_generate_html_report_creates_docs_index_for_github_pages(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    _write_reports(tmp_path)
+
+    reports_index = generate_html_report(tmp_path, docs_dir=docs_dir)
+    docs_index = docs_dir / "index.html"
+    docs_html = docs_index.read_text(encoding="utf-8")
+
+    assert docs_index.exists()
+    assert docs_html == reports_index.read_text(encoding="utf-8")
+    assert "台股紙上交易每日報表" in docs_html
+    assert "系統狀態總覽" in docs_html
+    assert 'lang="zh-Hant"' in docs_html
+
+
 def test_generate_html_report_translates_fallback_status(tmp_path: Path) -> None:
     _write_reports(tmp_path)
 

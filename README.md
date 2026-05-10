@@ -222,6 +222,7 @@ reports/paper_trades.csv
 reports/paper_summary_YYYYMMDD.csv
 reports/daily_summary_YYYYMMDD.csv
 reports/index.html
+docs/index.html
 ```
 
 `logs/` 仍只供本機 Windows 工作排程使用，不會提交到 GitHub。
@@ -238,9 +239,19 @@ python scripts/generate_html_report.py
 
 ```text
 reports/index.html
+docs/index.html
 ```
 
-HTML 報表會以繁體中文顯示系統狀態總覽、今日候選股、通過風控股票、目前紙上持倉、紙上交易績效、最近每日 summary 與非交易日 fallback 說明。GitHub Actions 每日流程會在 `run_all_daily.py` 後自動產生此報表，並將 `reports/index.html` 一併提交回 repo。
+HTML 報表會以繁體中文顯示系統狀態總覽、今日候選股、通過風控股票、目前紙上持倉、紙上交易績效、最近每日 summary 與非交易日 fallback 說明。GitHub Actions 每日流程會在 `run_all_daily.py` 後自動產生此報表，並將 `reports/index.html` 與 `docs/index.html` 一併提交回 repo。
+
+### GitHub Pages 設定方式
+
+1. 開啟 GitHub repo 的 `Settings`。
+2. 點選左側 `Pages`。
+3. `Source` 選 `Deploy from a branch`。
+4. `Branch` 選 `main`。
+5. `Folder` 選 `/docs`。
+6. 儲存後等待 GitHub Pages 部署完成，即可用手機瀏覽 `docs/index.html` 對應的公開頁面。
 
 ## 歷史資料回補
 

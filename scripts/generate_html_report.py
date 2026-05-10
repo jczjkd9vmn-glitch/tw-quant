@@ -107,7 +107,10 @@ STATUS_COLUMNS = {"status", "exit_reason", "fallback_reason", "is_candidate", "r
 DATE_COLUMNS = {"trade_date", "requested_date", "fallback_date", "exit_date"}
 
 
-def generate_html_report(reports_dir: str | Path = ROOT / "reports") -> Path:
+def generate_html_report(
+    reports_dir: str | Path = ROOT / "reports",
+    docs_dir: str | Path | None = None,
+) -> Path:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
 
@@ -129,6 +132,10 @@ def generate_html_report(reports_dir: str | Path = ROOT / "reports") -> Path:
 
     output_path = report_dir / "index.html"
     output_path.write_text(html, encoding="utf-8")
+    if docs_dir is not None:
+        docs_path = Path(docs_dir)
+        docs_path.mkdir(parents=True, exist_ok=True)
+        (docs_path / "index.html").write_text(html, encoding="utf-8")
     return output_path
 
 
@@ -533,10 +540,12 @@ tr:last-child td{border-bottom:0}
 def main(argv: Iterable[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="產生繁體中文靜態 HTML 報表。")
     parser.add_argument("--reports-dir", default=str(ROOT / "reports"))
+    parser.add_argument("--docs-dir", default=str(ROOT / "docs"))
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    output_path = generate_html_report(args.reports_dir)
+    output_path = generate_html_report(args.reports_dir, docs_dir=args.docs_dir)
     print(f"html_report={output_path}")
+    print(f"pages_report={Path(args.docs_dir) / 'index.html'}")
 
 
 if __name__ == "__main__":

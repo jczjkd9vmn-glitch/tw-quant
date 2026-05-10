@@ -21,6 +21,18 @@ def main() -> None:
     parser.add_argument("--reports-dir", default=str(ROOT / "reports"))
     parser.add_argument("--skip-paper-trade", action="store_true")
     parser.add_argument("--skip-update", action="store_true")
+    parser.add_argument(
+        "--allow-fallback-latest",
+        action="store_true",
+        default=True,
+        help="Use latest SQLite trading date when no requested date has valid TWSE data.",
+    )
+    parser.add_argument(
+        "--no-allow-fallback-latest",
+        dest="allow_fallback_latest",
+        action="store_false",
+        help="Disable fallback to latest SQLite trading date.",
+    )
     args = parser.parse_args()
 
     result = run_all_daily(
@@ -30,6 +42,7 @@ def main() -> None:
         reports_dir=args.reports_dir,
         skip_paper_trade=args.skip_paper_trade,
         skip_update=args.skip_update,
+        allow_fallback_latest=args.allow_fallback_latest,
     )
 
     for message in result.messages:

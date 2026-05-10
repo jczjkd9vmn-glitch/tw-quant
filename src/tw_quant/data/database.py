@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
@@ -85,6 +85,15 @@ def load_existing_price_dates(engine: Engine) -> set:
     with engine.connect() as conn:
         rows = conn.execute(stmt).scalars().all()
     return {pd.to_datetime(row).date() for row in rows}
+
+
+def load_latest_price_date(engine: Engine) -> date | None:
+    stmt = select(daily_prices.c.trade_date).order_by(daily_prices.c.trade_date.desc()).limit(1)
+    with engine.connect() as conn:
+        row = conn.execute(stmt).scalar_one_or_none()
+    if row is None:
+        return None
+    return pd.to_datetime(row).date()
 
 
 def save_candidate_scores(engine: Engine, scores: pd.DataFrame) -> int:

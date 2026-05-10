@@ -37,7 +37,7 @@ jobs:
         run: python scripts/backfill.py --days 10 --timeout 30 --retries 3 --sleep 1
 
       - name: Run daily paper trading workflow
-        run: python scripts/run_all_daily.py --capital 1000000
+        run: python scripts/run_all_daily.py --capital 1000000 --allow-fallback-latest
 
       - name: Commit updated data and reports
         shell: bash

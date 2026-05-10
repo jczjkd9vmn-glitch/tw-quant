@@ -17,7 +17,7 @@ def test_daily_github_actions_workflow_exists_and_contains_required_steps() -> N
     assert 'python-version: "3.12"' in text
     assert "python -m pytest" in text
     assert "python scripts/backfill.py --days 10 --timeout 30 --retries 3 --sleep 1" in text
-    assert "python scripts/run_all_daily.py --capital 1000000" in text
+    assert "python scripts/run_all_daily.py --capital 1000000 --allow-fallback-latest" in text
     assert "git add data/ reports/" in text
     assert "git diff --cached --quiet" in text
 

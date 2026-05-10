@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
+from tw_quant.data.database import create_db_engine, init_db, save_daily_prices
 from tw_quant.workflow.daily import run_all_daily
 
 
@@ -89,10 +90,112 @@ def test_run_all_daily_step_failure_is_summarized_without_traceback(tmp_path) ->
     assert exported.iloc[0]["status"] == "FAILED"
 
 
-def _config(tmp_path) -> str:
+def test_run_all_daily_without_date_falls_back_to_latest_sqlite_date(tmp_path) -> None:
+    db_url = _sqlite_url(tmp_path)
+    config_path = _config(tmp_path, database_url=db_url)
+    engine = create_db_engine(db_url)
+    init_db(engine)
+    save_daily_prices(engine, _price_frame("20260508"))
+    calls = {}
+
+    def fake_run_daily(**kwargs):
+        calls.update(kwargs)
+        return SimpleNamespace(
+            trade_date=kwargs["trade_date"],
+            fetched_rows=0,
+            scored_rows=1328,
+            candidate_rows=20,
+            message="",
+        )
+
+    result = run_all_daily(
+        config_path=config_path,
+        trade_date=None,
+        capital=1_000_000,
+        reports_dir=tmp_path / "reports",
+        run_daily_func=fake_run_daily,
+        export_func=_fake_export,
+        paper_func=_fake_paper,
+        update_func=_fake_update,
+    )
+
+    assert result.summary.status == "OK"
+    assert calls["trade_date"] == date(2026, 5, 8)
+    assert calls["fetch"] is False
+    assert "fallback_date=2026-05-08 reason=no trading data" in result.messages
+
+
+def test_run_all_daily_without_sqlite_data_fails_when_fallback_is_enabled(tmp_path) -> None:
+    config_path = _config(tmp_path, database_url=_sqlite_url(tmp_path))
+
+    result = run_all_daily(
+        config_path=config_path,
+        trade_date=None,
+        capital=1_000_000,
+        reports_dir=tmp_path / "reports",
+        run_daily_func=_fake_run_daily,
+        export_func=_fake_export,
+        paper_func=_fake_paper,
+        update_func=_fake_update,
+    )
+
+    assert result.summary.status == "FAILED"
+    assert result.summary.error_step == "run_daily"
+    assert "no price history available for fallback" in result.summary.error_message
+
+
+def test_run_all_daily_with_explicit_date_runs_requested_date_normally(tmp_path) -> None:
+    calls = {}
+
+    def fake_run_daily(**kwargs):
+        calls.update(kwargs)
+        return _fake_run_daily(**kwargs)
+
+    result = run_all_daily(
+        config_path=_config(tmp_path),
+        trade_date="20260508",
+        capital=1_000_000,
+        reports_dir=tmp_path / "reports",
+        run_daily_func=fake_run_daily,
+        export_func=_fake_export,
+        paper_func=_fake_paper,
+        update_func=_fake_update,
+    )
+
+    assert result.summary.status == "OK"
+    assert calls["trade_date"] == "20260508"
+    assert calls["fetch"] is True
+    assert not any(message.startswith("fallback_date=") for message in result.messages)
+
+
+def _config(tmp_path, database_url: str = "sqlite:///:memory:") -> str:
     path = tmp_path / "config.yaml"
-    path.write_text("database:\n  url: sqlite:///:memory:\n", encoding="utf-8")
+    path.write_text(f"database:\n  url: {database_url}\n", encoding="utf-8")
     return str(path)
+
+
+def _sqlite_url(tmp_path) -> str:
+    return f"sqlite:///{(tmp_path / 'tw_quant.sqlite').as_posix()}"
+
+
+def _price_frame(trade_date: str) -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "trade_date": trade_date,
+                "symbol": "2330",
+                "name": "TSMC",
+                "open": 100.0,
+                "high": 105.0,
+                "low": 99.0,
+                "close": 104.0,
+                "volume": 2_000_000,
+                "turnover": 208_000_000,
+                "market": "TSE",
+                "source": "TEST",
+            }
+        ]
+    )
 
 
 def _fake_run_daily(**_kwargs):

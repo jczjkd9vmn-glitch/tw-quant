@@ -18,12 +18,18 @@ def main() -> None:
     parser.add_argument("--config", default=str(ROOT / "config.yaml"))
     parser.add_argument("--date", default=None, help="Trade date, e.g. 2026-05-08")
     parser.add_argument("--no-fetch", action="store_true", help="Use existing SQLite data only.")
+    parser.add_argument(
+        "--allow-fallback-latest",
+        action="store_true",
+        help="Use latest SQLite trading date if the requested date has no TWSE stock data.",
+    )
     args = parser.parse_args()
 
     result = run_daily_pipeline(
         config_path=args.config,
         trade_date=args.date,
         fetch=not args.no_fetch,
+        allow_fallback_latest=args.allow_fallback_latest,
     )
     print(
         "daily pipeline completed: "
@@ -32,6 +38,9 @@ def main() -> None:
         f"scored_rows={result.scored_rows} "
         f"candidate_rows={result.candidate_rows}"
     )
+    if result.fallback_date:
+        reason = result.fallback_reason or "no trading data"
+        print(f"fallback_date={result.fallback_date} reason={reason}")
     if result.message:
         print(f"warning: {result.message}")
 

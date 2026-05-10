@@ -10,7 +10,8 @@ from typing import Any, Callable
 import pandas as pd
 
 from tw_quant.config import load_config
-from tw_quant.data.database import create_db_engine, init_db
+from tw_quant.data.database import create_db_engine, init_db, load_latest_price_date
+from tw_quant.data.exceptions import TradingHalted
 from tw_quant.data.pipeline import run_daily_pipeline
 from tw_quant.reporting.export import export_latest_candidates
 from tw_quant.trading.paper import run_paper_trade
@@ -52,6 +53,7 @@ def run_all_daily(
     reports_dir: str | Path = "reports",
     skip_paper_trade: bool = False,
     skip_update: bool = False,
+    allow_fallback_latest: bool = True,
     run_daily_func: Callable[..., Any] = run_daily_pipeline,
     export_func: Callable[..., Any] = export_latest_candidates,
     paper_func: Callable[..., Any] = run_paper_trade,
@@ -64,7 +66,19 @@ def run_all_daily(
     daily_result = export_result = paper_result = update_result = None
 
     try:
-        daily_result = run_daily_func(config_path=config_path, trade_date=trade_date, fetch=True)
+        effective_trade_date, fallback_message = _resolve_trade_date(
+            config_path=config_path,
+            trade_date=trade_date,
+            allow_fallback_latest=allow_fallback_latest,
+        )
+        if fallback_message:
+            messages.append(fallback_message)
+        daily_result = run_daily_func(
+            config_path=config_path,
+            trade_date=effective_trade_date,
+            fetch=fallback_message == "",
+            allow_fallback_latest=allow_fallback_latest,
+        )
         summary_values["trade_date"] = _date_text(daily_result.trade_date)
         summary_values["scored_rows"] = int(daily_result.scored_rows)
         summary_values["candidate_rows"] = int(daily_result.candidate_rows)
@@ -75,6 +89,10 @@ def run_all_daily(
             f"scored_rows={daily_result.scored_rows} "
             f"candidate_rows={daily_result.candidate_rows}"
         )
+        fallback_date = getattr(daily_result, "fallback_date", None)
+        if fallback_date is not None and not fallback_message:
+            reason = getattr(daily_result, "fallback_reason", "") or "no trading data"
+            messages.append(f"fallback_date={_date_text(fallback_date)} reason={reason}")
         if getattr(daily_result, "message", ""):
             messages.append(f"run_daily warning {daily_result.message}")
     except Exception as exc:
@@ -149,7 +167,7 @@ def run_all_daily(
             update_result = update_func(
                 engine=engine,
                 reports_dir=report_dir,
-                trade_date=trade_date,
+                trade_date=summary_values["trade_date"],
                 capital=capital,
             )
             if getattr(update_result, "warning", ""):
@@ -187,6 +205,23 @@ def run_all_daily(
         paper_result=paper_result,
         update_result=update_result,
     )
+
+
+def _resolve_trade_date(
+    config_path: str | Path,
+    trade_date: str | date | None,
+    allow_fallback_latest: bool,
+) -> tuple[str | date | None, str]:
+    if trade_date is not None or not allow_fallback_latest:
+        return trade_date, ""
+
+    config = load_config(config_path)
+    engine = create_db_engine(config["database"]["url"])
+    init_db(engine)
+    latest_date = load_latest_price_date(engine)
+    if latest_date is None:
+        raise TradingHalted("no price history available for fallback")
+    return latest_date, f"fallback_date={latest_date} reason=no trading data"
 
 
 def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, Any]:

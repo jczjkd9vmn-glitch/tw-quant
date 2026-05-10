@@ -65,6 +65,12 @@ python scripts/run_daily.py --date 2026-05-08
 python scripts/run_daily.py --date 2026-05-08 --no-fetch
 ```
 
+若指定日期沒有 TWSE 個股收盤資料，但想改用 SQLite 最新交易日繼續評分，可加上：
+
+```powershell
+python scripts/run_daily.py --date 20260510 --allow-fallback-latest
+```
+
 ## 一鍵每日流程
 
 依序執行每日抓取與評分、候選股匯出、建立新紙上持倉、更新紙上損益：
@@ -72,6 +78,8 @@ python scripts/run_daily.py --date 2026-05-08 --no-fetch
 ```powershell
 python scripts/run_all_daily.py --date 20260508 --capital 1000000
 ```
+
+若未指定 `--date`，`run_all_daily.py` 預設啟用 `--allow-fallback-latest`，會先使用 SQLite 內最新有效交易日，不會直接以今天抓取 TWSE。若指定日期沒有個股收盤資料且允許 fallback，console 會顯示 `fallback_date=YYYY-MM-DD reason=no trading data`；若 SQLite 完全沒有交易資料，流程才會失敗。
 
 可指定報告目錄，或略過紙上交易與持倉更新：
 
@@ -149,9 +157,11 @@ C:\Users\lin37\Documents\Codex\2026-05-08\python-1-2-sqlite-3-4
 - 安裝 `requirements.txt`。
 - 執行 `python -m pytest`。
 - 執行 `python scripts/backfill.py --days 10 --timeout 30 --retries 3 --sleep 1`。
-- 執行 `python scripts/run_all_daily.py --capital 1000000`。
+- 執行 `python scripts/run_all_daily.py --capital 1000000 --allow-fallback-latest`。
 - 將 `data/` 與 `reports/` 的變更 commit 回 repo。
 - 若沒有變更，workflow 會顯示 no changes，不會失敗。
+
+非交易日或週末執行時，workflow 會使用 SQLite 最新交易日繼續產生報告，不會因當天沒有 TWSE 個股收盤資料而失敗；只有在 SQLite 完全沒有任何交易資料時才會中止。
 
 ### 建立 private GitHub repo
 

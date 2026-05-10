@@ -40,6 +40,14 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "min_liquidity_value": 5_000_000,
         "max_volatility_20": 0.08,
     },
+    "trading_cost": {
+        "commission_rate": 0.001425,
+        "commission_discount": 1.0,
+        "min_commission": 20,
+        "sell_tax_rate_stock": 0.003,
+        "sell_tax_rate_etf": 0.001,
+        "slippage_rate": 0.001,
+    },
     "backtest": {
         "initial_cash": 1_000_000,
         "top_n": 10,

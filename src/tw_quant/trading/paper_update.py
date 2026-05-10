@@ -9,6 +9,7 @@ import pandas as pd
 from sqlalchemy import Engine
 
 from tw_quant.data.database import load_price_history
+from tw_quant.trading.costs import TradingCostConfig, calculate_exit, total_cost as calculate_total_cost
 from tw_quant.trading.paper import POSITION_COLUMNS
 
 
@@ -37,6 +38,9 @@ SUMMARY_COLUMNS = [
     "unrealized_pnl",
     "realized_pnl",
     "total_equity",
+    "total_cost",
+    "realized_pnl_after_cost",
+    "total_equity_after_cost",
     "open_positions",
     "closed_positions",
 ]
@@ -59,6 +63,7 @@ def update_paper_positions(
     reports_dir: str | Path = "reports",
     trade_date: str | None = None,
     capital: float = 1_000_000,
+    trading_cost: dict | TradingCostConfig | None = None,
 ) -> PaperUpdateResult:
     report_dir = Path(reports_dir)
     trades_path = report_dir / "paper_trades.csv"
@@ -111,7 +116,12 @@ def update_paper_positions(
     close_by_symbol = {
         str(row["symbol"]).strip(): float(row["close"]) for _, row in prices.iterrows()
     }
-    updated = _update_trades(trades, close_by_symbol, selected_date)
+    updated = _update_trades(
+        trades,
+        close_by_symbol,
+        selected_date,
+        _resolve_trading_cost(trading_cost),
+    )
     summary = _build_summary(updated, selected_date, capital)
     report_dir.mkdir(parents=True, exist_ok=True)
     updated.to_csv(trades_path, index=False, encoding="utf-8-sig")
@@ -159,6 +169,7 @@ def _update_trades(
     trades: pd.DataFrame,
     close_by_symbol: dict[str, float],
     trade_date: pd.Timestamp,
+    cost_config: TradingCostConfig,
 ) -> pd.DataFrame:
     frame = trades.copy()
     for index, row in frame.iterrows():
@@ -172,6 +183,8 @@ def _update_trades(
         entry_price = float(row["entry_price"])
         shares = float(row["shares"])
         position_value = float(row["position_value"])
+        entry_slippage = _safe_float(row.get("entry_slippage"))
+        entry_commission = _safe_float(row.get("entry_commission"))
         stop_loss = float(row["stop_loss_price"])
         market_value = round(shares * current_price, 2)
         unrealized_pnl = round(market_value - position_value, 2)
@@ -187,13 +200,35 @@ def _update_trades(
         frame.loc[index, "stop_loss_hit"] = bool(stop_loss_hit)
 
         if stop_loss_hit:
-            realized_pnl = unrealized_pnl
-            realized_pnl_pct = unrealized_pnl_pct
+            exit_costs = calculate_exit(current_price, shares, stock_id, cost_config)
+            exit_price = exit_costs["exit_price"]
+            exit_commission = exit_costs["exit_commission"]
+            exit_tax = exit_costs["exit_tax"]
+            realized_pnl = round(
+                exit_costs["exit_proceeds"] - position_value - entry_commission - exit_commission - exit_tax,
+                2,
+            )
+            cost_basis = position_value + entry_commission
+            realized_pnl_pct = round(realized_pnl / cost_basis, 6) if cost_basis else 0.0
+            trade_total_cost = calculate_total_cost(
+                entry_slippage=entry_slippage,
+                entry_commission=entry_commission,
+                exit_slippage=exit_costs["exit_slippage"],
+                exit_commission=exit_commission,
+                exit_tax=exit_tax,
+                shares=shares,
+            )
             frame.loc[index, "status"] = "CLOSED"
             frame.loc[index, "exit_date"] = trade_date.strftime("%Y-%m-%d")
-            frame.loc[index, "exit_price"] = current_price
+            frame.loc[index, "exit_price"] = exit_price
+            frame.loc[index, "exit_slippage"] = exit_costs["exit_slippage"]
+            frame.loc[index, "exit_commission"] = exit_commission
+            frame.loc[index, "exit_tax"] = exit_tax
+            frame.loc[index, "total_cost"] = trade_total_cost
             frame.loc[index, "realized_pnl"] = realized_pnl
             frame.loc[index, "realized_pnl_pct"] = realized_pnl_pct
+            frame.loc[index, "realized_pnl_after_cost"] = realized_pnl
+            frame.loc[index, "realized_pnl_pct_after_cost"] = realized_pnl_pct
             frame.loc[index, "exit_reason"] = "STOP_LOSS"
             frame.loc[index, "unrealized_pnl"] = 0.0
             frame.loc[index, "unrealized_pnl_pct"] = 0.0
@@ -214,8 +249,13 @@ def _build_summary(
     invested_value = _sum(open_frame, "position_value")
     market_value = _sum(open_frame, "market_value")
     unrealized_pnl = _sum(open_frame, "unrealized_pnl")
-    realized_pnl = _sum(closed_frame, "realized_pnl")
-    cash = round(float(capital) - invested_value + realized_pnl, 2)
+    realized_pnl_after_cost = _sum(closed_frame, "realized_pnl_after_cost")
+    if realized_pnl_after_cost == 0.0 and not _has_numeric(closed_frame, "realized_pnl_after_cost"):
+        realized_pnl_after_cost = _sum(closed_frame, "realized_pnl")
+    realized_pnl = realized_pnl_after_cost
+    open_entry_commission = _sum(open_frame, "entry_commission")
+    total_cost = _sum(frame, "total_cost")
+    cash = round(float(capital) - invested_value - open_entry_commission + realized_pnl_after_cost, 2)
     total_equity = round(cash + market_value, 2)
 
     date_text = trade_date.strftime("%Y-%m-%d") if trade_date is not None else ""
@@ -230,6 +270,9 @@ def _build_summary(
                 "unrealized_pnl": unrealized_pnl,
                 "realized_pnl": realized_pnl,
                 "total_equity": total_equity,
+                "total_cost": total_cost,
+                "realized_pnl_after_cost": realized_pnl_after_cost,
+                "total_equity_after_cost": total_equity,
                 "open_positions": int(len(open_frame)),
                 "closed_positions": int(len(closed_frame)),
             }
@@ -259,3 +302,25 @@ def _sum(frame: pd.DataFrame, column: str) -> float:
     if frame.empty or column not in frame.columns:
         return 0.0
     return round(pd.to_numeric(frame[column], errors="coerce").fillna(0).sum(), 2)
+
+
+def _resolve_trading_cost(trading_cost: dict | TradingCostConfig | None) -> TradingCostConfig:
+    if isinstance(trading_cost, TradingCostConfig):
+        return trading_cost
+    return TradingCostConfig.from_mapping(trading_cost)
+
+
+def _safe_float(value: object) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    if pd.isna(parsed):
+        return 0.0
+    return parsed
+
+
+def _has_numeric(frame: pd.DataFrame, column: str) -> bool:
+    if frame.empty or column not in frame.columns:
+        return False
+    return pd.to_numeric(frame[column], errors="coerce").notna().any()

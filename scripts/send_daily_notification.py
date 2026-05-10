@@ -73,6 +73,9 @@ def build_notification_message(summary: dict[str, object], pages_url: str | None
         f"未實現損益：{_format_signed(summary.get('unrealized_pnl'))}",
         f"已實現損益：{_format_signed(summary.get('realized_pnl'))}",
         f"總資產：{_format_amount(summary.get('total_equity'))}",
+        f"累計交易成本：{_format_amount(summary.get('total_cost'))}",
+        f"扣成本後已實現損益：{_format_signed(summary.get('realized_pnl_after_cost'))}",
+        f"扣成本後總資產：{_format_amount(summary.get('total_equity_after_cost'))}",
         f"GitHub Pages 報表網址：{pages or '尚未設定'}",
     ]
     return "\n".join(lines)

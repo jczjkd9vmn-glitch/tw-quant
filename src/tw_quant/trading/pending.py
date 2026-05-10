@@ -9,6 +9,7 @@ import pandas as pd
 from sqlalchemy import Engine
 
 from tw_quant.data.database import load_price_history
+from tw_quant.trading.costs import TradingCostConfig, calculate_entry
 from tw_quant.trading.paper import PENDING_ORDER_COLUMNS, POSITION_COLUMNS
 
 
@@ -32,11 +33,14 @@ def execute_pending_orders(
     engine: Engine,
     reports_dir: str | Path = "reports",
     capital: float = 1_000_000,
+    trading_cost: dict | TradingCostConfig | None = None,
 ) -> PendingExecutionResult:
     report_dir = Path(reports_dir)
     trades_path = report_dir / "paper_trades.csv"
     pending_files = sorted(report_dir.glob("pending_orders_*.csv"))
     trades = _load_trades(trades_path)
+    cost_config = _resolve_trading_cost(trading_cost)
+    available_cash = _available_cash(trades, capital)
     open_ids = set(trades[trades["status"] == "OPEN"]["stock_id"]) if not trades.empty else set()
     executed_rows: list[dict] = []
     skipped_rows: list[dict] = []
@@ -66,16 +70,26 @@ def execute_pending_orders(
                 warnings.append(f"{stock_id}: {warning}")
                 continue
 
-            entry_date, entry_price, entry_source, warning = entry
+            entry_date, raw_entry_price, entry_source, warning = entry
             suggested_pct = _safe_float(row.get("suggested_position_pct")) or 0.0
             target_value = float(capital) * suggested_pct
-            shares = int(target_value // entry_price) if entry_price > 0 else 0
+            shares = _calculate_affordable_shares(
+                target_value=target_value,
+                available_cash=available_cash,
+                raw_entry_price=raw_entry_price,
+                cost_config=cost_config,
+            )
             if shares <= 0:
                 orders = _mark_skipped(orders, index, "建議部位不足以建立整股持倉")
                 skipped_rows.append(orders.loc[index].to_dict())
                 continue
 
-            position_value = round(shares * entry_price, 2)
+            entry_costs = calculate_entry(raw_entry_price, shares, cost_config)
+            entry_price = entry_costs["entry_price"]
+            entry_slippage = entry_costs["entry_slippage"]
+            position_value = entry_costs["position_value"]
+            entry_commission = entry_costs["entry_commission"]
+            available_cash = round(available_cash - position_value - entry_commission, 2)
             orders.loc[index, "status"] = EXECUTED_STATUS
             orders.loc[index, "actual_entry_date"] = entry_date.strftime("%Y-%m-%d")
             orders.loc[index, "entry_price"] = entry_price
@@ -93,6 +107,8 @@ def execute_pending_orders(
                 entry_source=entry_source,
                 shares=shares,
                 position_value=position_value,
+                entry_slippage=entry_slippage,
+                entry_commission=entry_commission,
             )
             trades = _append_trade(trades, trade)
             open_ids.add(stock_id)
@@ -154,6 +170,8 @@ def _build_trade_row(
     entry_source: str,
     shares: int,
     position_value: float,
+    entry_slippage: float,
+    entry_commission: float,
 ) -> dict:
     return {
         "signal_date": str(order.get("signal_date", "")),
@@ -166,6 +184,14 @@ def _build_trade_row(
         "entry_price": entry_price,
         "shares": shares,
         "position_value": position_value,
+        "entry_slippage": entry_slippage,
+        "entry_commission": entry_commission,
+        "exit_slippage": "",
+        "exit_commission": "",
+        "exit_tax": "",
+        "total_cost": entry_commission,
+        "realized_pnl_after_cost": "",
+        "realized_pnl_pct_after_cost": "",
         "stop_loss_price": float(order["stop_loss_price"]),
         "suggested_position_pct": float(order["suggested_position_pct"]),
         "status": "OPEN",
@@ -213,6 +239,56 @@ def _append_trade(existing: pd.DataFrame, trade: dict) -> pd.DataFrame:
     if existing.empty:
         return new_frame[columns].copy()
     return pd.concat([existing, new_frame], ignore_index=True)[columns]
+
+
+def _resolve_trading_cost(trading_cost: dict | TradingCostConfig | None) -> TradingCostConfig:
+    if isinstance(trading_cost, TradingCostConfig):
+        return trading_cost
+    return TradingCostConfig.from_mapping(trading_cost)
+
+
+def _calculate_affordable_shares(
+    *,
+    target_value: float,
+    available_cash: float,
+    raw_entry_price: float,
+    cost_config: TradingCostConfig,
+) -> int:
+    if target_value <= 0 or available_cash <= 0 or raw_entry_price <= 0:
+        return 0
+    adjusted_price = calculate_entry(raw_entry_price, 1, cost_config)["entry_price"]
+    shares = int(min(target_value, available_cash) // adjusted_price) if adjusted_price > 0 else 0
+    while shares > 0:
+        entry_costs = calculate_entry(raw_entry_price, shares, cost_config)
+        required_cash = entry_costs["position_value"] + entry_costs["entry_commission"]
+        if entry_costs["position_value"] <= target_value + 0.0001 and required_cash <= available_cash + 0.0001:
+            return shares
+        shares -= 1
+    return 0
+
+
+def _available_cash(trades: pd.DataFrame, capital: float) -> float:
+    if trades.empty:
+        return round(float(capital), 2)
+    open_frame = trades[trades["status"] == "OPEN"].copy()
+    closed_frame = trades[trades["status"] == "CLOSED"].copy()
+    open_cash_used = _sum(open_frame, "position_value") + _sum(open_frame, "entry_commission")
+    realized_after_cost = _sum(closed_frame, "realized_pnl_after_cost")
+    if realized_after_cost == 0.0 and not _has_numeric(closed_frame, "realized_pnl_after_cost"):
+        realized_after_cost = _sum(closed_frame, "realized_pnl")
+    return round(float(capital) - open_cash_used + realized_after_cost, 2)
+
+
+def _sum(frame: pd.DataFrame, column: str) -> float:
+    if frame.empty or column not in frame.columns:
+        return 0.0
+    return round(pd.to_numeric(frame[column], errors="coerce").fillna(0.0).sum(), 2)
+
+
+def _has_numeric(frame: pd.DataFrame, column: str) -> bool:
+    if frame.empty or column not in frame.columns:
+        return False
+    return pd.to_numeric(frame[column], errors="coerce").notna().any()
 
 
 def _safe_float(value: object) -> float | None:

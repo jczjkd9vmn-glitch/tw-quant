@@ -31,6 +31,7 @@ def main() -> None:
         reports_dir=args.reports_dir,
         trade_date=args.date,
         capital=args.capital,
+        trading_cost=config.get("trading_cost", {}),
     )
 
     if result.warning:

@@ -39,6 +39,9 @@ def test_build_notification_message_uses_traditional_chinese_and_fallback_url(mo
     assert "未實現損益：+1,234" in message
     assert "已實現損益：0" in message
     assert "總資產：1,001,234" in message
+    assert "累計交易成本：123" in message
+    assert "扣成本後已實現損益：-123" in message
+    assert "扣成本後總資產：1,001,111" in message
     assert "GitHub Pages 報表網址：https://owner.github.io/tw-quant/" in message
 
 
@@ -115,5 +118,8 @@ def _summary_row() -> dict[str, object]:
         "unrealized_pnl": 1234.0,
         "realized_pnl": 0.0,
         "total_equity": 1_001_234.0,
+        "total_cost": 123.0,
+        "realized_pnl_after_cost": -123.0,
+        "total_equity_after_cost": 1_001_111.0,
         "status": "OK_WITH_FALLBACK",
     }

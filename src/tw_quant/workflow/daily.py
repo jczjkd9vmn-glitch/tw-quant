@@ -31,6 +31,9 @@ class DailyWorkflowSummary:
     unrealized_pnl: float
     realized_pnl: float
     total_equity: float
+    total_cost: float = 0.0
+    realized_pnl_after_cost: float = 0.0
+    total_equity_after_cost: float = 0.0
     pending_orders: int = 0
     executed_orders: int = 0
     skipped_orders: int = 0
@@ -182,7 +185,15 @@ def run_all_daily(
             )
 
         try:
-            execute_result = execute_func(engine=engine, reports_dir=report_dir, capital=capital)
+            try:
+                execute_result = execute_func(
+                    engine=engine,
+                    reports_dir=report_dir,
+                    capital=capital,
+                    trading_cost=config.get("trading_cost", {}),
+                )
+            except TypeError:
+                execute_result = execute_func(engine=engine, reports_dir=report_dir, capital=capital)
             pending_count = _count_status(execute_result.pending_orders, "PENDING")
             warning_count = _count_entry_price_warnings(execute_result)
             summary_values["pending_orders"] = pending_count
@@ -216,12 +227,21 @@ def run_all_daily(
         messages.append("update_paper_positions SKIP")
     else:
         try:
-            update_result = update_func(
-                engine=engine,
-                reports_dir=report_dir,
-                trade_date=summary_values["trade_date"],
-                capital=capital,
-            )
+            try:
+                update_result = update_func(
+                    engine=engine,
+                    reports_dir=report_dir,
+                    trade_date=summary_values["trade_date"],
+                    capital=capital,
+                    trading_cost=config.get("trading_cost", {}),
+                )
+            except TypeError:
+                update_result = update_func(
+                    engine=engine,
+                    reports_dir=report_dir,
+                    trade_date=summary_values["trade_date"],
+                    capital=capital,
+                )
             if getattr(update_result, "warning", ""):
                 messages.append(f"update_paper_positions warning {update_result.warning}")
             else:
@@ -298,6 +318,9 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "unrealized_pnl": 0.0,
         "realized_pnl": 0.0,
         "total_equity": float(capital),
+        "total_cost": 0.0,
+        "realized_pnl_after_cost": 0.0,
+        "total_equity_after_cost": float(capital),
         "pending_orders": 0,
         "executed_orders": 0,
         "skipped_orders": 0,
@@ -359,6 +382,13 @@ def _merge_update_summary(summary_values: dict[str, Any], update_summary: pd.Dat
     summary_values["unrealized_pnl"] = float(row.get("unrealized_pnl", 0.0))
     summary_values["realized_pnl"] = float(row.get("realized_pnl", 0.0))
     summary_values["total_equity"] = float(row.get("total_equity", summary_values["total_equity"]))
+    summary_values["total_cost"] = float(row.get("total_cost", 0.0))
+    summary_values["realized_pnl_after_cost"] = float(
+        row.get("realized_pnl_after_cost", summary_values["realized_pnl"])
+    )
+    summary_values["total_equity_after_cost"] = float(
+        row.get("total_equity_after_cost", summary_values["total_equity"])
+    )
 
 
 def _count_status(frame: pd.DataFrame, status: str) -> int:

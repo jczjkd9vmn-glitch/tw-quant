@@ -21,6 +21,7 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert "待進場清單" in html
     assert "已成交持倉" in html
     assert "紙上交易績效" in html
+    assert "交易成本摘要" in html
     assert "最近每日 summary" in html
     assert "非交易日替代交易日說明" in html
 
@@ -105,6 +106,9 @@ def _write_reports(path: Path) -> None:
                 "unrealized_pnl": 1234.0,
                 "realized_pnl": 0.0,
                 "total_equity": 1_001_234.0,
+                "total_cost": 123.0,
+                "realized_pnl_after_cost": -123.0,
+                "total_equity_after_cost": 1_001_111.0,
                 "status": "OK_WITH_FALLBACK",
             }
         ]
@@ -167,6 +171,14 @@ def _write_reports(path: Path) -> None:
                 "entry_price": 1000.0,
                 "shares": 100,
                 "position_value": 100000.0,
+                "entry_slippage": 1.0,
+                "entry_commission": 20.0,
+                "exit_slippage": "",
+                "exit_commission": "",
+                "exit_tax": "",
+                "total_cost": 20.0,
+                "realized_pnl_after_cost": "",
+                "realized_pnl_pct_after_cost": "",
                 "stop_loss_price": 920.0,
                 "suggested_position_pct": 0.1,
                 "status": "OPEN",
@@ -196,6 +208,9 @@ def _write_reports(path: Path) -> None:
                 "unrealized_pnl": 1000.0,
                 "realized_pnl": 0.0,
                 "total_equity": 1_001_000.0,
+                "total_cost": 20.0,
+                "realized_pnl_after_cost": 0.0,
+                "total_equity_after_cost": 1_000_980.0,
                 "open_positions": 1,
                 "closed_positions": 0,
             }

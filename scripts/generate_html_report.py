@@ -31,6 +31,9 @@ COLUMN_LABELS = {
     "unrealized_pnl": "未實現損益",
     "realized_pnl": "已實現損益",
     "total_equity": "總資產",
+    "total_cost": "累計交易成本",
+    "realized_pnl_after_cost": "扣成本後已實現損益",
+    "total_equity_after_cost": "扣成本後總資產",
     "total_capital": "初始資金",
     "invested_value": "投入金額",
     "market_value": "目前市值",
@@ -51,6 +54,8 @@ COLUMN_LABELS = {
     "stop_loss_price": "停損價",
     "suggested_position_pct": "建議部位",
     "entry_price": "進場價",
+    "entry_slippage": "進場滑價",
+    "entry_commission": "買進手續費",
     "shares": "股數",
     "position_value": "投入金額",
     "status": "狀態",
@@ -67,7 +72,11 @@ COLUMN_LABELS = {
     "stop_loss_hit": "是否觸及停損",
     "exit_date": "出場日",
     "exit_price": "出場價",
+    "exit_slippage": "出場滑價",
+    "exit_commission": "賣出手續費",
+    "exit_tax": "交易稅",
     "realized_pnl_pct": "已實現損益率",
+    "realized_pnl_pct_after_cost": "扣成本後已實現損益率",
     "exit_reason": "出場原因",
     "error_step": "失敗步驟",
     "error_message": "錯誤訊息",
@@ -108,10 +117,35 @@ SCORE_COLUMNS = {
     "chip_score",
     "risk_score",
 }
-PERCENT_COLUMNS = {"suggested_position_pct", "unrealized_pnl_pct", "realized_pnl_pct"}
-PRICE_COLUMNS = {"close", "stop_loss_price", "entry_price", "current_price", "exit_price"}
-AMOUNT_COLUMNS = {"total_capital", "invested_value", "market_value", "cash", "total_equity", "position_value"}
-PNL_COLUMNS = {"unrealized_pnl", "realized_pnl"}
+PERCENT_COLUMNS = {
+    "suggested_position_pct",
+    "unrealized_pnl_pct",
+    "realized_pnl_pct",
+    "realized_pnl_pct_after_cost",
+}
+PRICE_COLUMNS = {
+    "close",
+    "stop_loss_price",
+    "entry_price",
+    "entry_slippage",
+    "current_price",
+    "exit_price",
+    "exit_slippage",
+}
+AMOUNT_COLUMNS = {
+    "total_capital",
+    "invested_value",
+    "market_value",
+    "cash",
+    "total_equity",
+    "total_equity_after_cost",
+    "position_value",
+    "entry_commission",
+    "exit_commission",
+    "exit_tax",
+    "total_cost",
+}
+PNL_COLUMNS = {"unrealized_pnl", "realized_pnl", "realized_pnl_after_cost"}
 INTEGER_COLUMNS = {
     "rank",
     "scored_rows",
@@ -277,6 +311,7 @@ def _render_page(
                         "stock_name",
                         "entry_price",
                         "entry_price_source",
+                        "entry_commission",
                         "shares",
                         "market_value",
                         "unrealized_pnl",
@@ -290,6 +325,7 @@ def _render_page(
                 ),
             ),
             _section("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades)),
+            _section("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary)),
             _section(
                 "最近每日 summary",
                 _table(
@@ -312,6 +348,9 @@ def _render_page(
                         "unrealized_pnl",
                         "realized_pnl",
                         "total_equity",
+                        "total_cost",
+                        "realized_pnl_after_cost",
+                        "total_equity_after_cost",
                     ],
                     "目前尚無每日 summary",
                     max_rows=10,
@@ -345,6 +384,9 @@ def _status_overview(summary: dict[str, object]) -> str:
         ("未實現損益", _format_cell("unrealized_pnl", summary.get("unrealized_pnl"))),
         ("已實現損益", _format_cell("realized_pnl", summary.get("realized_pnl"))),
         ("總資產", _format_cell("total_equity", summary.get("total_equity"))),
+        ("累計交易成本", _format_cell("total_cost", summary.get("total_cost"))),
+        ("扣成本後已實現損益", _format_cell("realized_pnl_after_cost", summary.get("realized_pnl_after_cost"))),
+        ("扣成本後總資產", _format_cell("total_equity_after_cost", summary.get("total_equity_after_cost"))),
     ]
     return '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
 
@@ -360,6 +402,9 @@ def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) 
             ("未實現損益", _format_cell("unrealized_pnl", summary.get("unrealized_pnl"))),
             ("已實現損益", _format_cell("realized_pnl", summary.get("realized_pnl"))),
             ("總資產", _format_cell("total_equity", summary.get("total_equity"))),
+            ("累計交易成本", _format_cell("total_cost", summary.get("total_cost"))),
+            ("扣成本後已實現損益", _format_cell("realized_pnl_after_cost", summary.get("realized_pnl_after_cost"))),
+            ("扣成本後總資產", _format_cell("total_equity_after_cost", summary.get("total_equity_after_cost"))),
         ]
         blocks.append('<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>")
     else:
@@ -376,8 +421,13 @@ def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) 
                 "entry_price",
                 "exit_date",
                 "exit_price",
+                "exit_commission",
+                "exit_tax",
+                "total_cost",
                 "realized_pnl",
                 "realized_pnl_pct",
+                "realized_pnl_after_cost",
+                "realized_pnl_pct_after_cost",
                 "exit_reason",
                 "status",
             ],
@@ -386,6 +436,18 @@ def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) 
         )
     )
     return "".join(blocks)
+
+
+def _cost_overview(daily_summary: dict[str, object], paper_summary: dict[str, object]) -> str:
+    summary = paper_summary or daily_summary
+    if not summary:
+        return _empty("目前尚無交易成本資料")
+    cards = [
+        ("累計交易成本", _format_cell("total_cost", summary.get("total_cost"))),
+        ("扣成本後已實現損益", _format_cell("realized_pnl_after_cost", summary.get("realized_pnl_after_cost"))),
+        ("扣成本後總資產", _format_cell("total_equity_after_cost", summary.get("total_equity_after_cost"))),
+    ]
+    return '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
 
 
 def _fallback_note(summary: dict[str, object]) -> str:

@@ -97,7 +97,7 @@ python scripts/run_all_daily.py --date 20260508 --skip-update
 reports/daily_summary_YYYYMMDD.csv
 ```
 
-summary 包含 `trade_date`、`scored_rows`、`candidate_rows`、`risk_pass_rows`、`new_positions`、`open_positions`、`closed_positions`、`unrealized_pnl`、`realized_pnl` 與 `total_equity`。
+summary 包含 `trade_date`、`scored_rows`、`candidate_rows`、`risk_pass_rows`、`new_positions`、`open_positions`、`closed_positions`、`unrealized_pnl`、`realized_pnl`、`total_equity`、`total_cost`、`realized_pnl_after_cost` 與 `total_equity_after_cost`。
 
 ## Windows 每日自動執行
 
@@ -242,7 +242,7 @@ reports/index.html
 docs/index.html
 ```
 
-HTML 報表會以繁體中文顯示系統狀態總覽、今日候選股、通過風控股票、待進場清單、已成交持倉、紙上交易績效、最近每日 summary 與非交易日替代交易日說明。GitHub Actions 每日流程會在 `run_all_daily.py` 後自動產生此報表，並將 `reports/index.html` 與 `docs/index.html` 一併提交回 repo。
+HTML 報表會以繁體中文顯示系統狀態總覽、今日候選股、通過風控股票、待進場清單、已成交持倉、紙上交易績效、交易成本摘要、最近每日 summary 與非交易日替代交易日說明。GitHub Actions 每日流程會在 `run_all_daily.py` 後自動產生此報表，並將 `reports/index.html` 與 `docs/index.html` 一併提交回 repo。
 
 ### GitHub Pages 設定方式
 
@@ -261,7 +261,7 @@ GitHub Actions 每日流程會在產生 HTML 報表並提交資料後執行：
 python scripts/send_daily_notification.py
 ```
 
-通知內容會以繁體中文顯示執行狀態、原始執行日期、實際交易日、是否使用替代交易日、候選股數、通過風控數、待進場筆數、今日成交筆數、跳過進場筆數、新增持倉數、目前持倉數、未實現損益、已實現損益、總資產與 GitHub Pages 報表網址。
+通知內容會以繁體中文顯示執行狀態、原始執行日期、實際交易日、是否使用替代交易日、候選股數、通過風控數、待進場筆數、今日成交筆數、跳過進場筆數、新增持倉數、目前持倉數、未實現損益、已實現損益、總資產、累計交易成本、扣成本後總資產與 GitHub Pages 報表網址。
 
 設定 Discord Webhook：
 
@@ -385,6 +385,22 @@ reports/paper_trades.csv
 
 若尚無下一個有效交易日資料，委託維持 `PENDING` 並等待下次執行。若同一檔股票已存在 `OPEN` 未平倉紀錄，委託會改為 `SKIPPED_EXISTING_POSITION`，不會重複買進。既有舊版 `OPEN` 持倉會保留，不會刪除或重建。此功能只建立紙上交易紀錄，不會真實下單。
 
+### 交易成本與滑價
+
+`config.yaml` 的 `trading_cost` 可設定紙上交易成本：
+
+```yaml
+trading_cost:
+  commission_rate: 0.001425
+  commission_discount: 1.0
+  min_commission: 20
+  sell_tax_rate_stock: 0.003
+  sell_tax_rate_etf: 0.001
+  slippage_rate: 0.001
+```
+
+買進成交價會在開盤價或收盤價 fallback 上加計滑價，並計算買進手續費；建立新持倉時會從可用資金扣除成交金額與手續費。賣出停損時，成交價會扣除滑價，並計算賣出手續費與交易稅；`realized_pnl` 與 `realized_pnl_after_cost` 都會扣除交易成本。`paper_trades.csv` 會新增 `entry_slippage`、`entry_commission`、`exit_slippage`、`exit_commission`、`exit_tax`、`total_cost`、`realized_pnl_after_cost` 與 `realized_pnl_pct_after_cost`。
+
 ## 每日紙上持倉更新
 
 用 SQLite 最新交易日價格更新紙上持倉：
@@ -399,7 +415,7 @@ python scripts/update_paper_positions.py
 python scripts/update_paper_positions.py --date 20260508 --capital 1000000
 ```
 
-此流程會讀取 `reports/paper_trades.csv` 中 `OPEN` 的持倉，依指定日期或最新交易日收盤價更新目前市值、未實現損益、持有天數與是否觸及停損。若 `current_price <= stop_loss_price`，該筆交易會改為 `CLOSED`，並寫入 `exit_date`、`exit_price`、`realized_pnl`、`realized_pnl_pct` 與 `exit_reason=STOP_LOSS`。
+此流程會讀取 `reports/paper_trades.csv` 中 `OPEN` 的持倉，依指定日期或最新交易日收盤價更新目前市值、未實現損益、持有天數與是否觸及停損。若 `current_price <= stop_loss_price`，該筆交易會改為 `CLOSED`，並寫入 `exit_date`、`exit_price`、`realized_pnl`、`realized_pnl_pct`、`realized_pnl_after_cost`、`realized_pnl_pct_after_cost` 與 `exit_reason=STOP_LOSS`。
 
 輸出檔案：
 

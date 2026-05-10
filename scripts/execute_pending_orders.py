@@ -30,6 +30,7 @@ def main() -> None:
         engine=engine,
         reports_dir=args.reports_dir,
         capital=args.capital,
+        trading_cost=config.get("trading_cost", {}),
     )
     for warning in result.warnings:
         print(f"warning: {warning}")

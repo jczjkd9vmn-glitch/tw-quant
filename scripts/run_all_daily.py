@@ -63,7 +63,10 @@ def main() -> None:
         f"closed_positions={summary.closed_positions} "
         f"unrealized_pnl={summary.unrealized_pnl} "
         f"realized_pnl={summary.realized_pnl} "
-        f"total_equity={summary.total_equity}"
+        f"total_equity={summary.total_equity} "
+        f"total_cost={summary.total_cost} "
+        f"realized_pnl_after_cost={summary.realized_pnl_after_cost} "
+        f"total_equity_after_cost={summary.total_equity_after_cost}"
     )
 
     if summary.status == "FAILED":

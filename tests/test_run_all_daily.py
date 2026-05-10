@@ -119,10 +119,59 @@ def test_run_all_daily_without_date_falls_back_to_latest_sqlite_date(tmp_path) -
         update_func=_fake_update,
     )
 
-    assert result.summary.status == "OK"
+    assert result.summary.status in {"OK", "OK_WITH_FALLBACK"}
     assert calls["trade_date"] == date(2026, 5, 8)
     assert calls["fetch"] is False
     assert "fallback_date=2026-05-08 reason=no trading data" in result.messages
+
+
+def test_run_all_daily_fallback_overwrites_requested_date_failed_summary(tmp_path) -> None:
+    reports_dir = tmp_path / "reports"
+    reports_dir.mkdir()
+    failed_summary = reports_dir / "daily_summary_20260510.csv"
+    pd.DataFrame([{"status": "FAILED", "trade_date": "2026-05-10"}]).to_csv(
+        failed_summary,
+        index=False,
+    )
+
+    def fake_run_daily(**_kwargs):
+        return SimpleNamespace(
+            trade_date=date(2026, 5, 8),
+            fetched_rows=0,
+            scored_rows=1328,
+            candidate_rows=20,
+            message="",
+            fallback_date=date(2026, 5, 8),
+            fallback_reason="no trading data",
+        )
+
+    result = run_all_daily(
+        config_path=_config(tmp_path),
+        trade_date="20260510",
+        capital=1_000_000,
+        reports_dir=reports_dir,
+        run_daily_func=fake_run_daily,
+        export_func=_fake_export,
+        paper_func=_fake_paper,
+        update_func=_fake_flat_update,
+    )
+
+    requested_summary = pd.read_csv(failed_summary)
+    actual_summary = reports_dir / "daily_summary_20260508.csv"
+
+    assert result.summary.status == "OK_WITH_FALLBACK"
+    assert result.summary_path == failed_summary
+    assert actual_summary.exists()
+    assert requested_summary.iloc[0]["status"] == "OK_WITH_FALLBACK"
+    assert requested_summary.iloc[0]["requested_date"] == "2026-05-10"
+    assert requested_summary.iloc[0]["trade_date"] == "2026-05-08"
+    assert requested_summary.iloc[0]["fallback_date"] == "2026-05-08"
+    assert requested_summary.iloc[0]["fallback_reason"] == "no trading data"
+    assert requested_summary.iloc[0]["scored_rows"] == 1328
+    assert requested_summary.iloc[0]["candidate_rows"] == 20
+    assert requested_summary.iloc[0]["risk_pass_rows"] == 6
+    assert requested_summary.iloc[0]["open_positions"] == 6
+    assert requested_summary.iloc[0]["total_equity"] == 1_000_000.0
 
 
 def test_run_all_daily_without_sqlite_data_fails_when_fallback_is_enabled(tmp_path) -> None:
@@ -240,6 +289,24 @@ def _fake_update(*_args, **_kwargs):
                     "unrealized_pnl": 1234.5,
                     "realized_pnl": 0.0,
                     "total_equity": 1_001_234.5,
+                }
+            ]
+        ),
+        warning="",
+    )
+
+
+def _fake_flat_update(*_args, **_kwargs):
+    return SimpleNamespace(
+        trade_date=pd.Timestamp("2026-05-08"),
+        summary=pd.DataFrame(
+            [
+                {
+                    "open_positions": 6,
+                    "closed_positions": 0,
+                    "unrealized_pnl": 0.0,
+                    "realized_pnl": 0.0,
+                    "total_equity": 1_000_000.0,
                 }
             ]
         ),

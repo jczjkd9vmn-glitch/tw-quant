@@ -30,6 +30,9 @@ class DailyWorkflowSummary:
     unrealized_pnl: float
     realized_pnl: float
     total_equity: float
+    requested_date: str = ""
+    fallback_date: str = ""
+    fallback_reason: str = ""
     status: str = "OK"
     error_step: str = ""
     error_message: str = ""
@@ -66,13 +69,23 @@ def run_all_daily(
     daily_result = export_result = paper_result = update_result = None
 
     try:
-        effective_trade_date, fallback_message = _resolve_trade_date(
+        (
+            effective_trade_date,
+            fallback_message,
+            resolved_fallback_date,
+            resolved_fallback_reason,
+        ) = _resolve_trade_date(
             config_path=config_path,
             trade_date=trade_date,
             allow_fallback_latest=allow_fallback_latest,
         )
         if fallback_message:
             messages.append(fallback_message)
+            _apply_fallback(
+                summary_values,
+                fallback_date=resolved_fallback_date,
+                fallback_reason=resolved_fallback_reason,
+            )
         daily_result = run_daily_func(
             config_path=config_path,
             trade_date=effective_trade_date,
@@ -92,6 +105,7 @@ def run_all_daily(
         fallback_date = getattr(daily_result, "fallback_date", None)
         if fallback_date is not None and not fallback_message:
             reason = getattr(daily_result, "fallback_reason", "") or "no trading data"
+            _apply_fallback(summary_values, fallback_date=fallback_date, fallback_reason=reason)
             messages.append(f"fallback_date={_date_text(fallback_date)} reason={reason}")
         if getattr(daily_result, "message", ""):
             messages.append(f"run_daily warning {daily_result.message}")
@@ -193,6 +207,7 @@ def run_all_daily(
                 update_result=update_result,
             )
 
+    _refresh_fallback_status(summary_values)
     summary = DailyWorkflowSummary(**summary_values)
     summary_path = _write_summary(report_dir, summary)
     messages.append(f"daily_summary_csv={summary_path}")
@@ -211,9 +226,9 @@ def _resolve_trade_date(
     config_path: str | Path,
     trade_date: str | date | None,
     allow_fallback_latest: bool,
-) -> tuple[str | date | None, str]:
+) -> tuple[str | date | None, str, date | None, str]:
     if trade_date is not None or not allow_fallback_latest:
-        return trade_date, ""
+        return trade_date, "", None, ""
 
     config = load_config(config_path)
     engine = create_db_engine(config["database"]["url"])
@@ -221,12 +236,19 @@ def _resolve_trade_date(
     latest_date = load_latest_price_date(engine)
     if latest_date is None:
         raise TradingHalted("no price history available for fallback")
-    return latest_date, f"fallback_date={latest_date} reason=no trading data"
+    fallback_reason = "no trading data"
+    return (
+        latest_date,
+        f"fallback_date={latest_date} reason={fallback_reason}",
+        latest_date,
+        fallback_reason,
+    )
 
 
 def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, Any]:
+    requested_date = _date_text(trade_date)
     return {
-        "trade_date": _date_text(trade_date),
+        "trade_date": requested_date,
         "scored_rows": 0,
         "candidate_rows": 0,
         "risk_pass_rows": 0,
@@ -236,10 +258,34 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "unrealized_pnl": 0.0,
         "realized_pnl": 0.0,
         "total_equity": float(capital),
+        "requested_date": requested_date,
+        "fallback_date": "",
+        "fallback_reason": "",
         "status": "OK",
         "error_step": "",
         "error_message": "",
     }
+
+
+def _apply_fallback(
+    summary_values: dict[str, Any],
+    fallback_date: str | date | pd.Timestamp | None,
+    fallback_reason: str,
+) -> None:
+    if fallback_date is None:
+        return
+    summary_values["fallback_date"] = _date_text(fallback_date)
+    summary_values["fallback_reason"] = fallback_reason
+    _refresh_fallback_status(summary_values)
+
+
+def _refresh_fallback_status(summary_values: dict[str, Any]) -> None:
+    if (
+        summary_values.get("fallback_date")
+        and summary_values["requested_date"] != summary_values["trade_date"]
+        and summary_values.get("status") == "OK"
+    ):
+        summary_values["status"] = "OK_WITH_FALLBACK"
 
 
 def _failed_result(
@@ -273,10 +319,13 @@ def _merge_update_summary(summary_values: dict[str, Any], update_summary: pd.Dat
 
 def _write_summary(report_dir: Path, summary: DailyWorkflowSummary) -> Path:
     report_dir.mkdir(parents=True, exist_ok=True)
-    date_label = _date_label(summary.trade_date)
-    path = report_dir / f"daily_summary_{date_label}.csv"
-    pd.DataFrame([summary.__dict__]).to_csv(path, index=False, encoding="utf-8-sig")
-    return path
+    frame = pd.DataFrame([summary.__dict__])
+    paths = [report_dir / f"daily_summary_{_date_label(summary.trade_date)}.csv"]
+    if summary.requested_date and summary.requested_date != summary.trade_date:
+        paths.append(report_dir / f"daily_summary_{_date_label(summary.requested_date)}.csv")
+    for path in paths:
+        frame.to_csv(path, index=False, encoding="utf-8-sig")
+    return paths[-1]
 
 
 def _date_text(value: str | date | pd.Timestamp | None) -> str:

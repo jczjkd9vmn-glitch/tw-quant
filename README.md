@@ -81,6 +81,8 @@ python scripts/run_all_daily.py --date 20260508 --capital 1000000
 
 若未指定 `--date`，`run_all_daily.py` 預設啟用 `--allow-fallback-latest`，會先使用 SQLite 內最新有效交易日，不會直接以今天抓取 TWSE。若指定日期沒有個股收盤資料且允許 fallback，console 會顯示 `fallback_date=YYYY-MM-DD reason=no trading data`；若 SQLite 完全沒有交易資料，流程才會失敗。
 
+當 requested date 與實際 trade date 不同時，summary 會顯示 `status=OK_WITH_FALLBACK`，並寫出 requested date 的 `reports/daily_summary_YYYYMMDD.csv`。若該檔案先前是 FAILED，成功 fallback 後會被覆蓋為最新成功結果。
+
 可指定報告目錄，或略過紙上交易與持倉更新：
 
 ```powershell

@@ -221,9 +221,26 @@ reports/risk_pass_candidates_YYYYMMDD.csv
 reports/paper_trades.csv
 reports/paper_summary_YYYYMMDD.csv
 reports/daily_summary_YYYYMMDD.csv
+reports/index.html
 ```
 
 `logs/` 仍只供本機 Windows 工作排程使用，不會提交到 GitHub。
+
+### 繁體中文靜態 HTML 報表
+
+可用以下指令從 `reports/` 內最新 CSV 產生手機可讀的深色 HTML 報表：
+
+```powershell
+python scripts/generate_html_report.py
+```
+
+輸出檔案：
+
+```text
+reports/index.html
+```
+
+HTML 報表會以繁體中文顯示系統狀態總覽、今日候選股、通過風控股票、目前紙上持倉、紙上交易績效、最近每日 summary 與非交易日 fallback 說明。GitHub Actions 每日流程會在 `run_all_daily.py` 後自動產生此報表，並將 `reports/index.html` 一併提交回 repo。
 
 ## 歷史資料回補
 

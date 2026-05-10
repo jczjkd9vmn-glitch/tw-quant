@@ -39,6 +39,9 @@ jobs:
       - name: Run daily paper trading workflow
         run: python scripts/run_all_daily.py --capital 1000000 --allow-fallback-latest
 
+      - name: Generate Traditional Chinese HTML report
+        run: python scripts/generate_html_report.py
+
       - name: Commit updated data and reports
         shell: bash
         run: |

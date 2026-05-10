@@ -1,0 +1,543 @@
+from __future__ import annotations
+
+import argparse
+from html import escape
+from pathlib import Path
+import re
+from typing import Iterable
+
+import pandas as pd
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+COLUMN_LABELS = {
+    "rank": "排序",
+    "trade_date": "實際交易日",
+    "requested_date": "原始執行日期",
+    "fallback_date": "使用替代交易日",
+    "fallback_reason": "替代原因",
+    "scored_rows": "已評分標的數",
+    "candidate_rows": "候選股數",
+    "risk_pass_rows": "通過風控數",
+    "new_positions": "新增持倉數",
+    "open_positions": "目前持倉數",
+    "closed_positions": "已平倉數",
+    "unrealized_pnl": "未實現損益",
+    "realized_pnl": "已實現損益",
+    "total_equity": "總資產",
+    "total_capital": "初始資金",
+    "invested_value": "投入金額",
+    "market_value": "目前市值",
+    "cash": "現金",
+    "stock_id": "股票代號",
+    "stock_name": "股票名稱",
+    "close": "收盤價",
+    "total_score": "總分",
+    "trend_score": "趨勢分數",
+    "momentum_score": "動能分數",
+    "fundamental_score": "基本面分數",
+    "chip_score": "籌碼分數",
+    "risk_score": "風險分數",
+    "is_candidate": "是否候選",
+    "risk_pass": "是否通過風控",
+    "risk_reason": "風控原因",
+    "reason": "買進理由",
+    "stop_loss_price": "停損價",
+    "suggested_position_pct": "建議部位",
+    "entry_price": "進場價",
+    "shares": "股數",
+    "position_value": "投入金額",
+    "status": "狀態",
+    "current_price": "目前價格",
+    "unrealized_pnl_pct": "未實現損益率",
+    "holding_days": "持有天數",
+    "stop_loss_hit": "是否觸及停損",
+    "exit_date": "出場日",
+    "exit_price": "出場價",
+    "realized_pnl_pct": "已實現損益率",
+    "exit_reason": "出場原因",
+    "error_step": "失敗步驟",
+    "error_message": "錯誤訊息",
+}
+
+
+STATUS_LABELS = {
+    "OK": "成功",
+    "OK_WITH_FALLBACK": "成功，使用最近有效交易日",
+    "FAILED": "失敗",
+    "OPEN": "持有中",
+    "CLOSED": "已出場",
+    "STOP_LOSS": "停損出場",
+    "no trading data": "無交易資料",
+    "True": "是",
+    "False": "否",
+    "true": "是",
+    "false": "否",
+    "1": "是",
+    "0": "否",
+}
+
+
+SCORE_COLUMNS = {
+    "total_score",
+    "trend_score",
+    "momentum_score",
+    "fundamental_score",
+    "chip_score",
+    "risk_score",
+}
+PERCENT_COLUMNS = {"suggested_position_pct", "unrealized_pnl_pct", "realized_pnl_pct"}
+PRICE_COLUMNS = {"close", "stop_loss_price", "entry_price", "current_price", "exit_price"}
+AMOUNT_COLUMNS = {"total_capital", "invested_value", "market_value", "cash", "total_equity", "position_value"}
+PNL_COLUMNS = {"unrealized_pnl", "realized_pnl"}
+INTEGER_COLUMNS = {
+    "rank",
+    "scored_rows",
+    "candidate_rows",
+    "risk_pass_rows",
+    "new_positions",
+    "open_positions",
+    "closed_positions",
+    "shares",
+    "holding_days",
+}
+STATUS_COLUMNS = {"status", "exit_reason", "fallback_reason", "is_candidate", "risk_pass", "stop_loss_hit"}
+DATE_COLUMNS = {"trade_date", "requested_date", "fallback_date", "exit_date"}
+
+
+def generate_html_report(reports_dir: str | Path = ROOT / "reports") -> Path:
+    report_dir = Path(reports_dir)
+    report_dir.mkdir(parents=True, exist_ok=True)
+
+    daily_summary = _read_latest_csv(report_dir, "daily_summary_*.csv")
+    recent_summaries = _read_recent_summaries(report_dir)
+    candidates = _read_latest_csv(report_dir, "candidates_*.csv")
+    risk_pass = _read_latest_csv(report_dir, "risk_pass_candidates_*.csv")
+    paper_trades = _read_csv(report_dir / "paper_trades.csv")
+    paper_summary = _read_latest_csv(report_dir, "paper_summary_*.csv")
+
+    html = _render_page(
+        daily_summary=daily_summary,
+        recent_summaries=recent_summaries,
+        candidates=candidates,
+        risk_pass=risk_pass,
+        paper_trades=paper_trades,
+        paper_summary=paper_summary,
+    )
+
+    output_path = report_dir / "index.html"
+    output_path.write_text(html, encoding="utf-8")
+    return output_path
+
+
+def _render_page(
+    daily_summary: pd.DataFrame,
+    recent_summaries: pd.DataFrame,
+    candidates: pd.DataFrame,
+    risk_pass: pd.DataFrame,
+    paper_trades: pd.DataFrame,
+    paper_summary: pd.DataFrame,
+) -> str:
+    latest_summary = _first_row(daily_summary)
+    open_positions = _filter_status(paper_trades, "OPEN")
+    closed_trades = _filter_status(paper_trades, "CLOSED")
+    latest_paper_summary = _first_row(paper_summary)
+
+    return "\n".join(
+        [
+            "<!doctype html>",
+            '<html lang="zh-Hant">',
+            "<head>",
+            '<meta charset="utf-8">',
+            '<meta name="viewport" content="width=device-width, initial-scale=1">',
+            "<title>台股紙上交易每日報表</title>",
+            f"<style>{_css()}</style>",
+            "</head>",
+            "<body>",
+            '<main class="page">',
+            "<header>",
+            "<p>台股量化系統</p>",
+            "<h1>台股紙上交易每日報表</h1>",
+            "<div>所有內容僅供紙上模擬交易與策略檢查使用，不代表投資建議，也不保證獲利。</div>",
+            "</header>",
+            _section("系統狀態總覽", _status_overview(latest_summary)),
+            _section(
+                "今日候選股",
+                _table(
+                    candidates,
+                    [
+                        "rank",
+                        "trade_date",
+                        "stock_id",
+                        "stock_name",
+                        "close",
+                        "total_score",
+                        "trend_score",
+                        "momentum_score",
+                        "risk_score",
+                        "reason",
+                    ],
+                    "目前尚無候選股資料",
+                    max_rows=20,
+                ),
+            ),
+            _section(
+                "通過風控股票",
+                _table(
+                    risk_pass,
+                    [
+                        "rank",
+                        "stock_id",
+                        "stock_name",
+                        "close",
+                        "total_score",
+                        "risk_reason",
+                        "stop_loss_price",
+                        "suggested_position_pct",
+                    ],
+                    "目前尚無通過風控的股票",
+                    max_rows=20,
+                ),
+            ),
+            _section(
+                "目前紙上持倉",
+                _table(
+                    open_positions,
+                    [
+                        "trade_date",
+                        "stock_id",
+                        "stock_name",
+                        "entry_price",
+                        "shares",
+                        "market_value",
+                        "unrealized_pnl",
+                        "unrealized_pnl_pct",
+                        "stop_loss_price",
+                        "holding_days",
+                        "status",
+                    ],
+                    "目前尚無紙上交易紀錄",
+                    max_rows=50,
+                ),
+            ),
+            _section("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades)),
+            _section(
+                "最近每日 summary",
+                _table(
+                    recent_summaries,
+                    [
+                        "requested_date",
+                        "trade_date",
+                        "status",
+                        "fallback_date",
+                        "fallback_reason",
+                        "scored_rows",
+                        "candidate_rows",
+                        "risk_pass_rows",
+                        "open_positions",
+                        "closed_positions",
+                        "unrealized_pnl",
+                        "realized_pnl",
+                        "total_equity",
+                    ],
+                    "目前尚無每日 summary",
+                    max_rows=10,
+                ),
+            ),
+            _section("非交易日 fallback 說明", _fallback_note(latest_summary)),
+            "</main>",
+            "</body>",
+            "</html>",
+        ]
+    )
+
+
+def _status_overview(summary: dict[str, object]) -> str:
+    if not summary:
+        return _empty("目前尚無每日 summary，請先執行每日流程")
+
+    cards = [
+        ("執行狀態", _format_cell("status", summary.get("status"))),
+        ("原始執行日期", _format_cell("requested_date", summary.get("requested_date") or summary.get("trade_date"))),
+        ("實際交易日", _format_cell("trade_date", summary.get("trade_date"))),
+        ("使用替代交易日", _format_cell("fallback_date", summary.get("fallback_date"))),
+        ("已評分標的數", _format_cell("scored_rows", summary.get("scored_rows"))),
+        ("候選股數", _format_cell("candidate_rows", summary.get("candidate_rows"))),
+        ("通過風控數", _format_cell("risk_pass_rows", summary.get("risk_pass_rows"))),
+        ("目前持倉數", _format_cell("open_positions", summary.get("open_positions"))),
+        ("已平倉數", _format_cell("closed_positions", summary.get("closed_positions"))),
+        ("未實現損益", _format_cell("unrealized_pnl", summary.get("unrealized_pnl"))),
+        ("已實現損益", _format_cell("realized_pnl", summary.get("realized_pnl"))),
+        ("總資產", _format_cell("total_equity", summary.get("total_equity"))),
+    ]
+    return '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+
+
+def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) -> str:
+    blocks: list[str] = []
+    if summary:
+        cards = [
+            ("初始資金", _format_cell("total_capital", summary.get("total_capital"))),
+            ("投入金額", _format_cell("invested_value", summary.get("invested_value"))),
+            ("目前市值", _format_cell("market_value", summary.get("market_value"))),
+            ("現金", _format_cell("cash", summary.get("cash"))),
+            ("未實現損益", _format_cell("unrealized_pnl", summary.get("unrealized_pnl"))),
+            ("已實現損益", _format_cell("realized_pnl", summary.get("realized_pnl"))),
+            ("總資產", _format_cell("total_equity", summary.get("total_equity"))),
+        ]
+        blocks.append('<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>")
+    else:
+        blocks.append(_empty("目前尚無紙上交易績效資料"))
+
+    blocks.append("<h3>已平倉交易</h3>")
+    blocks.append(
+        _table(
+            closed_trades,
+            [
+                "trade_date",
+                "stock_id",
+                "stock_name",
+                "entry_price",
+                "exit_date",
+                "exit_price",
+                "realized_pnl",
+                "realized_pnl_pct",
+                "exit_reason",
+                "status",
+            ],
+            "目前尚無已平倉交易",
+            max_rows=50,
+        )
+    )
+    return "".join(blocks)
+
+
+def _fallback_note(summary: dict[str, object]) -> str:
+    if not summary:
+        return _empty("目前沒有可判斷 fallback 的每日 summary")
+
+    requested = _format_cell("requested_date", summary.get("requested_date") or summary.get("trade_date"))
+    actual = _format_cell("trade_date", summary.get("trade_date"))
+    fallback = _format_cell("fallback_date", summary.get("fallback_date"))
+    reason = _format_cell("fallback_reason", summary.get("fallback_reason"))
+    status = _format_cell("status", summary.get("status"))
+
+    if fallback != "-":
+        return (
+            '<div class="note">'
+            f"今日無交易資料，已使用最近有效交易日。原始執行日期：{escape(requested)}；"
+            f"實際交易日：{escape(actual)}；使用替代交易日：{escape(fallback)}；"
+            f"替代原因：{escape(reason)}；狀態：{escape(status)}。"
+            "</div>"
+        )
+    return '<div class="note">本次未使用替代交易日；若遇非交易日，系統會改用 SQLite 內最近有效交易日。</div>'
+
+
+def _section(title: str, content: str) -> str:
+    return f'<section><h2>{escape(title)}</h2>{content}</section>'
+
+
+def _card(label: str, value: str) -> str:
+    return f'<div class="card"><span>{escape(label)}</span><strong>{escape(value)}</strong></div>'
+
+
+def _table(frame: pd.DataFrame, columns: list[str], empty_message: str, max_rows: int) -> str:
+    if frame.empty:
+        return _empty(empty_message)
+
+    visible_columns = [column for column in columns if column in frame.columns]
+    if not visible_columns:
+        return _empty(empty_message)
+
+    rows = frame.head(max_rows).copy()
+    header = "".join(f"<th>{escape(COLUMN_LABELS[column])}</th>" for column in visible_columns)
+    body_rows = []
+    for _, row in rows.iterrows():
+        cells = "".join(
+            f"<td>{escape(_format_cell(column, row.get(column)))}</td>" for column in visible_columns
+        )
+        body_rows.append(f"<tr>{cells}</tr>")
+    return '<div class="table-wrap"><table><thead><tr>' + header + "</tr></thead><tbody>" + "".join(body_rows) + "</tbody></table></div>"
+
+
+def _format_cell(column: str, value: object) -> str:
+    if _is_blank(value):
+        return "-"
+
+    if column in STATUS_COLUMNS:
+        text = str(value).strip()
+        return STATUS_LABELS.get(text, text)
+    if column in DATE_COLUMNS:
+        parsed = pd.to_datetime(value, errors="coerce")
+        if pd.isna(parsed):
+            return "-"
+        return parsed.strftime("%Y-%m-%d")
+    if column in PERCENT_COLUMNS:
+        number = _to_float(value)
+        if number is None:
+            return str(value)
+        return f"{number * 100:.2f}%"
+    if column in PNL_COLUMNS:
+        number = _to_float(value)
+        if number is None:
+            return str(value)
+        return _signed_number(number)
+    if column in AMOUNT_COLUMNS:
+        number = _to_float(value)
+        if number is None:
+            return str(value)
+        return f"{number:,.0f}"
+    if column in PRICE_COLUMNS or column in SCORE_COLUMNS:
+        number = _to_float(value)
+        if number is None:
+            return str(value)
+        return f"{number:,.2f}"
+    if column in INTEGER_COLUMNS:
+        number = _to_float(value)
+        if number is None:
+            return str(value)
+        return f"{number:,.0f}"
+    return str(value)
+
+
+def _signed_number(value: float) -> str:
+    if value > 0:
+        return f"+{value:,.0f}"
+    if value < 0:
+        return f"{value:,.0f}"
+    return "0"
+
+
+def _read_latest_csv(report_dir: Path, pattern: str) -> pd.DataFrame:
+    latest = _latest_file(report_dir, pattern)
+    if latest is None:
+        return pd.DataFrame()
+    return _read_csv(latest)
+
+
+def _read_recent_summaries(report_dir: Path) -> pd.DataFrame:
+    frames: list[pd.DataFrame] = []
+    for path in _sorted_report_files(report_dir, "daily_summary_*.csv"):
+        frame = _read_csv(path)
+        if frame.empty:
+            continue
+        frame = frame.copy()
+        report_date = _date_from_filename(path)
+        frame["_report_date"] = report_date or pd.Timestamp.min
+        frames.append(frame)
+
+    if not frames:
+        return pd.DataFrame()
+
+    combined = pd.concat(frames, ignore_index=True)
+    combined = combined.sort_values("_report_date", ascending=False)
+    return combined.drop(columns=["_report_date"], errors="ignore").reset_index(drop=True)
+
+
+def _read_csv(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(path, encoding="utf-8-sig", dtype={"stock_id": str})
+    except Exception:
+        return pd.DataFrame()
+
+
+def _latest_file(report_dir: Path, pattern: str) -> Path | None:
+    files = _sorted_report_files(report_dir, pattern)
+    return files[0] if files else None
+
+
+def _sorted_report_files(report_dir: Path, pattern: str) -> list[Path]:
+    files = list(report_dir.glob(pattern))
+    return sorted(files, key=lambda path: (_date_from_filename(path) or pd.Timestamp.min, path.stat().st_mtime), reverse=True)
+
+
+def _date_from_filename(path: Path) -> pd.Timestamp | None:
+    match = re.search(r"_(\d{8})\.csv$", path.name)
+    if not match:
+        return None
+    parsed = pd.to_datetime(match.group(1), format="%Y%m%d", errors="coerce")
+    if pd.isna(parsed):
+        return None
+    return parsed
+
+
+def _first_row(frame: pd.DataFrame) -> dict[str, object]:
+    if frame.empty:
+        return {}
+    return frame.iloc[0].to_dict()
+
+
+def _filter_status(frame: pd.DataFrame, status: str) -> pd.DataFrame:
+    if frame.empty or "status" not in frame.columns:
+        return pd.DataFrame()
+    return frame[frame["status"].fillna("").astype(str).str.upper() == status].copy()
+
+
+def _is_blank(value: object) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, str) and value.strip() == "":
+        return True
+    try:
+        return bool(pd.isna(value))
+    except TypeError:
+        return False
+
+
+def _to_float(value: object) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if pd.isna(number):
+        return None
+    return number
+
+
+def _empty(message: str) -> str:
+    return f'<div class="empty">{escape(message)}</div>'
+
+
+def _css() -> str:
+    return """
+*{box-sizing:border-box}
+body{margin:0;background:#0b1020;color:#e5e7eb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;line-height:1.6}
+.page{width:min(1120px,100%);margin:0 auto;padding:20px}
+header{padding:24px 0 18px}
+header p{margin:0 0 6px;color:#38bdf8;font-size:14px;font-weight:700}
+header h1{margin:0 0 8px;font-size:28px;letter-spacing:0}
+header div{color:#94a3b8;font-size:14px}
+section{margin:16px 0;padding:18px;background:#111827;border:1px solid #1f2937;border-radius:8px}
+h2{margin:0 0 14px;font-size:19px}
+h3{margin:18px 0 10px;font-size:16px;color:#cbd5e1}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.card{padding:12px;background:#0f172a;border:1px solid #243244;border-radius:8px}
+.card span{display:block;color:#94a3b8;font-size:13px}
+.card strong{display:block;margin-top:4px;font-size:18px;color:#f8fafc;word-break:break-word}
+.table-wrap{width:100%;overflow-x:auto;border:1px solid #243244;border-radius:8px}
+table{width:100%;border-collapse:collapse;min-width:760px;background:#0f172a}
+th,td{padding:10px 12px;border-bottom:1px solid #243244;text-align:left;vertical-align:top}
+th{color:#bae6fd;background:#172033;font-size:13px;white-space:nowrap}
+td{font-size:13px;color:#e5e7eb}
+tr:last-child td{border-bottom:0}
+.empty,.note{padding:13px;background:#0f172a;border:1px solid #243244;border-radius:8px;color:#cbd5e1}
+.note{border-color:#164e63;background:#082f49}
+@media(max-width:640px){.page{padding:14px}header h1{font-size:24px}section{padding:14px}.card strong{font-size:16px}table{min-width:680px}}
+"""
+
+
+def main(argv: Iterable[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="產生繁體中文靜態 HTML 報表。")
+    parser.add_argument("--reports-dir", default=str(ROOT / "reports"))
+    args = parser.parse_args(list(argv) if argv is not None else None)
+
+    output_path = generate_html_report(args.reports_dir)
+    print(f"html_report={output_path}")
+
+
+if __name__ == "__main__":
+    main()

@@ -28,7 +28,10 @@ def test_build_notification_message_uses_traditional_chinese_and_fallback_url(mo
     assert "執行狀態：成功，使用最近有效交易日" in message
     assert "原始執行日期：2026-05-10" in message
     assert "實際交易日：2026-05-08" in message
-    assert "是否使用替代交易日：是（無交易資料，使用 2026-05-08）" in message
+    assert "是否使用最近有效資料：是" in message
+    assert "使用資料日期：2026-05-08" in message
+    assert "原因：本次無新交易資料，使用資料庫最近有效資料" in message
+    assert "替代交易日" not in message
     assert "候選股數：20" in message
     assert "通過風控數：6" in message
     assert "待進場筆數：4" in message
@@ -37,10 +40,10 @@ def test_build_notification_message_uses_traditional_chinese_and_fallback_url(mo
     assert "新增持倉數：0" in message
     assert "目前持倉數：6" in message
     assert "未實現損益：+1,234" in message
-    assert "已實現損益：0" in message
+    assert "累計已實現損益：0" in message
     assert "總資產：1,001,234" in message
     assert "累計交易成本：123" in message
-    assert "扣成本後已實現損益：-123" in message
+    assert "累計扣成本後已實現損益：-123" in message
     assert "扣成本後總資產：1,001,111" in message
     assert "今日停利筆數：1" in message
     assert "今日停損筆數：0" in message
@@ -50,6 +53,24 @@ def test_build_notification_message_uses_traditional_chinese_and_fallback_url(mo
     assert "今日基本面加分候選股數：2" in message
     assert "今日基本面警告候選股數：1" in message
     assert "GitHub Pages 報表網址：https://owner.github.io/tw-quant/" in message
+
+
+def test_build_notification_message_omits_fallback_details_when_requested_date_matches_trade_date() -> None:
+    summary = {
+        **_summary_row(),
+        "requested_date": "2026-05-08",
+        "trade_date": "2026-05-08",
+        "fallback_date": "",
+        "fallback_reason": "",
+        "status": "OK",
+    }
+
+    message = build_notification_message(summary, pages_url="https://example.github.io/tw-quant/")
+
+    assert "是否使用最近有效資料：否" in message
+    assert "使用資料日期：" not in message
+    assert "原因：" not in message
+    assert "替代交易日" not in message
 
 
 def test_send_daily_notification_posts_to_discord(tmp_path: Path) -> None:

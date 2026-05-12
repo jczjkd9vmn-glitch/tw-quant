@@ -66,7 +66,11 @@ def main() -> None:
         f"total_equity={summary.total_equity} "
         f"total_cost={summary.total_cost} "
         f"realized_pnl_after_cost={summary.realized_pnl_after_cost} "
-        f"total_equity_after_cost={summary.total_equity_after_cost}"
+        f"total_equity_after_cost={summary.total_equity_after_cost} "
+        f"take_profit_exits={summary.take_profit_exits} "
+        f"stop_loss_exits={summary.stop_loss_exits} "
+        f"trailing_stop_exits={summary.trailing_stop_exits} "
+        f"trend_exit_exits={summary.trend_exit_exits}"
     )
 
     if summary.status == "FAILED":

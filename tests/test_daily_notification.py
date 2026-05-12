@@ -42,6 +42,13 @@ def test_build_notification_message_uses_traditional_chinese_and_fallback_url(mo
     assert "累計交易成本：123" in message
     assert "扣成本後已實現損益：-123" in message
     assert "扣成本後總資產：1,001,111" in message
+    assert "今日停利筆數：1" in message
+    assert "今日停損筆數：0" in message
+    assert "今日移動停利筆數：0" in message
+    assert "今日趨勢出場筆數：0" in message
+    assert "今日扣成本後已實現損益：+100" in message
+    assert "今日基本面加分候選股數：2" in message
+    assert "今日基本面警告候選股數：1" in message
     assert "GitHub Pages 報表網址：https://owner.github.io/tw-quant/" in message
 
 
@@ -121,5 +128,12 @@ def _summary_row() -> dict[str, object]:
         "total_cost": 123.0,
         "realized_pnl_after_cost": -123.0,
         "total_equity_after_cost": 1_001_111.0,
+        "take_profit_exits": 1,
+        "stop_loss_exits": 0,
+        "trailing_stop_exits": 0,
+        "trend_exit_exits": 0,
+        "realized_pnl_after_cost_today": 100.0,
+        "fundamental_positive_candidates": 2,
+        "fundamental_warning_candidates": 1,
         "status": "OK_WITH_FALLBACK",
     }

@@ -48,6 +48,17 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "sell_tax_rate_etf": 0.001,
         "slippage_rate": 0.001,
     },
+    "exit_strategy": {
+        "take_profit_1_pct": 0.10,
+        "take_profit_1_sell_pct": 0.50,
+        "take_profit_2_pct": 0.20,
+        "take_profit_2_sell_pct": 1.00,
+        "trailing_stop_activate_pct": 0.08,
+        "trailing_stop_drawdown_pct": 0.06,
+        "ma_exit_window": 20,
+        "max_holding_days": 20,
+        "min_profit_for_holding": 0.03,
+    },
     "backtest": {
         "initial_cash": 1_000_000,
         "top_n": 10,

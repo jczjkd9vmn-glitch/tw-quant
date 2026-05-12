@@ -9,6 +9,7 @@ import pandas as pd
 from sqlalchemy import Engine
 
 from tw_quant.data.database import load_candidate_scores
+from tw_quant.fundamental.revenue import score_revenue_for_symbols
 
 
 EXPORT_COLUMNS = [
@@ -23,6 +24,10 @@ EXPORT_COLUMNS = [
     "fundamental_score",
     "chip_score",
     "risk_score",
+    "revenue_yoy",
+    "revenue_mom",
+    "accumulated_revenue_yoy",
+    "fundamental_reason",
     "is_candidate",
     "risk_pass",
     "risk_reason",
@@ -45,6 +50,7 @@ class CandidateExportResult:
 def export_latest_candidates(
     engine: Engine,
     output_dir: str | Path = "reports",
+    revenue_path: str | Path | None = None,
 ) -> CandidateExportResult:
     scores = load_candidate_scores(engine)
     if scores.empty:
@@ -70,7 +76,7 @@ def export_latest_candidates(
             warning=f"no candidate stocks found for {latest_date.date()}",
         )
 
-    candidates = _format_candidates(candidates)
+    candidates = _format_candidates(candidates, revenue_path=revenue_path)
     risk_pass_candidates = candidates[candidates["risk_pass"].astype(int) == 1].copy()
 
     report_dir = Path(output_dir)
@@ -90,7 +96,7 @@ def export_latest_candidates(
     )
 
 
-def _format_candidates(scores: pd.DataFrame) -> pd.DataFrame:
+def _format_candidates(scores: pd.DataFrame, revenue_path: str | Path | None = None) -> pd.DataFrame:
     frame = scores.sort_values(["total_score", "risk_score"], ascending=[False, False]).reset_index(
         drop=True
     )
@@ -103,4 +109,14 @@ def _format_candidates(scores: pd.DataFrame) -> pd.DataFrame:
     frame["stop_loss_price"] = frame["stop_loss"]
     frame["is_candidate"] = frame["is_candidate"].astype(int)
     frame["risk_pass"] = frame["risk_pass"].astype(int)
+    revenue_scores = score_revenue_for_symbols(
+        frame["stock_id"].astype(str).tolist(),
+        revenue_path or Path(__file__).resolve().parents[3] / "data" / "monthly_revenue.csv",
+    )
+    frame = frame.merge(revenue_scores, on="stock_id", how="left", suffixes=("", "_revenue"))
+    frame["fundamental_score"] = pd.to_numeric(frame["fundamental_score_revenue"], errors="coerce").fillna(50.0)
+    frame["fundamental_reason"] = frame["fundamental_reason"].fillna("基本面資料不足，採中性分數")
+    for column in ["revenue_yoy", "revenue_mom", "accumulated_revenue_yoy"]:
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+    frame = frame.drop(columns=["fundamental_score_revenue"], errors="ignore")
     return frame[EXPORT_COLUMNS].copy()

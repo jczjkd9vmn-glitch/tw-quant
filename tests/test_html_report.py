@@ -15,13 +15,17 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
 
     assert output_path.exists()
     assert "台股紙上交易每日報表" in html
+    assert "今日重點結論" in html
+    assert "系統健康檢查" in html
     assert "系統狀態總覽" in html
+    assert "基本面摘要" in html
     assert "今日候選股" in html
     assert "通過風控股票" in html
     assert "待進場清單" in html
     assert "已成交持倉" in html
     assert "紙上交易績效" in html
     assert "交易成本摘要" in html
+    assert "出場策略摘要" in html
     assert "最近每日 summary" in html
     assert "非交易日替代交易日說明" in html
 
@@ -50,6 +54,8 @@ def test_generate_html_report_translates_fallback_status(tmp_path: Path) -> None
     assert "成功，使用最近有效交易日" in html
     assert "無交易資料" in html
     assert "今日無交易資料，已使用最近有效交易日" in html
+    assert "等待進場" in html
+    assert "已有持倉，略過重複進場" in html
 
 
 def test_generate_html_report_does_not_show_raw_english_field_names(tmp_path: Path) -> None:
@@ -109,6 +115,13 @@ def _write_reports(path: Path) -> None:
                 "total_cost": 123.0,
                 "realized_pnl_after_cost": -123.0,
                 "total_equity_after_cost": 1_001_111.0,
+                "take_profit_exits": 1,
+                "stop_loss_exits": 0,
+                "trailing_stop_exits": 0,
+                "trend_exit_exits": 0,
+                "realized_pnl_after_cost_today": 100.0,
+                "fundamental_positive_candidates": 1,
+                "fundamental_warning_candidates": 0,
                 "status": "OK_WITH_FALLBACK",
             }
         ]
@@ -128,6 +141,10 @@ def _write_reports(path: Path) -> None:
                 "fundamental_score": 70.0,
                 "chip_score": 60.0,
                 "risk_score": 92.0,
+                "revenue_yoy": 25.0,
+                "revenue_mom": 3.0,
+                "accumulated_revenue_yoy": 12.0,
+                "fundamental_reason": "月營收年增率大於 20%",
                 "is_candidate": 1,
                 "risk_pass": 1,
                 "risk_reason": "通過風控",
@@ -155,6 +172,21 @@ def _write_reports(path: Path) -> None:
                 "status": "PENDING",
                 "skipped_reason": "",
                 "warning": "",
+            },
+            {
+                "signal_date": "2026-05-01",
+                "planned_entry_date": "NEXT_AVAILABLE_TRADING_DAY",
+                "actual_entry_date": "",
+                "stock_id": "2317",
+                "stock_name": "鴻海",
+                "signal_close": 150.0,
+                "entry_price": "",
+                "entry_price_source": "",
+                "shares": "",
+                "position_value": "",
+                "status": "SKIPPED_EXISTING_POSITION",
+                "skipped_reason": "已有未平倉持倉，略過重複進場",
+                "warning": "",
             }
         ]
     ).to_csv(path / "pending_orders_20260508.csv", index=False, encoding="utf-8-sig")
@@ -170,6 +202,8 @@ def _write_reports(path: Path) -> None:
                 "stock_name": "台積電",
                 "entry_price": 1000.0,
                 "shares": 100,
+                "original_shares": 100,
+                "remaining_shares": 50,
                 "position_value": 100000.0,
                 "entry_slippage": 1.0,
                 "entry_commission": 20.0,
@@ -179,6 +213,11 @@ def _write_reports(path: Path) -> None:
                 "total_cost": 20.0,
                 "realized_pnl_after_cost": "",
                 "realized_pnl_pct_after_cost": "",
+                "partial_exit_1_done": True,
+                "partial_exit_2_done": False,
+                "highest_price_since_entry": 1100.0,
+                "highest_pnl_pct_since_entry": 0.1,
+                "trailing_stop_price": 1034.0,
                 "stop_loss_price": 920.0,
                 "suggested_position_pct": 0.1,
                 "status": "OPEN",

@@ -97,7 +97,7 @@ python scripts/run_all_daily.py --date 20260508 --skip-update
 reports/daily_summary_YYYYMMDD.csv
 ```
 
-summary 包含 `trade_date`、`scored_rows`、`candidate_rows`、`risk_pass_rows`、`new_positions`、`open_positions`、`closed_positions`、`unrealized_pnl`、`realized_pnl`、`total_equity`、`total_cost`、`realized_pnl_after_cost` 與 `total_equity_after_cost`。
+summary 包含 `trade_date`、`scored_rows`、`candidate_rows`、`risk_pass_rows`、`new_positions`、`open_positions`、`closed_positions`、`unrealized_pnl`、`realized_pnl`、`total_equity`、`total_cost`、`realized_pnl_after_cost`、`total_equity_after_cost`、出場策略觸發統計與基本面加分 / 警告候選股數。
 
 ## Windows 每日自動執行
 
@@ -242,7 +242,7 @@ reports/index.html
 docs/index.html
 ```
 
-HTML 報表會以繁體中文顯示系統狀態總覽、今日候選股、通過風控股票、待進場清單、已成交持倉、紙上交易績效、交易成本摘要、最近每日 summary 與非交易日替代交易日說明。GitHub Actions 每日流程會在 `run_all_daily.py` 後自動產生此報表，並將 `reports/index.html` 與 `docs/index.html` 一併提交回 repo。
+HTML 報表會以繁體中文顯示今日重點結論、系統健康檢查、系統狀態總覽、基本面摘要、今日候選股、通過風控股票、待進場清單、已成交持倉、紙上交易績效、交易成本摘要、出場策略摘要、最近每日 summary 與非交易日替代交易日說明。手機版的待進場清單與已成交持倉會優先使用卡片式顯示，桌機保留表格。GitHub Actions 每日流程會在 `run_all_daily.py` 後自動產生此報表，並將 `reports/index.html` 與 `docs/index.html` 一併提交回 repo。
 
 ### GitHub Pages 設定方式
 
@@ -261,7 +261,7 @@ GitHub Actions 每日流程會在產生 HTML 報表並提交資料後執行：
 python scripts/send_daily_notification.py
 ```
 
-通知內容會以繁體中文顯示執行狀態、原始執行日期、實際交易日、是否使用替代交易日、候選股數、通過風控數、待進場筆數、今日成交筆數、跳過進場筆數、新增持倉數、目前持倉數、未實現損益、已實現損益、總資產、累計交易成本、扣成本後總資產與 GitHub Pages 報表網址。
+通知內容會以繁體中文顯示執行狀態、原始執行日期、實際交易日、是否使用替代交易日、候選股數、通過風控數、待進場筆數、今日成交筆數、跳過進場筆數、新增持倉數、目前持倉數、未實現損益、已實現損益、總資產、累計交易成本、扣成本後總資產、今日停利 / 停損 / 移動停利 / 趨勢出場筆數、今日扣成本後已實現損益、基本面加分 / 警告候選股數與 GitHub Pages 報表網址。
 
 設定 Discord Webhook：
 
@@ -400,6 +400,41 @@ trading_cost:
 ```
 
 買進成交價會在開盤價或收盤價 fallback 上加計滑價，並計算買進手續費；建立新持倉時會從可用資金扣除成交金額與手續費。賣出停損時，成交價會扣除滑價，並計算賣出手續費與交易稅；`realized_pnl` 與 `realized_pnl_after_cost` 都會扣除交易成本。`paper_trades.csv` 會新增 `entry_slippage`、`entry_commission`、`exit_slippage`、`exit_commission`、`exit_tax`、`total_cost`、`realized_pnl_after_cost` 與 `realized_pnl_pct_after_cost`。
+
+### 出場策略
+
+`config.yaml` 的 `exit_strategy` 控制紙上持倉更新時的出場規則：
+
+```yaml
+exit_strategy:
+  take_profit_1_pct: 0.10
+  take_profit_1_sell_pct: 0.50
+  take_profit_2_pct: 0.20
+  take_profit_2_sell_pct: 1.00
+  trailing_stop_activate_pct: 0.08
+  trailing_stop_drawdown_pct: 0.06
+  ma_exit_window: 20
+  max_holding_days: 20
+  min_profit_for_holding: 0.03
+```
+
+每日更新會依序檢查停損、第一段停利、第二段停利、移動停利、跌破 20 日均線與持有過久出場。第一段停利只賣出部分部位，會更新 `remaining_shares` 並保留 `OPEN`；剩餘股數歸零時才改為 `CLOSED`。每次部分賣出都會計算賣出手續費、交易稅與滑價。
+
+## 基本面與月營收觀察
+
+可選擇提供月營收 CSV：
+
+```text
+data/monthly_revenue.csv
+```
+
+欄位：
+
+```text
+stock_id, stock_name, year_month, revenue, revenue_yoy, revenue_mom, accumulated_revenue, accumulated_revenue_yoy
+```
+
+候選股匯出會新增 `revenue_yoy`、`revenue_mom`、`accumulated_revenue_yoy` 與 `fundamental_reason`。第一版基本面資料只作為觀察欄位與報表輔助，不改變 `total_score`、候選股排序、`risk_pass` 或紙上交易進場邏輯。若缺少 `data/monthly_revenue.csv` 或個股沒有資料，會顯示「基本面資料不足，採中性分數」，流程不會失敗。
 
 ## 每日紙上持倉更新
 

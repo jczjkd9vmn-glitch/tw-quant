@@ -34,6 +34,14 @@ class DailyWorkflowSummary:
     total_cost: float = 0.0
     realized_pnl_after_cost: float = 0.0
     total_equity_after_cost: float = 0.0
+    take_profit_exits: int = 0
+    stop_loss_exits: int = 0
+    trailing_stop_exits: int = 0
+    trend_exit_exits: int = 0
+    time_exit_exits: int = 0
+    realized_pnl_after_cost_today: float = 0.0
+    fundamental_positive_candidates: int = 0
+    fundamental_warning_candidates: int = 0
     pending_orders: int = 0
     executed_orders: int = 0
     skipped_orders: int = 0
@@ -140,6 +148,12 @@ def run_all_daily(
             summary_values["trade_date"] = _date_text(export_result.trade_date)
             summary_values["candidate_rows"] = len(export_result.candidates)
             summary_values["risk_pass_rows"] = len(export_result.risk_pass_candidates)
+            summary_values["fundamental_positive_candidates"] = _count_fundamental_positive(
+                export_result.candidates
+            )
+            summary_values["fundamental_warning_candidates"] = _count_fundamental_warning(
+                export_result.candidates
+            )
             messages.append(
                 "export_candidates OK "
                 f"candidate_rows={len(export_result.candidates)} "
@@ -234,6 +248,7 @@ def run_all_daily(
                     trade_date=summary_values["trade_date"],
                     capital=capital,
                     trading_cost=config.get("trading_cost", {}),
+                    exit_strategy=config.get("exit_strategy", {}),
                 )
             except TypeError:
                 update_result = update_func(
@@ -321,6 +336,14 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "total_cost": 0.0,
         "realized_pnl_after_cost": 0.0,
         "total_equity_after_cost": float(capital),
+        "take_profit_exits": 0,
+        "stop_loss_exits": 0,
+        "trailing_stop_exits": 0,
+        "trend_exit_exits": 0,
+        "time_exit_exits": 0,
+        "realized_pnl_after_cost_today": 0.0,
+        "fundamental_positive_candidates": 0,
+        "fundamental_warning_candidates": 0,
         "pending_orders": 0,
         "executed_orders": 0,
         "skipped_orders": 0,
@@ -389,6 +412,17 @@ def _merge_update_summary(summary_values: dict[str, Any], update_summary: pd.Dat
     summary_values["total_equity_after_cost"] = float(
         row.get("total_equity_after_cost", summary_values["total_equity"])
     )
+    for column in [
+        "take_profit_exits",
+        "stop_loss_exits",
+        "trailing_stop_exits",
+        "trend_exit_exits",
+        "time_exit_exits",
+    ]:
+        summary_values[column] = int(row.get(column, 0))
+    summary_values["realized_pnl_after_cost_today"] = float(
+        row.get("realized_pnl_after_cost_today", 0.0)
+    )
 
 
 def _count_status(frame: pd.DataFrame, status: str) -> int:
@@ -402,6 +436,18 @@ def _count_entry_price_warnings(execute_result: Any) -> int:
     if executed.empty or "entry_price_source" not in executed.columns:
         return 0
     return int((executed["entry_price_source"].fillna("").astype(str) == "CLOSE_FALLBACK").sum())
+
+
+def _count_fundamental_positive(frame: pd.DataFrame) -> int:
+    if frame.empty or "fundamental_score" not in frame.columns:
+        return 0
+    return int((pd.to_numeric(frame["fundamental_score"], errors="coerce").fillna(50) > 50).sum())
+
+
+def _count_fundamental_warning(frame: pd.DataFrame) -> int:
+    if frame.empty or "fundamental_score" not in frame.columns:
+        return 0
+    return int((pd.to_numeric(frame["fundamental_score"], errors="coerce").fillna(50) < 50).sum())
 
 
 def _write_summary(report_dir: Path, summary: DailyWorkflowSummary) -> Path:

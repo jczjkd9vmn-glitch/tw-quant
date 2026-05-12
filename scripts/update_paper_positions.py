@@ -32,6 +32,7 @@ def main() -> None:
         trade_date=args.date,
         capital=args.capital,
         trading_cost=config.get("trading_cost", {}),
+        exit_strategy=config.get("exit_strategy", {}),
     )
 
     if result.warning:

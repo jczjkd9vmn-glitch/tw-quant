@@ -14,15 +14,15 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     html = output_path.read_text(encoding="utf-8")
 
     assert output_path.exists()
-    assert "台股紙上交易每日報表" in html
-    assert "今日重點結論" in html
+    assert "台股紙上交易帳務" in html
+    assert "損益總覽" in html
     assert "系統健康檢查" in html
-    assert "系統狀態總覽" in html
     assert "基本面摘要" in html
     assert "今日候選股" in html
     assert "通過風控股票" in html
-    assert "待進場清單" in html
-    assert "已成交持倉" in html
+    assert "待進場" in html
+    assert "持倉" in html
+    assert "已出場" in html
     assert "紙上交易績效" in html
     assert "交易成本摘要" in html
     assert "國泰電子下單手續費率" in html
@@ -50,8 +50,8 @@ def test_generate_html_report_creates_docs_index_for_github_pages(tmp_path: Path
 
     assert docs_index.exists()
     assert docs_html == reports_index.read_text(encoding="utf-8")
-    assert "台股紙上交易每日報表" in docs_html
-    assert "系統狀態總覽" in docs_html
+    assert "台股紙上交易帳務" in docs_html
+    assert "損益總覽" in docs_html
     assert 'lang="zh-Hant"' in docs_html
 
 
@@ -102,8 +102,39 @@ def test_generate_html_report_handles_missing_data_with_chinese_messages(tmp_pat
     assert "目前尚無每日 summary" in html
     assert "目前尚無候選股資料" in html
     assert "目前尚無待進場資料" in html
-    assert "目前尚無已成交持倉" in html
-    assert "目前尚無已平倉交易" in html
+    assert "目前尚無持倉" in html
+    assert "目前尚無已出場交易" in html
+
+
+def test_generate_html_report_uses_broker_app_cards_and_profit_classes(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "profit-positive" in html
+    assert "profit-negative" in html
+    assert "mobile-card position-card" in html
+    assert "pending-card" in html
+    assert "closed-card" in html
+    assert "持有中" in html
+    assert "已出場" in html
+    assert "等待進場" in html
+    assert "已有持倉，略過重複進場" in html
+
+
+def test_generate_html_report_translates_all_exit_reasons(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "停損" in html
+    assert "第一段停利" in html
+    assert "第二段停利" in html
+    assert "移動停利" in html
+    assert "跌破 20 日均線" in html
+    assert "持有過久出場" in html
 
 
 def _write_reports(path: Path) -> None:
@@ -242,7 +273,142 @@ def _write_reports(path: Path) -> None:
                 "realized_pnl": "",
                 "realized_pnl_pct": "",
                 "exit_reason": "",
-            }
+            },
+            {
+                "signal_date": "2026-05-01",
+                "actual_entry_date": "2026-05-02",
+                "entry_price_source": "OPEN",
+                "trade_date": "2026-05-02",
+                "stock_id": "2317",
+                "stock_name": "鴻海",
+                "entry_price": 150.0,
+                "shares": 100,
+                "original_shares": 100,
+                "remaining_shares": 0,
+                "position_value": 0.0,
+                "entry_slippage": 0.1,
+                "entry_commission": 20.0,
+                "exit_slippage": 0.1,
+                "exit_commission": 20.0,
+                "exit_tax": 45.0,
+                "total_cost": 95.0,
+                "realized_pnl_after_cost": -500.0,
+                "realized_pnl_pct_after_cost": -0.03,
+                "partial_exit_1_done": False,
+                "partial_exit_2_done": False,
+                "highest_price_since_entry": 152.0,
+                "highest_pnl_pct_since_entry": 0.01,
+                "trailing_stop_price": "",
+                "stop_loss_price": 142.0,
+                "suggested_position_pct": 0.1,
+                "status": "CLOSED",
+                "current_price": 145.0,
+                "market_value": 0.0,
+                "unrealized_pnl": 0.0,
+                "unrealized_pnl_pct": 0.0,
+                "holding_days": 3,
+                "stop_loss_hit": True,
+                "exit_date": "2026-05-05",
+                "exit_price": 145.0,
+                "realized_pnl": -500.0,
+                "realized_pnl_pct": -0.03,
+                "exit_reason": "STOP_LOSS",
+            },
+            {
+                "trade_date": "2026-05-02",
+                "stock_id": "2454",
+                "stock_name": "聯發科",
+                "entry_price": 900.0,
+                "shares": 10,
+                "original_shares": 10,
+                "remaining_shares": 0,
+                "position_value": 0.0,
+                "total_cost": 90.0,
+                "realized_pnl_after_cost": 900.0,
+                "realized_pnl_pct_after_cost": 0.1,
+                "status": "CLOSED",
+                "exit_date": "2026-05-06",
+                "exit_price": 990.0,
+                "realized_pnl": 900.0,
+                "realized_pnl_pct": 0.1,
+                "exit_reason": "TAKE_PROFIT_1",
+            },
+            {
+                "trade_date": "2026-05-02",
+                "stock_id": "2308",
+                "stock_name": "台達電",
+                "entry_price": 300.0,
+                "shares": 20,
+                "original_shares": 20,
+                "remaining_shares": 0,
+                "position_value": 0.0,
+                "total_cost": 80.0,
+                "realized_pnl_after_cost": 1200.0,
+                "realized_pnl_pct_after_cost": 0.2,
+                "status": "CLOSED",
+                "exit_date": "2026-05-06",
+                "exit_price": 360.0,
+                "realized_pnl": 1200.0,
+                "realized_pnl_pct": 0.2,
+                "exit_reason": "TAKE_PROFIT_2",
+            },
+            {
+                "trade_date": "2026-05-02",
+                "stock_id": "2382",
+                "stock_name": "廣達",
+                "entry_price": 250.0,
+                "shares": 20,
+                "original_shares": 20,
+                "remaining_shares": 0,
+                "position_value": 0.0,
+                "total_cost": 70.0,
+                "realized_pnl_after_cost": 500.0,
+                "realized_pnl_pct_after_cost": 0.1,
+                "status": "CLOSED",
+                "exit_date": "2026-05-06",
+                "exit_price": 275.0,
+                "realized_pnl": 500.0,
+                "realized_pnl_pct": 0.1,
+                "exit_reason": "TRAILING_STOP",
+            },
+            {
+                "trade_date": "2026-05-02",
+                "stock_id": "2881",
+                "stock_name": "富邦金",
+                "entry_price": 80.0,
+                "shares": 100,
+                "original_shares": 100,
+                "remaining_shares": 0,
+                "position_value": 0.0,
+                "total_cost": 60.0,
+                "realized_pnl_after_cost": -200.0,
+                "realized_pnl_pct_after_cost": -0.025,
+                "status": "CLOSED",
+                "exit_date": "2026-05-06",
+                "exit_price": 78.0,
+                "realized_pnl": -200.0,
+                "realized_pnl_pct": -0.025,
+                "exit_reason": "MA_EXIT",
+            },
+            {
+                "trade_date": "2026-05-02",
+                "stock_id": "1101",
+                "stock_name": "台泥",
+                "entry_price": 40.0,
+                "shares": 100,
+                "original_shares": 100,
+                "remaining_shares": 0,
+                "position_value": 0.0,
+                "total_cost": 40.0,
+                "realized_pnl_after_cost": 50.0,
+                "realized_pnl_pct_after_cost": 0.0125,
+                "status": "CLOSED",
+                "exit_date": "2026-05-06",
+                "exit_price": 40.5,
+                "realized_pnl": 50.0,
+                "realized_pnl_pct": 0.0125,
+                "exit_reason": "TIME_EXIT",
+            },
         ]
     ).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")
 

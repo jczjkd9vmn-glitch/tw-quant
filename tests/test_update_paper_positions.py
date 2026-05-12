@@ -123,6 +123,46 @@ def test_update_paper_positions_handles_legacy_float_text_columns(tmp_path) -> N
     assert isinstance(row["actual_entry_date"], str)
 
 
+def test_take_profit_1_then_take_profit_2(tmp_path) -> None:
+    engine = create_db_engine("sqlite:///:memory:")
+    init_db(engine)
+    _write_trades(tmp_path, [_trade("2330", entry_price=100, shares=10, stop_loss=80)])
+    save_daily_prices(engine, _prices("20260509", {"2330": 110}))
+    first = update_paper_positions(engine, reports_dir=tmp_path, trade_date="20260509", capital=10_000)
+    row1 = first.updated_trades.iloc[0]
+    assert row1["status"] == "OPEN"
+    assert row1["exit_reason"] == "TAKE_PROFIT_1"
+    assert row1["remaining_shares"] == 5
+
+    save_daily_prices(engine, _prices("20260510", {"2330": 120}))
+    second = update_paper_positions(engine, reports_dir=tmp_path, trade_date="20260510", capital=10_000)
+    row2 = second.updated_trades.iloc[0]
+    assert row2["status"] == "CLOSED"
+    assert row2["exit_reason"] == "TAKE_PROFIT_2"
+    assert row2["remaining_shares"] == 0
+
+
+def test_trailing_stop_and_time_exit(tmp_path) -> None:
+    engine = create_db_engine("sqlite:///:memory:")
+    init_db(engine)
+    _write_trades(
+        tmp_path,
+        [
+            _trade("2330", entry_price=100, shares=10, stop_loss=70),
+            _trade("2317", entry_price=100, shares=10, stop_loss=70) | {"trade_date": "2026-04-01"},
+        ],
+    )
+    save_daily_prices(engine, _prices("20260509", {"2330": 110, "2317": 101}))
+    update_paper_positions(engine, reports_dir=tmp_path, trade_date="20260509", capital=10_000)
+
+    save_daily_prices(engine, _prices("20260510", {"2330": 103, "2317": 102}))
+    result = update_paper_positions(engine, reports_dir=tmp_path, trade_date="20260510", capital=10_000)
+    rows = {r["stock_id"]: r for _, r in result.updated_trades.iterrows()}
+    assert rows["2330"]["exit_reason"] == "TRAILING_STOP"
+    assert rows["2330"]["status"] == "CLOSED"
+    assert rows["2317"]["exit_reason"] == "TIME_EXIT"
+
+
 def _write_trades(path, rows: list[dict]) -> None:
     frame = pd.DataFrame(rows)
     frame.to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")

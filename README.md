@@ -99,6 +99,8 @@ reports/daily_summary_YYYYMMDD.csv
 
 summary 包含 `trade_date`、`scored_rows`、`candidate_rows`、`risk_pass_rows`、`new_positions`、`open_positions`、`closed_positions`、`unrealized_pnl`、`realized_pnl`、`total_equity`、`total_cost`、`realized_pnl_after_cost` 與 `total_equity_after_cost`。
 
+`update_paper_positions` 另支援 `exit_strategy`：停損、第一段停利、第二段停利、移動停利、跌破均線出場與持有過久出場；並維護 `original_shares`、`remaining_shares`、`partial_exit_1_done`、`highest_price_since_entry`、`trailing_stop_price` 等欄位，舊版 `paper_trades.csv` 仍維持 dtype 相容處理。
+
 ## Windows 每日自動執行
 
 專案提供 PowerShell 輔助腳本：

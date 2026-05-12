@@ -1,0 +1,2 @@
+﻿trade_date,scored_rows,candidate_rows,risk_pass_rows,new_positions,open_positions,closed_positions,unrealized_pnl,realized_pnl,total_equity,total_cost,realized_pnl_after_cost,total_equity_after_cost,pending_orders,executed_orders,skipped_orders,entry_price_source_warnings,requested_date,fallback_date,fallback_reason,status,error_step,error_message
+2026-05-11,1331,20,6,0,5,1,12486.18,-9824.01,1002662.17,491.01,-9824.01,1002662.17,5,0,1,0,2026-05-12,2026-05-11,no trading data,OK_WITH_FALLBACK,,

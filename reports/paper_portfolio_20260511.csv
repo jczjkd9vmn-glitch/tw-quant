@@ -1,0 +1,7 @@
+﻿signal_date,planned_entry_date,actual_entry_date,entry_price_source,trade_date,stock_id,stock_name,entry_price,shares,position_value,entry_slippage,entry_commission,exit_slippage,exit_commission,exit_tax,total_cost,realized_pnl_after_cost,realized_pnl_pct_after_cost,stop_loss_price,suggested_position_pct,status,current_price,market_value,unrealized_pnl,unrealized_pnl_pct,holding_days,stop_loss_hit,exit_date,exit_price,realized_pnl,realized_pnl_pct,exit_reason
+,,,,2026-05-08,3528,安馳,91.0,1098,99918.0,,,0.0825,128.95,271.48,491.01,-9824.01,-0.098321,85.39,0.1,CLOSED,82.5,0.0,0.0,0.0,3,True,2026-05-11,82.4175,-9824.01,-0.098321,STOP_LOSS
+,,,,2026-05-08,3033,威健,43.85,2280,99978.0,,,,,,,,,40.6,0.1,OPEN,44.0,100320.0,342.0,0.003421,3,False,,,,,
+,,,,2026-05-08,2376,技嘉,317.0,315,99855.0,,,,,,,,,293.43,0.1,OPEN,324.5,102217.5,2362.5,0.023659,3,False,,,,,
+,,,,2026-05-08,3416,融程電,175.5,569,99859.5,,,,,,,,,163.0,0.1,OPEN,171.5,97583.5,-2276.0,-0.022792,3,False,,,,,
+,,,,2026-05-08,00891,中信關鍵半導體,34.19,2924,99971.56,,,,,,,,,32.27,0.1,OPEN,35.01,102369.24,2397.68,0.023984,3,False,,,,,
+,,,,2026-05-08,6206,飛捷,119.0,840,99960.0,,,,,,,,,110.93,0.1,OPEN,130.5,109620.0,9660.0,0.096639,3,False,,,,,

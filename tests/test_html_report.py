@@ -112,8 +112,24 @@ def test_generate_html_report_uses_broker_app_cards_and_profit_classes(tmp_path:
     output_path = generate_html_report(tmp_path)
     html = output_path.read_text(encoding="utf-8")
 
+    assert 'class="section-tabs tab-nav"' in html
+    assert 'data-tab-target="overview"' in html
+    assert 'data-tab-target="positions"' in html
+    assert 'data-tab-target="pending"' in html
+    assert 'data-tab-target="closed"' in html
+    assert 'data-tab-target="fundamental"' in html
+    assert 'data-tab-target="health"' in html
+    assert 'data-tab-panel="overview"' in html
+    assert 'data-tab-panel="positions"' in html
+    assert 'document.querySelectorAll' in html
+    assert '<details class="collapse-block"' in html
+    assert "<summary>今日候選股詳細表</summary>" in html
+    assert "<summary>通過風控股票詳細表</summary>" in html
+    assert "<summary>最近每日 summary</summary>" in html
     assert "profit-positive" in html
     assert "profit-negative" in html
+    assert "position-pnl pnl-highlight profit-positive" in html
+    assert "closed-pnl pnl-highlight profit-negative" in html
     assert "mobile-card position-card" in html
     assert "pending-card" in html
     assert "closed-card" in html

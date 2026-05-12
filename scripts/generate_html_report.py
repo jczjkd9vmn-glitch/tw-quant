@@ -304,6 +304,101 @@ def _render_page(
     alert = _warning_banner(health_items)
     updated_at = _report_updated_at(report_dir)
 
+    candidate_detail = _table(
+        candidates,
+        [
+            "rank",
+            "trade_date",
+            "stock_id",
+            "stock_name",
+            "close",
+            "total_score",
+            "trend_score",
+            "momentum_score",
+            "risk_score",
+            "revenue_yoy",
+            "revenue_mom",
+            "accumulated_revenue_yoy",
+            "fundamental_reason",
+            "reason",
+        ],
+        "目前尚無候選股資料",
+        max_rows=20,
+    )
+    risk_pass_detail = _table(
+        risk_pass,
+        [
+            "rank",
+            "stock_id",
+            "stock_name",
+            "close",
+            "total_score",
+            "risk_reason",
+            "stop_loss_price",
+            "suggested_position_pct",
+        ],
+        "目前尚無通過風控的股票",
+        max_rows=20,
+    )
+    recent_summary_detail = _table(
+        recent_summaries,
+        [
+            "requested_date",
+            "trade_date",
+            "status",
+            "fallback_date",
+            "fallback_reason",
+            "scored_rows",
+            "candidate_rows",
+            "risk_pass_rows",
+            "pending_orders",
+            "executed_orders",
+            "skipped_orders",
+            "entry_price_source_warnings",
+            "open_positions",
+            "closed_positions",
+            "unrealized_pnl",
+            "realized_pnl",
+            "total_equity",
+            "total_cost",
+            "realized_pnl_after_cost",
+            "total_equity_after_cost",
+            "take_profit_exits",
+            "stop_loss_exits",
+            "trailing_stop_exits",
+            "trend_exit_exits",
+            "realized_pnl_after_cost_today",
+            "fundamental_positive_candidates",
+            "fundamental_warning_candidates",
+        ],
+        "目前尚無每日 summary",
+        max_rows=10,
+    )
+
+    overview_content = "".join(
+        [
+            _pnl_overview(latest_summary, latest_paper_summary, open_positions),
+            _details_block("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary, trading_cost)),
+            _details_block("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades)),
+            _details_block("出場策略摘要", _exit_strategy_summary(latest_summary, open_positions, closed_trades)),
+            _details_block("非交易日替代交易日說明", _fallback_note(latest_summary)),
+        ]
+    )
+    fundamental_content = "".join(
+        [
+            _fundamental_summary(candidates),
+            _details_block("今日候選股詳細表", candidate_detail),
+            _details_block("通過風控股票詳細表", risk_pass_detail),
+        ]
+    )
+    health_content = "".join(
+        [
+            _health_summary_cards(health_items),
+            _details_block("系統健康檢查詳細項目", _health_section(health_items)),
+            _details_block("最近每日 summary", recent_summary_detail),
+        ]
+    )
+
     return "\n".join(
         [
             "<!doctype html>",
@@ -318,99 +413,15 @@ def _render_page(
             '<main class="page">',
             _account_header(latest_summary, updated_at),
             alert,
-            _section("損益總覽", _pnl_overview(latest_summary, latest_paper_summary, open_positions), section_id="overview", class_name="overview-section"),
             _nav_tabs(),
-            _section("持倉", _position_cards(open_positions), section_id="positions"),
-            _section("待進場", _pending_cards(pending_orders), section_id="pending"),
-            _section("已出場", _closed_cards(closed_trades), section_id="closed"),
-            _section("基本面摘要", _fundamental_summary(candidates), section_id="fundamental"),
-            _section("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary, trading_cost), section_id="costs"),
-            _section("系統健康檢查", _health_section(health_items), section_id="health"),
-            _section(
-                "今日候選股",
-                _table(
-                    candidates,
-                    [
-                        "rank",
-                        "trade_date",
-                        "stock_id",
-                        "stock_name",
-                        "close",
-                        "total_score",
-                        "trend_score",
-                        "momentum_score",
-                        "risk_score",
-                        "revenue_yoy",
-                        "revenue_mom",
-                        "accumulated_revenue_yoy",
-                        "fundamental_reason",
-                        "reason",
-                    ],
-                    "目前尚無候選股資料",
-                    max_rows=20,
-                ),
-                section_id="candidates",
-            ),
-            _section(
-                "通過風控股票",
-                _table(
-                    risk_pass,
-                    [
-                        "rank",
-                        "stock_id",
-                        "stock_name",
-                        "close",
-                        "total_score",
-                        "risk_reason",
-                        "stop_loss_price",
-                        "suggested_position_pct",
-                    ],
-                    "目前尚無通過風控的股票",
-                    max_rows=20,
-                ),
-                section_id="risk-pass",
-            ),
-            _section("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades)),
-            _section("出場策略摘要", _exit_strategy_summary(latest_summary, open_positions, closed_trades)),
-            _section(
-                "最近每日 summary",
-                _table(
-                    recent_summaries,
-                    [
-                        "requested_date",
-                        "trade_date",
-                        "status",
-                        "fallback_date",
-                        "fallback_reason",
-                        "scored_rows",
-                        "candidate_rows",
-                        "risk_pass_rows",
-                        "pending_orders",
-                        "executed_orders",
-                        "skipped_orders",
-                        "entry_price_source_warnings",
-                        "open_positions",
-                        "closed_positions",
-                        "unrealized_pnl",
-                        "realized_pnl",
-                        "total_equity",
-                        "total_cost",
-                        "realized_pnl_after_cost",
-                        "total_equity_after_cost",
-                        "take_profit_exits",
-                        "stop_loss_exits",
-                        "trailing_stop_exits",
-                        "trend_exit_exits",
-                        "realized_pnl_after_cost_today",
-                        "fundamental_positive_candidates",
-                        "fundamental_warning_candidates",
-                    ],
-                    "目前尚無每日 summary",
-                    max_rows=10,
-                ),
-            ),
-            _section("非交易日替代交易日說明", _fallback_note(latest_summary)),
+            _tab_panel("overview", "總覽", overview_content, active=True),
+            _tab_panel("positions", "目前持倉", _position_cards(open_positions)),
+            _tab_panel("pending", "待進場", _pending_cards(pending_orders)),
+            _tab_panel("closed", "今日 / 最近已出場", _closed_cards(closed_trades)),
+            _tab_panel("fundamental", "基本面摘要", fundamental_content),
+            _tab_panel("health", "健康檢查", health_content),
             "</main>",
+            f"<script>{_javascript()}</script>",
             "</body>",
             "</html>",
         ]
@@ -447,8 +458,23 @@ def _nav_tabs() -> str:
         ("fundamental", "基本面"),
         ("health", "健康檢查"),
     ]
-    links = "".join(f'<a href="#{anchor}">{label}</a>' for anchor, label in tabs)
-    return f'<nav class="section-tabs" aria-label="報表區塊導覽">{links}</nav>'
+    buttons = []
+    for index, (anchor, label) in enumerate(tabs):
+        active = " active" if index == 0 else ""
+        selected = "true" if index == 0 else "false"
+        buttons.append(
+            f'<button type="button" class="tab-button{active}" data-tab-target="{anchor}" '
+            f'aria-controls="tab-{anchor}" aria-selected="{selected}">{label}</button>'
+        )
+    return f'<nav class="section-tabs tab-nav" aria-label="報表區塊導覽">{"".join(buttons)}</nav>'
+
+
+def _tab_panel(panel_id: str, title: str, content: str, active: bool = False) -> str:
+    classes = "tab-panel active" if active else "tab-panel"
+    return (
+        f'<section id="tab-{escape(panel_id)}" class="{classes}" data-tab-panel="{escape(panel_id)}" '
+        f'role="tabpanel"><h2>{escape(title)}</h2>{content}</section>'
+    )
 
 
 def _pnl_overview(
@@ -494,7 +520,7 @@ def _pnl_overview(
     ]
     primary_cards = "".join(_overview_metric(label, value, raw, class_name) for label, value, raw, class_name in primary)
     secondary_cards = "".join(_overview_metric(label, value, raw, "") for label, value, raw in secondary)
-    return f'<div class="pnl-card"><div class="pnl-primary">{primary_cards}</div><div class="pnl-secondary">{secondary_cards}</div></div>'
+    return f'<div class="pnl-card"><h3>損益總覽</h3><div class="pnl-primary">{primary_cards}</div><div class="pnl-secondary">{secondary_cards}</div></div>'
 
 
 def _overview_metric(label: str, value: str, raw_value: float | None, extra_class: str = "") -> str:
@@ -542,7 +568,7 @@ def _position_cards(frame: pd.DataFrame) -> str:
         ]
         metric_html = "".join(f"<div><span>{label}</span><strong>{value}</strong></div>" for label, value in metrics)
         pnl_html = (
-            f'<div class="position-pnl {_profit_class(pnl)}">'
+            f'<div class="position-pnl pnl-highlight {_profit_class(pnl)}">'
             f'<span>未實現損益</span><strong>{escape(_format_cell("unrealized_pnl", row.get("unrealized_pnl")))}</strong>'
             f'<em>{escape(_format_cell("unrealized_pnl_pct", row.get("unrealized_pnl_pct")))}</em></div>'
         )
@@ -553,7 +579,7 @@ def _position_cards(frame: pd.DataFrame) -> str:
             '<b>現股</b>'
             '</div>'
             f'<div class="holding-main">{pnl_html}<div class="holding-metrics">{metric_html}</div></div>'
-            f'<details><summary>更多持倉資訊</summary>{details}</details>'
+            f'<details class="card-details"><summary>更多持倉資訊</summary>{details}</details>'
             '</article>'
         )
     table = _table(
@@ -573,7 +599,10 @@ def _position_cards(frame: pd.DataFrame) -> str:
         "目前尚無持倉",
         max_rows=50,
     )
-    return '<div class="broker-cards">' + "".join(cards) + "</div>" + table
+    return (
+        '<div class="broker-cards">' + "".join(cards) + "</div>"
+        + _details_block("原始持倉資料表格", table, class_name="raw-table-details")
+    )
 
 
 def _pending_cards(frame: pd.DataFrame) -> str:
@@ -608,7 +637,10 @@ def _pending_cards(frame: pd.DataFrame) -> str:
         "目前尚無待進場資料",
         max_rows=50,
     )
-    return '<div class="broker-cards">' + "".join(cards) + "</div>" + table
+    return (
+        '<div class="broker-cards">' + "".join(cards) + "</div>"
+        + _details_block("原始待進場資料表格", table, class_name="raw-table-details")
+    )
 
 
 def _closed_cards(frame: pd.DataFrame) -> str:
@@ -619,15 +651,18 @@ def _closed_cards(frame: pd.DataFrame) -> str:
         stock_id = _format_cell("stock_id", row.get("stock_id"))
         stock_name = _format_cell("stock_name", row.get("stock_name"))
         after_cost = _to_float(row.get("realized_pnl_after_cost"))
+        metrics = [
+            ("出場日期", _format_cell("exit_date", row.get("exit_date"))),
+            ("已實現損益", _format_cell("realized_pnl", row.get("realized_pnl"))),
+            ("扣成本後損益", _format_cell("realized_pnl_after_cost", row.get("realized_pnl_after_cost"))),
+            ("扣成本後報酬率", _format_cell("realized_pnl_pct_after_cost", row.get("realized_pnl_pct_after_cost"))),
+        ]
+        metric_html = "".join(f"<div><span>{label}</span><strong>{value}</strong></div>" for label, value in metrics)
         fields = _detail_grid(
             row,
             [
-                "exit_date",
                 "exit_reason",
                 "exit_price",
-                "realized_pnl",
-                "realized_pnl_after_cost",
-                "realized_pnl_pct_after_cost",
                 "total_cost",
                 "status",
             ],
@@ -636,9 +671,11 @@ def _closed_cards(frame: pd.DataFrame) -> str:
             '<article class="mobile-card closed-card">'
             f'<div class="card-title-row"><h3>{escape(stock_id)} {escape(stock_name)}</h3>'
             f'<span>{escape(_format_cell("exit_reason", row.get("exit_reason")))}</span></div>'
-            f'<div class="closed-pnl {_profit_class(after_cost)}"><span>扣成本後損益</span>'
+            f'<div class="closed-pnl pnl-highlight {_profit_class(after_cost)}"><span>扣成本後已實現損益</span>'
             f'<strong>{escape(_format_cell("realized_pnl_after_cost", row.get("realized_pnl_after_cost")))}</strong></div>'
-            f"{fields}</article>"
+            f'<div class="holding-metrics closed-metrics">{metric_html}</div>'
+            f'<details class="card-details"><summary>更多出場資訊</summary>{fields}</details>'
+            "</article>"
         )
     table = _table(
         frame,
@@ -646,7 +683,10 @@ def _closed_cards(frame: pd.DataFrame) -> str:
         "目前尚無已出場交易",
         max_rows=50,
     )
-    return '<div class="broker-cards">' + "".join(cards) + "</div>" + table
+    return (
+        '<div class="broker-cards">' + "".join(cards) + "</div>"
+        + _details_block("原始已出場資料表格", table, class_name="raw-table-details")
+    )
 
 
 def _detail_grid(row: pd.Series, columns: list[str]) -> str:
@@ -854,6 +894,22 @@ def _health_section(items: list[tuple[str, str, str]]) -> str:
     return '<div class="health-grid">' + "".join(rows) + "</div>"
 
 
+def _health_summary_cards(items: list[tuple[str, str, str]]) -> str:
+    if not items:
+        return _empty("目前尚無健康檢查資料")
+    warning_count = sum(1 for _, status, _ in items if status == "警告")
+    attention_count = sum(1 for _, status, _ in items if status == "注意")
+    normal_count = sum(1 for _, status, _ in items if status == "正常")
+    status = "警告" if warning_count else "注意" if attention_count else "正常"
+    cards = [
+        ("整體狀態", status),
+        ("正常項目", f"{normal_count:,.0f}"),
+        ("注意項目", f"{attention_count:,.0f}"),
+        ("警告項目", f"{warning_count:,.0f}"),
+    ]
+    return '<div class="cards health-summary">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+
+
 def _warning_banner(items: list[tuple[str, str, str]]) -> str:
     warnings = [f"{name}：{detail}" for name, status, detail in items if status == "警告"]
     if not warnings:
@@ -894,7 +950,10 @@ def _fundamental_summary(candidates: pd.DataFrame) -> str:
         "基本面資料不足，採中性分數",
         max_rows=20,
     )
-    return '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + table
+    return (
+        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        + _details_block("基本面候選股詳細表", table)
+    )
 
 
 def _exit_strategy_summary(
@@ -923,7 +982,10 @@ def _exit_strategy_summary(
         "目前尚無出場策略持倉資料",
         max_rows=50,
     )
-    return '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + open_table
+    return (
+        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        + _details_block("出場策略持倉明細", open_table)
+    )
 
 
 def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) -> str:
@@ -945,29 +1007,31 @@ def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) 
     else:
         blocks.append(_empty("目前尚無紙上交易績效資料"))
 
-    blocks.append("<h3>已平倉交易</h3>")
     blocks.append(
-        _table(
-            closed_trades,
-            [
-                "trade_date",
-                "stock_id",
-                "stock_name",
-                "entry_price",
-                "exit_date",
-                "exit_price",
-                "exit_commission",
-                "exit_tax",
-                "total_cost",
-                "realized_pnl",
-                "realized_pnl_pct",
-                "realized_pnl_after_cost",
-                "realized_pnl_pct_after_cost",
-                "exit_reason",
-                "status",
-            ],
-            "目前尚無已平倉交易",
-            max_rows=50,
+        _details_block(
+            "已平倉交易明細",
+            _table(
+                closed_trades,
+                [
+                    "trade_date",
+                    "stock_id",
+                    "stock_name",
+                    "entry_price",
+                    "exit_date",
+                    "exit_price",
+                    "exit_commission",
+                    "exit_tax",
+                    "total_cost",
+                    "realized_pnl",
+                    "realized_pnl_pct",
+                    "realized_pnl_after_cost",
+                    "realized_pnl_pct_after_cost",
+                    "exit_reason",
+                    "status",
+                ],
+                "目前尚無已平倉交易",
+                max_rows=50,
+            ),
         )
     )
     return "".join(blocks)
@@ -1024,6 +1088,19 @@ def _section(title: str, content: str, section_id: str = "", class_name: str = "
     id_attr = f' id="{escape(section_id)}"' if section_id else ""
     classes = f' class="{escape(class_name)}"' if class_name else ""
     return f"<section{id_attr}{classes}><h2>{escape(title)}</h2>{content}</section>"
+
+
+def _details_block(title: str, content: str, open_by_default: bool = False, class_name: str = "") -> str:
+    open_attr = " open" if open_by_default else ""
+    classes = "collapse-block"
+    if class_name:
+        classes += f" {class_name}"
+    return (
+        f'<details class="{escape(classes)}"{open_attr}>'
+        f"<summary>{escape(title)}</summary>"
+        f'<div class="collapse-content">{content}</div>'
+        "</details>"
+    )
 
 
 def _card(label: str, value: str) -> str:
@@ -1248,6 +1325,24 @@ def _empty(message: str) -> str:
     return f'<div class="empty">{escape(message)}</div>'
 
 
+def _javascript() -> str:
+    return """
+document.querySelectorAll('[data-tab-target]').forEach(function(button){
+  button.addEventListener('click', function(){
+    var target = button.getAttribute('data-tab-target');
+    document.querySelectorAll('[data-tab-target]').forEach(function(item){
+      var active = item === button;
+      item.classList.toggle('active', active);
+      item.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    document.querySelectorAll('[data-tab-panel]').forEach(function(panel){
+      panel.classList.toggle('active', panel.getAttribute('data-tab-panel') === target);
+    });
+  });
+});
+"""
+
+
 def _css() -> str:
     return """
 *{box-sizing:border-box}
@@ -1261,7 +1356,10 @@ body{margin:0;background:#080d18;color:#e5e7eb;font-family:-apple-system,BlinkMa
 .header-meta{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
 .header-meta span{flex:0 0 auto;padding:5px 9px;border:1px solid #243244;border-radius:999px;background:#0f172a;color:#cbd5e1;font-size:12px}
 .section-tabs{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;margin:10px -14px 12px;padding:9px 14px;background:rgba(8,13,24,.94);backdrop-filter:blur(10px);border-bottom:1px solid #1f2937}
-.section-tabs a{flex:0 0 auto;padding:8px 12px;border:1px solid #243244;border-radius:999px;background:#111827;color:#dbeafe;text-decoration:none;font-size:14px;font-weight:700}
+.tab-button{flex:0 0 auto;padding:8px 12px;border:1px solid #243244;border-radius:999px;background:#111827;color:#dbeafe;font:700 14px/1.2 inherit;cursor:pointer}
+.tab-button.active{background:#2563eb;border-color:#60a5fa;color:#fff}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
 section{margin:12px 0;padding:14px;background:#101827;border:1px solid #1f2937;border-radius:10px}
 h2{margin:0 0 12px;font-size:18px;letter-spacing:0}
 h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
@@ -1282,19 +1380,27 @@ h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
 .holding-head span,.card-title-row span{display:inline-block;color:#cbd5e1;font-size:13px}
 .holding-head b{padding:3px 8px;border-radius:999px;background:#1e3a8a;color:#dbeafe;font-size:12px;white-space:nowrap}
 .holding-main{display:grid;gap:12px;margin-top:12px}
-.position-pnl,.closed-pnl{padding:12px;border-radius:10px;background:#111827;border:1px solid #243244}
+.position-pnl,.closed-pnl{padding:14px;border-radius:12px;background:#111827;border:1px solid #243244}
 .position-pnl span,.closed-pnl span{display:block;color:#94a3b8;font-size:12px}
-.position-pnl strong,.closed-pnl strong{display:block;font-size:26px;font-weight:800}
+.position-pnl strong,.closed-pnl strong{display:block;font-size:30px;font-weight:800;letter-spacing:0}
 .position-pnl em{display:block;font-style:normal;font-size:15px;font-weight:700}
+.pnl-highlight{min-height:96px;display:flex;flex-direction:column;justify-content:center}
 .holding-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .holding-metrics div{padding:10px;border-radius:8px;background:#0b1220;border:1px solid #1f2937}
 .holding-metrics span{display:block;color:#94a3b8;font-size:12px}
 .holding-metrics strong{font-size:15px;color:#f8fafc}
-details{margin-top:12px;border-top:1px solid #243244;padding-top:10px}
+.card-details{margin-top:12px;border-top:1px solid #243244;padding-top:10px}
+.collapse-block{margin-top:12px;border:1px solid #243244;border-radius:10px;background:#0b1220}
+.collapse-block>summary{padding:12px 13px;color:#bfdbfe;font-size:14px;font-weight:800;cursor:pointer;list-style:none}
+.collapse-block>summary::-webkit-details-marker{display:none}
+.collapse-block>summary:after{content:"展開";float:right;color:#94a3b8;font-size:12px;font-weight:700}
+.collapse-block[open]>summary:after{content:"收合"}
+.collapse-content{padding:0 12px 12px}
 summary{cursor:pointer;color:#bfdbfe;font-size:14px;font-weight:700}
 .detail-grid{display:grid;grid-template-columns:120px 1fr;gap:7px 10px;margin:10px 0 0}
 .detail-grid dt{color:#94a3b8;font-size:12px}.detail-grid dd{margin:0;color:#e5e7eb;font-size:13px}
 .table-wrap{display:none;width:100%;overflow-x:auto;border:1px solid #243244;border-radius:8px;margin-top:12px}
+.collapse-block .table-wrap{display:block}
 table{width:100%;border-collapse:collapse;min-width:760px;background:#0f172a}
 th,td{padding:10px 12px;border-bottom:1px solid #243244;text-align:left;vertical-align:top}
 th{color:#bae6fd;background:#172033;font-size:13px;white-space:nowrap}
@@ -1309,7 +1415,7 @@ tr:last-child td{border-bottom:0}
 .health strong{display:inline-block;margin-right:8px;padding:2px 8px;border-radius:999px;font-size:12px}
 .health span,.health em{display:block;margin-top:5px;font-style:normal}
 .health.正常 strong{background:#065f46;color:#d1fae5}.health.注意 strong{background:#854d0e;color:#fef3c7}.health.警告 strong{background:#991b1b;color:#fee2e2}
-@media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.table-wrap{display:block}}
+@media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}}
 """
 
 

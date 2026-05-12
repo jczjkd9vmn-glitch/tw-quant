@@ -71,6 +71,11 @@ PENDING_ORDER_COLUMNS = [
     "warning",
     "reason",
     "risk_reason",
+    "multi_factor_score",
+    "multi_factor_reason",
+    "event_risk_level",
+    "event_reason",
+    "event_blocked",
 ]
 
 
@@ -138,6 +143,8 @@ def run_paper_trade(
         stock_id = str(row["stock_id"]).strip()
         if stock_id in existing_order_ids:
             continue
+        if _to_bool(row.get("event_blocked")):
+            continue
         pending_rows.append(_build_pending_order(row))
 
     new_pending = pd.DataFrame(pending_rows, columns=PENDING_ORDER_COLUMNS)
@@ -189,6 +196,11 @@ def _build_pending_order(row: pd.Series) -> dict:
         "warning": "",
         "reason": str(row.get("reason", "")),
         "risk_reason": str(row.get("risk_reason", "")),
+        "multi_factor_score": row.get("multi_factor_score", ""),
+        "multi_factor_reason": str(row.get("multi_factor_reason", "")),
+        "event_risk_level": str(row.get("event_risk_level", "")),
+        "event_reason": str(row.get("event_reason", "")),
+        "event_blocked": row.get("event_blocked", ""),
     }
 
 
@@ -254,3 +266,12 @@ def _open_positions(trades: pd.DataFrame) -> pd.DataFrame:
 def _date_from_report_path(path: Path) -> str | None:
     match = re.search(r"risk_pass_candidates_(\d{8})\.csv$", path.name)
     return match.group(1) if match else None
+
+
+def _to_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    text = str(value).strip().lower()
+    return text in {"true", "1", "yes", "y"}

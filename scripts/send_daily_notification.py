@@ -47,44 +47,50 @@ def build_notification_message(summary: dict[str, object], pages_url: str | None
     requested_date = _date_text(summary.get("requested_date") or summary.get("trade_date"))
     trade_date = _date_text(summary.get("trade_date"))
     fallback_date = _date_text(summary.get("fallback_date"))
-    fallback_reason = _status_text(summary.get("fallback_reason"))
-    use_fallback = fallback_date != "-"
+    fallback_reason = _fallback_reason_text(summary.get("fallback_reason"))
+    use_recent_data = _uses_recent_data(requested_date, trade_date, fallback_date)
     pages = pages_url or os.getenv("GITHUB_PAGES_URL") or _infer_pages_url()
-
-    fallback_text = "是"
-    if use_fallback:
-        fallback_text = f"是（{fallback_reason}，使用 {fallback_date}）"
-    else:
-        fallback_text = "否"
 
     lines = [
         "台股紙上交易每日摘要",
         f"執行狀態：{_status_text(summary.get('status'))}",
         f"原始執行日期：{requested_date}",
         f"實際交易日：{trade_date}",
-        f"是否使用替代交易日：{fallback_text}",
-        f"候選股數：{_format_int(summary.get('candidate_rows'))}",
-        f"通過風控數：{_format_int(summary.get('risk_pass_rows'))}",
-        f"待進場筆數：{_format_int(summary.get('pending_orders'))}",
-        f"今日成交筆數：{_format_int(summary.get('executed_orders'))}",
-        f"跳過進場筆數：{_format_int(summary.get('skipped_orders'))}",
-        f"新增持倉數：{_format_int(summary.get('new_positions'))}",
-        f"目前持倉數：{_format_int(summary.get('open_positions'))}",
-        f"未實現損益：{_format_signed(summary.get('unrealized_pnl'))}",
-        f"已實現損益：{_format_signed(summary.get('realized_pnl'))}",
-        f"總資產：{_format_amount(summary.get('total_equity'))}",
-        f"累計交易成本：{_format_amount(summary.get('total_cost'))}",
-        f"扣成本後已實現損益：{_format_signed(summary.get('realized_pnl_after_cost'))}",
-        f"扣成本後總資產：{_format_amount(summary.get('total_equity_after_cost'))}",
-        f"今日停利筆數：{_format_int(summary.get('take_profit_exits'))}",
-        f"今日停損筆數：{_format_int(summary.get('stop_loss_exits'))}",
-        f"今日移動停利筆數：{_format_int(summary.get('trailing_stop_exits'))}",
-        f"今日趨勢出場筆數：{_format_int(summary.get('trend_exit_exits'))}",
-        f"今日扣成本後已實現損益：{_format_signed(summary.get('realized_pnl_after_cost_today'))}",
-        f"今日基本面加分候選股數：{_format_int(summary.get('fundamental_positive_candidates'))}",
-        f"今日基本面警告候選股數：{_format_int(summary.get('fundamental_warning_candidates'))}",
-        f"GitHub Pages 報表網址：{pages or '尚未設定'}",
+        f"是否使用最近有效資料：{'是' if use_recent_data else '否'}",
     ]
+    if use_recent_data:
+        lines.extend(
+            [
+                f"使用資料日期：{trade_date if trade_date != '-' else fallback_date}",
+                f"原因：{fallback_reason}",
+            ]
+        )
+
+    lines.extend(
+        [
+            f"候選股數：{_format_int(summary.get('candidate_rows'))}",
+            f"通過風控數：{_format_int(summary.get('risk_pass_rows'))}",
+            f"待進場筆數：{_format_int(summary.get('pending_orders'))}",
+            f"今日成交筆數：{_format_int(summary.get('executed_orders'))}",
+            f"跳過進場筆數：{_format_int(summary.get('skipped_orders'))}",
+            f"新增持倉數：{_format_int(summary.get('new_positions'))}",
+            f"目前持倉數：{_format_int(summary.get('open_positions'))}",
+            f"未實現損益：{_format_signed(summary.get('unrealized_pnl'))}",
+            f"累計已實現損益：{_format_signed(summary.get('realized_pnl'))}",
+            f"總資產：{_format_amount(summary.get('total_equity'))}",
+            f"累計交易成本：{_format_amount(summary.get('total_cost'))}",
+            f"累計扣成本後已實現損益：{_format_signed(summary.get('realized_pnl_after_cost'))}",
+            f"扣成本後總資產：{_format_amount(summary.get('total_equity_after_cost'))}",
+            f"今日停利筆數：{_format_int(summary.get('take_profit_exits'))}",
+            f"今日停損筆數：{_format_int(summary.get('stop_loss_exits'))}",
+            f"今日移動停利筆數：{_format_int(summary.get('trailing_stop_exits'))}",
+            f"今日趨勢出場筆數：{_format_int(summary.get('trend_exit_exits'))}",
+            f"今日扣成本後已實現損益：{_format_signed(summary.get('realized_pnl_after_cost_today'))}",
+            f"今日基本面加分候選股數：{_format_int(summary.get('fundamental_positive_candidates'))}",
+            f"今日基本面警告候選股數：{_format_int(summary.get('fundamental_warning_candidates'))}",
+            f"GitHub Pages 報表網址：{pages or '尚未設定'}",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -136,6 +142,21 @@ def _status_text(value: object) -> str:
         return "-"
     text = str(value).strip()
     return STATUS_LABELS.get(text, text)
+
+
+def _fallback_reason_text(value: object) -> str:
+    if _is_blank(value):
+        return "-"
+    text = str(value).strip()
+    if text == "no trading data":
+        return "本次無新交易資料，使用資料庫最近有效資料"
+    return STATUS_LABELS.get(text, text)
+
+
+def _uses_recent_data(requested_date: str, trade_date: str, fallback_date: str) -> bool:
+    if requested_date != "-" and trade_date != "-":
+        return requested_date != trade_date
+    return fallback_date != "-"
 
 
 def _date_text(value: object) -> str:

@@ -1,0 +1,6 @@
+﻿source_name,status,rows,warning,error_message
+monthly_revenue,MISSING,0,/home/runner/work/tw-quant/tw-quant/data/monthly_revenue.csv not found; using neutral scores,
+valuation,MISSING,0,/home/runner/work/tw-quant/tw-quant/data/valuation.csv not found; using neutral scores,
+financials,MISSING,0,/home/runner/work/tw-quant/tw-quant/data/financials.csv not found; using neutral scores,
+material_events,MISSING,0,/home/runner/work/tw-quant/tw-quant/data/material_events.csv not found; using neutral scores,
+institutional,MISSING,0,/home/runner/work/tw-quant/tw-quant/data/institutional.csv not found; using neutral scores,

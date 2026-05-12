@@ -45,6 +45,32 @@ SUMMARY_COLUMNS = [
     "closed_positions",
 ]
 
+TEXT_COLUMNS = [
+    "trade_date",
+    "signal_date",
+    "planned_entry_date",
+    "actual_entry_date",
+    "exit_date",
+    "stock_id",
+    "stock_name",
+    "status",
+    "exit_reason",
+    "entry_price_source",
+    "skipped_reason",
+    "warning",
+]
+
+NUMERIC_COLUMNS = [
+    "entry_price",
+    "current_price",
+    "market_value",
+    "unrealized_pnl",
+    "realized_pnl",
+    "total_cost",
+    "realized_pnl_after_cost",
+    "total_equity_after_cost",
+]
+
 
 @dataclass(frozen=True)
 class PaperUpdateResult:
@@ -159,7 +185,18 @@ def _load_paper_trades(trades_path: Path) -> pd.DataFrame:
     frame = pd.read_csv(trades_path, dtype={"stock_id": str})
     for column in TRADE_COLUMNS:
         if column not in frame.columns:
+            frame[column] = "" if column in TEXT_COLUMNS else None
+
+    for column in TEXT_COLUMNS:
+        if column not in frame.columns:
+            frame[column] = ""
+        frame[column] = frame[column].fillna("").astype(object)
+
+    for column in NUMERIC_COLUMNS:
+        if column not in frame.columns:
             frame[column] = None
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+
     frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
     frame["status"] = frame["status"].fillna("").astype(str)
     return frame[TRADE_COLUMNS].copy()

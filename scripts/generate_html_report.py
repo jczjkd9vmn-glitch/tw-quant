@@ -89,7 +89,12 @@ STATUS_LABELS = {
     "FAILED": "失敗",
     "OPEN": "持有中",
     "CLOSED": "已出場",
-    "STOP_LOSS": "停損出場",
+    "STOP_LOSS": "停損",
+    "TAKE_PROFIT_1": "第一段停利",
+    "TAKE_PROFIT_2": "第二段停利",
+    "TRAILING_STOP": "移動停利",
+    "MA_EXIT": "跌破 20 日均線",
+    "TIME_EXIT": "持有過久出場",
     "PENDING": "等待進場",
     "EXECUTED": "已成交",
     "SKIPPED_EXISTING_POSITION": "已有持倉，略過重複進場",
@@ -336,6 +341,7 @@ def _render_page(
                     max_rows=50,
                 ),
             ),
+            _section("出場策略摘要", _exit_strategy_overview(open_positions, closed_trades)),
             _section("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades)),
             _section("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary)),
             _section(
@@ -533,6 +539,25 @@ def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) 
         )
     )
     return "".join(blocks)
+
+
+def _exit_strategy_overview(open_positions: pd.DataFrame, closed_trades: pd.DataFrame) -> str:
+    combined = pd.concat([open_positions, closed_trades], ignore_index=True) if not (open_positions.empty and closed_trades.empty) else pd.DataFrame()
+    if combined.empty:
+        return _empty("目前尚無出場策略資料")
+    partial1_count = int(pd.to_numeric(combined.get("partial_exit_1_done", 0), errors="coerce").fillna(0).astype(int).sum()) if "partial_exit_1_done" in combined.columns else 0
+    trailing_count = int((combined.get("exit_reason", pd.Series(dtype=object)).fillna("").astype(str) == "TRAILING_STOP").sum()) if "exit_reason" in combined.columns else 0
+    cards = [
+        ("已觸發第一段停利", str(partial1_count)),
+        ("移動停利出場筆數", str(trailing_count)),
+    ]
+    if "remaining_shares" in combined.columns:
+        cards.append(("剩餘股數總計", _format_cell("shares", pd.to_numeric(combined["remaining_shares"], errors="coerce").fillna(0).sum())))
+    if "highest_price_since_entry" in combined.columns:
+        cards.append(("持有期間最高價（平均）", _format_cell("close", pd.to_numeric(combined["highest_price_since_entry"], errors="coerce").dropna().mean() if combined["highest_price_since_entry"].notna().any() else None)))
+    if "trailing_stop_price" in combined.columns:
+        cards.append(("移動停利線（平均）", _format_cell("close", pd.to_numeric(combined["trailing_stop_price"], errors="coerce").dropna().mean() if combined["trailing_stop_price"].notna().any() else None)))
+    return '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
 
 
 def _cost_overview(daily_summary: dict[str, object], paper_summary: dict[str, object]) -> str:

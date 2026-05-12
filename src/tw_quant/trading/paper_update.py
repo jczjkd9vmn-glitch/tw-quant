@@ -25,6 +25,13 @@ UPDATE_COLUMNS = [
     "realized_pnl",
     "realized_pnl_pct",
     "exit_reason",
+    "original_shares",
+    "remaining_shares",
+    "partial_exit_1_done",
+    "partial_exit_2_done",
+    "highest_price_since_entry",
+    "highest_pnl_pct_since_entry",
+    "trailing_stop_price",
 ]
 
 TRADE_COLUMNS = POSITION_COLUMNS + UPDATE_COLUMNS
@@ -45,6 +52,56 @@ SUMMARY_COLUMNS = [
     "closed_positions",
 ]
 
+TEXT_COLUMNS = [
+    "trade_date",
+    "signal_date",
+    "planned_entry_date",
+    "actual_entry_date",
+    "exit_date",
+    "stock_id",
+    "stock_name",
+    "status",
+    "exit_reason",
+    "entry_price_source",
+    "skipped_reason",
+    "warning",
+]
+
+NUMERIC_COLUMNS = [
+    "entry_price",
+    "current_price",
+    "market_value",
+    "unrealized_pnl",
+    "realized_pnl",
+    "total_cost",
+    "realized_pnl_after_cost",
+    "total_equity_after_cost",
+    "original_shares",
+    "remaining_shares",
+    "highest_price_since_entry",
+    "highest_pnl_pct_since_entry",
+    "trailing_stop_price",
+]
+
+
+@dataclass(frozen=True)
+class ExitStrategyConfig:
+    take_profit_1_pct: float = 0.10
+    take_profit_1_sell_pct: float = 0.50
+    take_profit_2_pct: float = 0.20
+    take_profit_2_sell_pct: float = 1.00
+    trailing_stop_activate_pct: float = 0.08
+    trailing_stop_drawdown_pct: float = 0.06
+    ma_exit_window: int = 20
+    max_holding_days: int = 20
+    min_profit_for_holding: float = 0.03
+
+    @classmethod
+    def from_mapping(cls, data: dict | None) -> "ExitStrategyConfig":
+        if not data:
+            return cls()
+        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+
 
 @dataclass(frozen=True)
 class PaperUpdateResult:
@@ -64,6 +121,7 @@ def update_paper_positions(
     trade_date: str | None = None,
     capital: float = 1_000_000,
     trading_cost: dict | TradingCostConfig | None = None,
+    exit_strategy: dict | ExitStrategyConfig | None = None,
 ) -> PaperUpdateResult:
     report_dir = Path(reports_dir)
     trades_path = report_dir / "paper_trades.csv"
@@ -117,10 +175,12 @@ def update_paper_positions(
         str(row["symbol"]).strip(): float(row["close"]) for _, row in prices.iterrows()
     }
     updated = _update_trades(
+        engine,
         trades,
         close_by_symbol,
         selected_date,
         _resolve_trading_cost(trading_cost),
+        _resolve_exit_strategy(exit_strategy),
     )
     summary = _build_summary(updated, selected_date, capital)
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -159,17 +219,30 @@ def _load_paper_trades(trades_path: Path) -> pd.DataFrame:
     frame = pd.read_csv(trades_path, dtype={"stock_id": str})
     for column in TRADE_COLUMNS:
         if column not in frame.columns:
+            frame[column] = "" if column in TEXT_COLUMNS else None
+
+    for column in TEXT_COLUMNS:
+        if column not in frame.columns:
+            frame[column] = ""
+        frame[column] = frame[column].fillna("").astype(object)
+
+    for column in NUMERIC_COLUMNS:
+        if column not in frame.columns:
             frame[column] = None
+        frame[column] = pd.to_numeric(frame[column], errors="coerce")
+
     frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
     frame["status"] = frame["status"].fillna("").astype(str)
     return frame[TRADE_COLUMNS].copy()
 
 
 def _update_trades(
+    engine: Engine,
     trades: pd.DataFrame,
     close_by_symbol: dict[str, float],
     trade_date: pd.Timestamp,
     cost_config: TradingCostConfig,
+    exit_strategy: ExitStrategyConfig,
 ) -> pd.DataFrame:
     frame = trades.copy()
     for index, row in frame.iterrows():
@@ -182,6 +255,10 @@ def _update_trades(
         current_price = close_by_symbol[stock_id]
         entry_price = float(row["entry_price"])
         shares = float(row["shares"])
+        original_shares = _safe_float(row.get("original_shares")) or shares
+        remaining_shares = _safe_float(row.get("remaining_shares")) or shares
+        partial_exit_1_done = bool(row.get("partial_exit_1_done"))
+        partial_exit_2_done = bool(row.get("partial_exit_2_done"))
         position_value = float(row["position_value"])
         entry_slippage = _safe_float(row.get("entry_slippage"))
         entry_commission = _safe_float(row.get("entry_commission"))
@@ -191,6 +268,13 @@ def _update_trades(
         unrealized_pnl_pct = round((current_price / entry_price) - 1, 6) if entry_price else 0.0
         holding_days = int((trade_date - pd.to_datetime(row["trade_date"])).days)
         stop_loss_hit = current_price <= stop_loss
+        highest_price = max(_safe_float(row.get("highest_price_since_entry")) or entry_price, current_price)
+        highest_pnl_pct = max(_safe_float(row.get("highest_pnl_pct_since_entry")), unrealized_pnl_pct)
+        trailing_stop_price = (
+            round(highest_price * (1 - exit_strategy.trailing_stop_drawdown_pct), 2)
+            if highest_pnl_pct >= exit_strategy.trailing_stop_activate_pct
+            else 0.0
+        )
 
         frame.loc[index, "current_price"] = current_price
         frame.loc[index, "market_value"] = market_value
@@ -198,41 +282,30 @@ def _update_trades(
         frame.loc[index, "unrealized_pnl_pct"] = unrealized_pnl_pct
         frame.loc[index, "holding_days"] = holding_days
         frame.loc[index, "stop_loss_hit"] = bool(stop_loss_hit)
+        frame.loc[index, "original_shares"] = original_shares
+        frame.loc[index, "remaining_shares"] = remaining_shares
+        frame.loc[index, "partial_exit_1_done"] = partial_exit_1_done
+        frame.loc[index, "partial_exit_2_done"] = partial_exit_2_done
+        frame.loc[index, "highest_price_since_entry"] = highest_price
+        frame.loc[index, "highest_pnl_pct_since_entry"] = highest_pnl_pct
+        frame.loc[index, "trailing_stop_price"] = trailing_stop_price
 
+        ma_exit_hit = _below_ma(engine, stock_id, trade_date, current_price, exit_strategy.ma_exit_window)
+        time_exit_hit = holding_days > exit_strategy.max_holding_days and unrealized_pnl_pct < exit_strategy.min_profit_for_holding
+        trailing_stop_hit = trailing_stop_price > 0 and current_price <= trailing_stop_price
         if stop_loss_hit:
-            exit_costs = calculate_exit(current_price, shares, stock_id, cost_config)
-            exit_price = exit_costs["exit_price"]
-            exit_commission = exit_costs["exit_commission"]
-            exit_tax = exit_costs["exit_tax"]
-            realized_pnl = round(
-                exit_costs["exit_proceeds"] - position_value - entry_commission - exit_commission - exit_tax,
-                2,
-            )
-            cost_basis = position_value + entry_commission
-            realized_pnl_pct = round(realized_pnl / cost_basis, 6) if cost_basis else 0.0
-            trade_total_cost = calculate_total_cost(
-                entry_slippage=entry_slippage,
-                entry_commission=entry_commission,
-                exit_slippage=exit_costs["exit_slippage"],
-                exit_commission=exit_commission,
-                exit_tax=exit_tax,
-                shares=shares,
-            )
-            frame.loc[index, "status"] = "CLOSED"
-            frame.loc[index, "exit_date"] = trade_date.strftime("%Y-%m-%d")
-            frame.loc[index, "exit_price"] = exit_price
-            frame.loc[index, "exit_slippage"] = exit_costs["exit_slippage"]
-            frame.loc[index, "exit_commission"] = exit_commission
-            frame.loc[index, "exit_tax"] = exit_tax
-            frame.loc[index, "total_cost"] = trade_total_cost
-            frame.loc[index, "realized_pnl"] = realized_pnl
-            frame.loc[index, "realized_pnl_pct"] = realized_pnl_pct
-            frame.loc[index, "realized_pnl_after_cost"] = realized_pnl
-            frame.loc[index, "realized_pnl_pct_after_cost"] = realized_pnl_pct
-            frame.loc[index, "exit_reason"] = "STOP_LOSS"
-            frame.loc[index, "unrealized_pnl"] = 0.0
-            frame.loc[index, "unrealized_pnl_pct"] = 0.0
-            frame.loc[index, "market_value"] = 0.0
+            _apply_sell(frame, index, trade_date, current_price, remaining_shares, original_shares, position_value, entry_commission, entry_slippage, cost_config, "STOP_LOSS", close_position=True)
+        elif (not partial_exit_1_done) and unrealized_pnl_pct >= exit_strategy.take_profit_1_pct:
+            sell_shares = max(1.0, round(remaining_shares * exit_strategy.take_profit_1_sell_pct, 0))
+            _apply_sell(frame, index, trade_date, current_price, min(sell_shares, remaining_shares), original_shares, position_value, entry_commission, entry_slippage, cost_config, "TAKE_PROFIT_1", close_position=False)
+        elif unrealized_pnl_pct >= exit_strategy.take_profit_2_pct and remaining_shares > 0:
+            _apply_sell(frame, index, trade_date, current_price, remaining_shares, original_shares, position_value, entry_commission, entry_slippage, cost_config, "TAKE_PROFIT_2", close_position=True)
+        elif trailing_stop_hit and remaining_shares > 0:
+            _apply_sell(frame, index, trade_date, current_price, remaining_shares, original_shares, position_value, entry_commission, entry_slippage, cost_config, "TRAILING_STOP", close_position=True)
+        elif ma_exit_hit and remaining_shares > 0:
+            _apply_sell(frame, index, trade_date, current_price, remaining_shares, original_shares, position_value, entry_commission, entry_slippage, cost_config, "MA_EXIT", close_position=True)
+        elif time_exit_hit and remaining_shares > 0:
+            _apply_sell(frame, index, trade_date, current_price, remaining_shares, original_shares, position_value, entry_commission, entry_slippage, cost_config, "TIME_EXIT", close_position=True)
 
     return frame[TRADE_COLUMNS].copy()
 
@@ -308,6 +381,71 @@ def _resolve_trading_cost(trading_cost: dict | TradingCostConfig | None) -> Trad
     if isinstance(trading_cost, TradingCostConfig):
         return trading_cost
     return TradingCostConfig.from_mapping(trading_cost)
+
+
+def _resolve_exit_strategy(exit_strategy: dict | ExitStrategyConfig | None) -> ExitStrategyConfig:
+    if isinstance(exit_strategy, ExitStrategyConfig):
+        return exit_strategy
+    return ExitStrategyConfig.from_mapping(exit_strategy if isinstance(exit_strategy, dict) else None)
+
+
+def _below_ma(engine: Engine, stock_id: str, trade_date: pd.Timestamp, current_price: float, window: int) -> bool:
+    history = load_price_history(engine)
+    if history.empty:
+        return False
+    history = history[history["symbol"].astype(str).str.strip() == stock_id]
+    history = history[pd.to_datetime(history["trade_date"]) <= trade_date].copy()
+    closes = pd.to_numeric(history["close"], errors="coerce").dropna()
+    if len(closes) < window:
+        return False
+    return current_price < float(closes.tail(window).mean())
+
+
+def _apply_sell(frame: pd.DataFrame, index: int, trade_date: pd.Timestamp, current_price: float, sell_shares: float, original_shares: float, position_value: float, entry_commission: float, entry_slippage: float, cost_config: TradingCostConfig, reason: str, close_position: bool) -> None:
+    if sell_shares <= 0:
+        return
+    row = frame.loc[index]
+    stock_id = str(row["stock_id"]).strip()
+    remaining_shares = _safe_float(row.get("remaining_shares")) or _safe_float(row.get("shares"))
+    exit_costs = calculate_exit(current_price, sell_shares, stock_id, cost_config)
+    proportion = sell_shares / original_shares if original_shares else 1.0
+    allocated_cost = position_value * proportion
+    realized_piece = round(exit_costs["exit_proceeds"] - allocated_cost - (entry_commission * proportion) - exit_costs["exit_commission"] - exit_costs["exit_tax"], 2)
+    prev_realized = _safe_float(row.get("realized_pnl_after_cost"))
+    frame.loc[index, "realized_pnl"] = round(_safe_float(row.get("realized_pnl")) + realized_piece, 2)
+    frame.loc[index, "realized_pnl_after_cost"] = round(prev_realized + realized_piece, 2)
+    cost_basis_piece = allocated_cost + (entry_commission * proportion)
+    realized_pct_piece = round(realized_piece / cost_basis_piece, 6) if cost_basis_piece else 0.0
+    frame.loc[index, "realized_pnl_pct"] = realized_pct_piece
+    frame.loc[index, "realized_pnl_pct_after_cost"] = realized_pct_piece
+    prev_total_cost = _safe_float(row.get("total_cost"))
+    base_entry_cost = 0.0
+    if prev_total_cost == 0.0:
+        base_entry_cost = calculate_total_cost(
+            entry_slippage=entry_slippage,
+            entry_commission=entry_commission,
+            exit_slippage=0.0,
+            exit_commission=0.0,
+            exit_tax=0.0,
+            shares=original_shares,
+        )
+    elif prev_total_cost <= entry_commission + 0.01:
+        base_entry_cost = round(entry_slippage * original_shares, 2)
+    frame.loc[index, "total_cost"] = round(prev_total_cost + base_entry_cost + calculate_total_cost(entry_slippage=0, entry_commission=0, exit_slippage=exit_costs["exit_slippage"], exit_commission=exit_costs["exit_commission"], exit_tax=exit_costs["exit_tax"], shares=sell_shares), 2)
+    frame.loc[index, "exit_reason"] = reason
+    frame.loc[index, "exit_date"] = trade_date.strftime("%Y-%m-%d")
+    frame.loc[index, "exit_price"] = exit_costs["exit_price"]
+    frame.loc[index, "exit_slippage"] = exit_costs["exit_slippage"]
+    frame.loc[index, "exit_commission"] = exit_costs["exit_commission"]
+    frame.loc[index, "exit_tax"] = exit_costs["exit_tax"]
+    frame.loc[index, "remaining_shares"] = max(0.0, remaining_shares - sell_shares)
+    frame.loc[index, "partial_exit_1_done"] = True if reason == "TAKE_PROFIT_1" else bool(row.get("partial_exit_1_done"))
+    frame.loc[index, "partial_exit_2_done"] = True if reason == "TAKE_PROFIT_2" else bool(row.get("partial_exit_2_done"))
+    if close_position or frame.loc[index, "remaining_shares"] <= 0:
+        frame.loc[index, "status"] = "CLOSED"
+        frame.loc[index, "market_value"] = 0.0
+        frame.loc[index, "unrealized_pnl"] = 0.0
+        frame.loc[index, "unrealized_pnl_pct"] = 0.0
 
 
 def _safe_float(value: object) -> float:

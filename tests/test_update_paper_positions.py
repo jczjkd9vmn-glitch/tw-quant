@@ -88,6 +88,41 @@ def test_update_paper_positions_summary_is_correct(tmp_path) -> None:
     assert summary["closed_positions"] == 1
 
 
+def test_update_paper_positions_handles_legacy_float_text_columns(tmp_path) -> None:
+    engine = create_db_engine("sqlite:///:memory:")
+    init_db(engine)
+    legacy_frame = pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-05-08",
+                "signal_date": float("nan"),
+                "planned_entry_date": float("nan"),
+                "actual_entry_date": float("nan"),
+                "entry_price_source": float("nan"),
+                "stock_id": "2330",
+                "stock_name": "TSMC",
+                "entry_price": 100.0,
+                "shares": 10,
+                "position_value": 1000.0,
+                "stop_loss_price": 80.0,
+                "suggested_position_pct": 0.1,
+                "status": "OPEN",
+                "exit_date": float("nan"),
+                "exit_reason": float("nan"),
+            }
+        ]
+    )
+    legacy_frame.to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    save_daily_prices(engine, _prices("20260510", {"2330": 70}))
+
+    result = update_paper_positions(engine, reports_dir=tmp_path, trade_date="20260510", capital=10_000)
+
+    row = result.updated_trades.iloc[0]
+    assert row["status"] == "CLOSED"
+    assert row["exit_date"] == "2026-05-10"
+    assert isinstance(row["actual_entry_date"], str)
+
+
 def _write_trades(path, rows: list[dict]) -> None:
     frame = pd.DataFrame(rows)
     frame.to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")

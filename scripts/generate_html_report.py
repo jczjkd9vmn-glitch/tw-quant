@@ -90,9 +90,9 @@ STATUS_LABELS = {
     "OPEN": "持有中",
     "CLOSED": "已出場",
     "STOP_LOSS": "停損出場",
-    "PENDING": "待進場",
+    "PENDING": "等待進場",
     "EXECUTED": "已成交",
-    "SKIPPED_EXISTING_POSITION": "已有持倉，略過",
+    "SKIPPED_EXISTING_POSITION": "已有持倉，略過重複進場",
     "OPEN": "持有中",
     "no trading data": "無交易資料",
     "True": "是",
@@ -219,6 +219,15 @@ def _render_page(
     open_positions = _filter_status(paper_trades, "OPEN")
     closed_trades = _filter_status(paper_trades, "CLOSED")
     latest_paper_summary = _first_row(paper_summary)
+    key_takeaway = _key_takeaway(latest_summary, latest_paper_summary)
+    health_checks = _health_checks(
+        latest_summary=latest_summary,
+        candidates=candidates,
+        risk_pass=risk_pass,
+        pending_orders=pending_orders,
+        paper_trades=paper_trades,
+    )
+    warning_banner = _warning_banner(health_checks)
 
     return "\n".join(
         [
@@ -237,6 +246,9 @@ def _render_page(
             "<h1>台股紙上交易每日報表</h1>",
             "<div>所有內容僅供紙上模擬交易與策略檢查使用，不代表投資建議，也不保證獲利。</div>",
             "</header>",
+            warning_banner,
+            _section("今日重點結論", key_takeaway),
+            _section("系統健康檢查", _health_check_cards(health_checks)),
             _section("系統狀態總覽", _status_overview(latest_summary)),
             _section(
                 "今日候選股",
@@ -278,7 +290,7 @@ def _render_page(
             ),
             _section(
                 "待進場清單",
-                _table(
+                _responsive_table_and_cards(
                     pending_orders,
                     [
                         "signal_date",
@@ -301,7 +313,7 @@ def _render_page(
             ),
             _section(
                 "已成交持倉",
-                _table(
+                _responsive_table_and_cards(
                     open_positions,
                     [
                         "signal_date",
@@ -389,6 +401,91 @@ def _status_overview(summary: dict[str, object]) -> str:
         ("扣成本後總資產", _format_cell("total_equity_after_cost", summary.get("total_equity_after_cost"))),
     ]
     return '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+
+
+def _key_takeaway(daily_summary: dict[str, object], paper_summary: dict[str, object]) -> str:
+    summary = daily_summary or {}
+    performance = paper_summary or {}
+    fallback_value = "是" if not _is_blank(summary.get("fallback_date")) else "否"
+    cards = [
+        ("執行狀態", _format_cell("status", summary.get("status"))),
+        ("原始執行日期", _format_cell("requested_date", summary.get("requested_date") or summary.get("trade_date"))),
+        ("實際交易日", _format_cell("trade_date", summary.get("trade_date"))),
+        ("是否使用最近有效交易日", fallback_value),
+        ("候選股數", _format_cell("candidate_rows", summary.get("candidate_rows"))),
+        ("通過風控數", _format_cell("risk_pass_rows", summary.get("risk_pass_rows"))),
+        ("待進場筆數", _format_cell("pending_orders", summary.get("pending_orders"))),
+        ("今日成交筆數", _format_cell("executed_orders", summary.get("executed_orders"))),
+        ("跳過進場筆數", _format_cell("skipped_orders", summary.get("skipped_orders"))),
+        ("目前持倉數", _format_cell("open_positions", summary.get("open_positions"))),
+        ("未實現損益", _format_cell("unrealized_pnl", performance.get("unrealized_pnl", summary.get("unrealized_pnl")))),
+        ("已實現損益", _format_cell("realized_pnl", performance.get("realized_pnl", summary.get("realized_pnl")))),
+        ("總資產", _format_cell("total_equity", performance.get("total_equity", summary.get("total_equity")))),
+        ("扣成本後總資產", _format_cell("total_equity_after_cost", performance.get("total_equity_after_cost", summary.get("total_equity_after_cost")))),
+        ("交易成本總額", _format_cell("total_cost", performance.get("total_cost", summary.get("total_cost")))),
+    ]
+    return '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+
+
+def _health_checks(
+    latest_summary: dict[str, object], candidates: pd.DataFrame, risk_pass: pd.DataFrame, pending_orders: pd.DataFrame, paper_trades: pd.DataFrame
+) -> list[tuple[str, str, str]]:
+    checks: list[tuple[str, str, str]] = []
+    checks.append(("最新有效交易日是否正常", "正常" if not _is_blank(latest_summary.get("trade_date")) else "警告", "交易日資料可用" if not _is_blank(latest_summary.get("trade_date")) else "找不到交易日資料"))
+    candidate_count = _to_float(latest_summary.get("candidate_rows")) or float(len(candidates))
+    checks.append(("候選股數是否為 0", "注意" if candidate_count == 0 else "正常", f"候選股數：{int(candidate_count)}"))
+    risk_pass_count = _to_float(latest_summary.get("risk_pass_rows")) or float(len(risk_pass))
+    checks.append(("通過風控數是否為 0", "注意" if risk_pass_count == 0 else "正常", f"通過風控數：{int(risk_pass_count)}"))
+    stale_pending = _count_stale_pending(pending_orders)
+    checks.append(("pending order 是否超過 3 天仍未成交", "警告" if stale_pending > 0 else "正常", f"超過 3 天筆數：{stale_pending}"))
+    checks.append(("paper_trades.csv 是否存在", "正常" if not paper_trades.empty else "警告", "已載入" if not paper_trades.empty else "檔案不存在或無資料"))
+    checks.append(("reports/index.html 是否成功產生", "正常", "本次產生成功"))
+    return checks
+
+
+def _count_stale_pending(pending_orders: pd.DataFrame) -> int:
+    if pending_orders.empty or "status" not in pending_orders.columns:
+        return 0
+    pending = pending_orders[pending_orders["status"].fillna("").astype(str).str.upper() == "PENDING"].copy()
+    if pending.empty or "signal_date" not in pending.columns:
+        return 0
+    signal_dates = pd.to_datetime(pending["signal_date"], errors="coerce")
+    latest = signal_dates.max()
+    if pd.isna(latest):
+        return 0
+    return int((latest - signal_dates).dt.days.gt(3).sum())
+
+
+def _warning_banner(checks: list[tuple[str, str, str]]) -> str:
+    warnings = [title for title, level, _ in checks if level == "警告"]
+    if not warnings:
+        return ""
+    return f'<section class="alert"><h2>⚠️ 重要警告</h2><div>請優先檢查：{escape("、".join(warnings))}</div></section>'
+
+
+def _health_check_cards(checks: list[tuple[str, str, str]]) -> str:
+    cards = []
+    for title, level, detail in checks:
+        cards.append(f'<div class="card health {escape(level)}"><span>{escape(title)}</span><strong>{escape(level)}</strong><small>{escape(detail)}</small></div>')
+    return '<div class="cards">' + "".join(cards) + "</div>"
+
+
+def _responsive_table_and_cards(frame: pd.DataFrame, columns: list[str], empty_message: str, max_rows: int) -> str:
+    table_html = _table(frame, columns, empty_message, max_rows)
+    if frame.empty:
+        return table_html
+    visible_columns = [column for column in columns if column in frame.columns]
+    if not visible_columns:
+        return table_html
+    rows = frame.head(max_rows).copy()
+    cards = []
+    for _, row in rows.iterrows():
+        items = "".join(
+            f'<div><span>{escape(COLUMN_LABELS.get(column, column))}</span><strong>{escape(_format_cell(column, row.get(column)))}</strong></div>'
+            for column in visible_columns
+        )
+        cards.append(f'<article class="mobile-card">{items}</article>')
+    return table_html + '<div class="mobile-cards">' + "".join(cards) + "</div>"
 
 
 def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) -> str:
@@ -675,7 +772,18 @@ td{font-size:13px;color:#e5e7eb}
 tr:last-child td{border-bottom:0}
 .empty,.note{padding:13px;background:#0f172a;border:1px solid #243244;border-radius:8px;color:#cbd5e1}
 .note{border-color:#164e63;background:#082f49}
-@media(max-width:640px){.page{padding:14px}header h1{font-size:24px}section{padding:14px}.card strong{font-size:16px}table{min-width:680px}}
+.alert{border-color:#7f1d1d;background:#450a0a}
+.mobile-cards{display:none;gap:10px;margin-top:10px}
+.mobile-card{padding:12px;background:#0f172a;border:1px solid #243244;border-radius:8px}
+.mobile-card div{display:flex;justify-content:space-between;gap:12px;padding:4px 0;border-bottom:1px dashed #243244}
+.mobile-card div:last-child{border-bottom:0}
+.mobile-card span{font-size:12px;color:#94a3b8}
+.mobile-card strong{font-size:13px;color:#f8fafc;text-align:right}
+.card.health small{display:block;margin-top:6px;color:#94a3b8}
+.card.health.警告 strong{color:#fca5a5}
+.card.health.注意 strong{color:#fcd34d}
+.card.health.正常 strong{color:#86efac}
+@media(max-width:640px){.page{padding:14px}header h1{font-size:24px}section{padding:14px}.card strong{font-size:16px}table{min-width:680px}.table-wrap{display:none}.mobile-cards{display:grid}}
 """
 
 

@@ -75,6 +75,11 @@ def build_notification_message(summary: dict[str, object], pages_url: str | None
         f"總資產：{_format_amount(summary.get('total_equity'))}",
         f"累計交易成本：{_format_amount(summary.get('total_cost'))}",
         f"扣成本後已實現損益：{_format_signed(summary.get('realized_pnl_after_cost'))}",
+        f"今日停利筆數：{_format_int(summary.get('take_profit_count'))}",
+        f"今日停損筆數：{_format_int(summary.get('stop_loss_count'))}",
+        f"今日移動停利筆數：{_format_int(summary.get('trailing_stop_count'))}",
+        f"今日趨勢出場筆數：{_format_int(summary.get('trend_exit_count'))}",
+        f"今日已實現損益 after cost：{_format_signed(summary.get('realized_pnl_after_cost'))}",
         f"扣成本後總資產：{_format_amount(summary.get('total_equity_after_cost'))}",
         f"GitHub Pages 報表網址：{pages or '尚未設定'}",
     ]

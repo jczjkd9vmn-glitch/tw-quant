@@ -242,7 +242,15 @@ reports/index.html
 docs/index.html
 ```
 
-HTML 報表會以繁體中文顯示系統狀態總覽、今日候選股、通過風控股票、待進場清單、已成交持倉、紙上交易績效、交易成本摘要、最近每日 summary 與非交易日替代交易日說明。GitHub Actions 每日流程會在 `run_all_daily.py` 後自動產生此報表，並將 `reports/index.html` 與 `docs/index.html` 一併提交回 repo。
+HTML 報表會以繁體中文顯示：
+
+- 今日重點結論（執行狀態、原始執行日期、實際交易日、fallback 使用情況、候選/風控/進場統計、持倉與損益）。
+- 系統健康檢查（交易日、候選與風控是否為 0、pending 是否逾 3 天、paper_trades.csv 與報表產生狀態）。
+- 系統狀態總覽、今日候選股、通過風控股票、待進場清單、已成交持倉、紙上交易績效、交易成本摘要、最近每日 summary 與非交易日替代交易日說明。
+
+待進場狀態會顯示繁體中文（例如：`等待進場`、`已成交`、`已有持倉，略過重複進場`）。手機版在「待進場清單」與「已成交持倉」會優先顯示卡片版，桌機維持表格版。若健康檢查有警告，頁面頂部會顯示醒目警示區塊。
+
+GitHub Actions 每日流程會在 `run_all_daily.py` 後自動產生此報表，並將 `reports/index.html` 與 `docs/index.html` 一併提交回 repo。
 
 ### GitHub Pages 設定方式
 

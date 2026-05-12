@@ -16,6 +16,8 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert output_path.exists()
     assert "台股紙上交易每日報表" in html
     assert "系統狀態總覽" in html
+    assert "今日重點結論" in html
+    assert "系統健康檢查" in html
     assert "今日候選股" in html
     assert "通過風控股票" in html
     assert "待進場清單" in html
@@ -49,6 +51,8 @@ def test_generate_html_report_translates_fallback_status(tmp_path: Path) -> None
 
     assert "成功，使用最近有效交易日" in html
     assert "無交易資料" in html
+    assert "等待進場" in html
+    assert "已有持倉，略過重複進場" in html
     assert "今日無交易資料，已使用最近有效交易日" in html
 
 
@@ -154,6 +158,22 @@ def _write_reports(path: Path) -> None:
                 "position_value": "",
                 "status": "PENDING",
                 "skipped_reason": "",
+                "warning": "",
+            }
+            ,
+            {
+                "signal_date": "2026-05-01",
+                "planned_entry_date": "NEXT_AVAILABLE_TRADING_DAY",
+                "actual_entry_date": "",
+                "stock_id": "2317",
+                "stock_name": "鴻海",
+                "signal_close": 200.0,
+                "entry_price": "",
+                "entry_price_source": "",
+                "shares": "",
+                "position_value": "",
+                "status": "SKIPPED_EXISTING_POSITION",
+                "skipped_reason": "duplicate",
                 "warning": "",
             }
         ]

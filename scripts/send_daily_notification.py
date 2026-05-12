@@ -4,6 +4,7 @@ import argparse
 import os
 from pathlib import Path
 import re
+import sys
 from typing import Callable, Iterable
 
 import pandas as pd
@@ -11,6 +12,11 @@ import requests
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from tw_quant.config import load_config
 
 
 STATUS_LABELS = {
@@ -49,6 +55,7 @@ def build_notification_message(summary: dict[str, object], pages_url: str | None
     fallback_date = _date_text(summary.get("fallback_date"))
     fallback_reason = _fallback_reason_text(summary.get("fallback_reason"))
     use_recent_data = _uses_recent_data(requested_date, trade_date, fallback_date)
+    trading_cost = load_config(ROOT / "config.yaml").get("trading_cost", {})
     pages = pages_url or os.getenv("GITHUB_PAGES_URL") or _infer_pages_url()
 
     lines = [
@@ -79,6 +86,7 @@ def build_notification_message(summary: dict[str, object], pages_url: str | None
             f"累計已實現損益：{_format_signed(summary.get('realized_pnl'))}",
             f"總資產：{_format_amount(summary.get('total_equity'))}",
             f"累計交易成本：{_format_amount(summary.get('total_cost'))}",
+            f"滑價假設：{_format_rate_percent(trading_cost.get('slippage_rate'))}",
             f"累計扣成本後已實現損益：{_format_signed(summary.get('realized_pnl_after_cost'))}",
             f"扣成本後總資產：{_format_amount(summary.get('total_equity_after_cost'))}",
             f"今日停利筆數：{_format_int(summary.get('take_profit_exits'))}",
@@ -191,6 +199,14 @@ def _format_signed(value: object) -> str:
     if number < 0:
         return f"{number:,.0f}"
     return "0"
+
+
+def _format_rate_percent(value: object) -> str:
+    number = _to_float(value)
+    if number is None:
+        return "-"
+    text = f"{number * 100:.3f}".rstrip("0").rstrip(".")
+    return f"{text}%"
 
 
 def _is_blank(value: object) -> bool:

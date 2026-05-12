@@ -22,12 +22,13 @@ UPDATE_COLUMNS = [
     "stop_loss_hit",
     "exit_date",
     "exit_price",
+    "exit_price_raw",
     "realized_pnl",
     "realized_pnl_pct",
     "exit_reason",
 ]
 
-TRADE_COLUMNS = POSITION_COLUMNS + UPDATE_COLUMNS
+TRADE_COLUMNS = list(dict.fromkeys(POSITION_COLUMNS + UPDATE_COLUMNS))
 
 SUMMARY_COLUMNS = [
     "trade_date",
@@ -68,7 +69,10 @@ TEXT_COLUMNS = [
 
 NUMERIC_COLUMNS = [
     "entry_price",
+    "entry_price_raw",
     "exit_price",
+    "exit_price_raw",
+    "slippage_rate",
     "current_price",
     "market_value",
     "unrealized_pnl",
@@ -83,10 +87,15 @@ NUMERIC_COLUMNS = [
     "remaining_shares",
     "position_value",
     "entry_commission",
+    "buy_commission",
     "entry_slippage",
+    "buy_slippage_cost",
     "exit_slippage",
+    "sell_slippage_cost",
     "exit_commission",
+    "sell_commission",
     "exit_tax",
+    "sell_tax",
     "realized_pnl_pct",
     "unrealized_pnl_pct",
     "holding_days",
@@ -271,11 +280,34 @@ def _load_paper_trades(trades_path: Path) -> pd.DataFrame:
     frame["status"] = frame["status"].fillna("").astype(str)
     frame["original_shares"] = frame["original_shares"].fillna(frame["shares"])
     frame["remaining_shares"] = frame["remaining_shares"].fillna(frame["shares"])
+    sold_shares = (frame["original_shares"].fillna(frame["shares"]) - frame["remaining_shares"].fillna(0.0)).clip(
+        lower=0.0
+    )
+    frame["entry_price_raw"] = frame["entry_price_raw"].fillna(frame["entry_price"] - frame["entry_slippage"].fillna(0.0))
+    frame["exit_price_raw"] = frame["exit_price_raw"].fillna(frame["exit_price"] + frame["exit_slippage"].fillna(0.0))
+    frame["slippage_rate"] = frame["slippage_rate"].fillna(0.0)
+    frame["buy_commission"] = frame["buy_commission"].fillna(frame["entry_commission"].fillna(0.0))
+    frame["entry_commission"] = frame["entry_commission"].fillna(frame["buy_commission"].fillna(0.0))
+    frame["buy_slippage_cost"] = frame["buy_slippage_cost"].fillna(
+        (frame["entry_slippage"].fillna(0.0) * frame["original_shares"].fillna(0.0)).round(2)
+    )
+    frame["sell_commission"] = frame["sell_commission"].fillna(frame["exit_commission"].fillna(0.0))
+    frame["sell_tax"] = frame["sell_tax"].fillna(frame["exit_tax"].fillna(0.0))
+    frame["sell_slippage_cost"] = frame["sell_slippage_cost"].fillna(
+        (frame["exit_slippage"].fillna(0.0) * sold_shares).round(2)
+    )
     frame["highest_price_since_entry"] = frame["highest_price_since_entry"].fillna(frame["entry_price"])
     frame["highest_pnl_pct_since_entry"] = frame["highest_pnl_pct_since_entry"].fillna(0.0)
     frame["realized_pnl_after_cost"] = frame["realized_pnl_after_cost"].fillna(0.0)
     frame["last_exit_realized_pnl_after_cost"] = frame["last_exit_realized_pnl_after_cost"].fillna(0.0)
-    frame["total_cost"] = frame["total_cost"].fillna(frame["entry_commission"].fillna(0.0))
+    component_total = (
+        frame["buy_slippage_cost"].fillna(0.0)
+        + frame["buy_commission"].fillna(0.0)
+        + frame["sell_slippage_cost"].fillna(0.0)
+        + frame["sell_commission"].fillna(0.0)
+        + frame["sell_tax"].fillna(0.0)
+    ).round(2)
+    frame["total_cost"] = pd.concat([frame["total_cost"].fillna(0.0), component_total], axis=1).max(axis=1)
     return frame[TRADE_COLUMNS].copy()
 
 
@@ -415,34 +447,41 @@ def _apply_exit(
     sell_shares = min(sell_shares, remaining_before)
     exit_costs = calculate_exit(current_price, sell_shares, stock_id, cost_config)
     exit_price = exit_costs["exit_price"]
-    entry_commission = _safe_float(row.get("entry_commission"))
+    entry_commission = _safe_float(row.get("buy_commission")) or _safe_float(row.get("entry_commission"))
     entry_slippage = _safe_float(row.get("entry_slippage"))
+    buy_slippage_cost = _safe_float(row.get("buy_slippage_cost")) or round(entry_slippage * original_shares, 2)
     previous_realized = _safe_float(row.get("realized_pnl_after_cost"))
     previous_total_cost = _safe_float(row.get("total_cost"))
+    previous_sell_slippage_cost = _safe_float(row.get("sell_slippage_cost"))
+    previous_sell_commission = _safe_float(row.get("sell_commission"))
+    previous_sell_tax = _safe_float(row.get("sell_tax"))
     allocated_entry_commission = round(entry_commission * (sell_shares / original_shares), 2) if original_shares else 0.0
     realized_delta = round(
         exit_costs["exit_proceeds"]
         - (entry_price * sell_shares)
         - allocated_entry_commission
-        - exit_costs["exit_commission"]
-        - exit_costs["exit_tax"],
+        - exit_costs["sell_commission"]
+        - exit_costs["sell_tax"],
         2,
     )
     remaining_after = round(remaining_before - sell_shares, 6)
     cumulative_realized = round(previous_realized + realized_delta, 2)
     entry_slippage_cost = (
-        round(entry_slippage * original_shares, 2)
-        if previous_total_cost <= entry_commission + 0.0001
+        buy_slippage_cost
+        if previous_total_cost <= entry_commission + 0.0001 and buy_slippage_cost > 0
         else 0.0
     )
     incremental_cost = round(
         entry_slippage_cost
-        + exit_costs["exit_slippage"] * sell_shares
-        + exit_costs["exit_commission"]
-        + exit_costs["exit_tax"],
+        + exit_costs["sell_slippage_cost"]
+        + exit_costs["sell_commission"]
+        + exit_costs["sell_tax"],
         2,
     )
     total_cost_value = round(previous_total_cost + incremental_cost, 2)
+    sell_slippage_cost = round(previous_sell_slippage_cost + exit_costs["sell_slippage_cost"], 2)
+    sell_commission = round(previous_sell_commission + exit_costs["sell_commission"], 2)
+    sell_tax = round(previous_sell_tax + exit_costs["sell_tax"], 2)
     original_basis = round(entry_price * original_shares + entry_commission, 2)
     realized_pct = round(cumulative_realized / original_basis, 6) if original_basis else 0.0
     new_position_value = round(remaining_after * entry_price, 2)
@@ -455,9 +494,14 @@ def _apply_exit(
     frame.loc[index, "unrealized_pnl_pct"] = round((current_price / entry_price) - 1, 6) if entry_price else 0.0
     frame.loc[index, "exit_date"] = trade_date.strftime("%Y-%m-%d")
     frame.loc[index, "exit_price"] = exit_price
+    frame.loc[index, "exit_price_raw"] = exit_costs["exit_price_raw"]
+    frame.loc[index, "slippage_rate"] = exit_costs["slippage_rate"]
     frame.loc[index, "exit_slippage"] = exit_costs["exit_slippage"]
-    frame.loc[index, "exit_commission"] = exit_costs["exit_commission"]
-    frame.loc[index, "exit_tax"] = exit_costs["exit_tax"]
+    frame.loc[index, "sell_slippage_cost"] = sell_slippage_cost
+    frame.loc[index, "exit_commission"] = exit_costs["sell_commission"]
+    frame.loc[index, "sell_commission"] = sell_commission
+    frame.loc[index, "exit_tax"] = exit_costs["sell_tax"]
+    frame.loc[index, "sell_tax"] = sell_tax
     frame.loc[index, "total_cost"] = total_cost_value
     frame.loc[index, "realized_pnl"] = cumulative_realized
     frame.loc[index, "realized_pnl_pct"] = realized_pct
@@ -571,7 +615,7 @@ def _remaining_entry_commission(frame: pd.DataFrame) -> float:
     for _, row in frame.iterrows():
         original = _safe_float(row.get("original_shares")) or _safe_float(row.get("shares"))
         remaining = _safe_float(row.get("remaining_shares")) or _safe_float(row.get("shares"))
-        commission = _safe_float(row.get("entry_commission"))
+        commission = _safe_float(row.get("buy_commission")) or _safe_float(row.get("entry_commission"))
         total += commission * (remaining / original) if original else commission
     return round(total, 2)
 

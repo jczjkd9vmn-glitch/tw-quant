@@ -13,6 +13,7 @@ class TradingCostConfig:
     min_commission: float = 0.0
     sell_tax_rate_stock: float = 0.0
     sell_tax_rate_etf: float = 0.0
+    sell_tax_rate_bond_etf: float = 0.0
     slippage_rate: float = 0.0
 
     @classmethod
@@ -24,6 +25,7 @@ class TradingCostConfig:
             min_commission=float(data.get("min_commission", 0.0)),
             sell_tax_rate_stock=float(data.get("sell_tax_rate_stock", 0.0)),
             sell_tax_rate_etf=float(data.get("sell_tax_rate_etf", 0.0)),
+            sell_tax_rate_bond_etf=float(data.get("sell_tax_rate_bond_etf", 0.0)),
             slippage_rate=float(data.get("slippage_rate", 0.0)),
         )
 
@@ -33,15 +35,21 @@ def calculate_entry(
     shares: int,
     config: TradingCostConfig,
 ) -> dict[str, float]:
-    entry_slippage = round(float(raw_price) * config.slippage_rate, 4)
-    entry_price = round(float(raw_price) + entry_slippage, 4)
+    raw_entry_price = round(float(raw_price), 4)
+    entry_slippage = round(raw_entry_price * config.slippage_rate, 4)
+    entry_price = round(raw_entry_price + entry_slippage, 4)
     position_value = round(entry_price * int(shares), 2)
     entry_commission = calculate_commission(position_value, config)
+    buy_slippage_cost = round(entry_slippage * int(shares), 2)
     return {
+        "entry_price_raw": raw_entry_price,
         "entry_price": entry_price,
+        "slippage_rate": config.slippage_rate,
         "entry_slippage": entry_slippage,
+        "buy_slippage_cost": buy_slippage_cost,
         "position_value": position_value,
         "entry_commission": entry_commission,
+        "buy_commission": entry_commission,
     }
 
 
@@ -51,17 +59,24 @@ def calculate_exit(
     stock_id: str,
     config: TradingCostConfig,
 ) -> dict[str, float]:
-    exit_slippage = round(float(raw_price) * config.slippage_rate, 4)
-    exit_price = round(max(float(raw_price) - exit_slippage, 0.0), 4)
+    raw_exit_price = round(float(raw_price), 4)
+    exit_slippage = round(raw_exit_price * config.slippage_rate, 4)
+    exit_price = round(max(raw_exit_price - exit_slippage, 0.0), 4)
     proceeds = round(exit_price * float(shares), 2)
     exit_commission = calculate_commission(proceeds, config)
     exit_tax = round(proceeds * _sell_tax_rate(stock_id, config), 2)
+    sell_slippage_cost = round(exit_slippage * float(shares), 2)
     return {
+        "exit_price_raw": raw_exit_price,
         "exit_price": exit_price,
+        "slippage_rate": config.slippage_rate,
         "exit_slippage": exit_slippage,
+        "sell_slippage_cost": sell_slippage_cost,
         "exit_proceeds": proceeds,
         "exit_commission": exit_commission,
+        "sell_commission": exit_commission,
         "exit_tax": exit_tax,
+        "sell_tax": exit_tax,
     }
 
 
@@ -89,4 +104,9 @@ def total_cost(
 
 
 def _sell_tax_rate(stock_id: str, config: TradingCostConfig) -> float:
-    return config.sell_tax_rate_etf if str(stock_id).strip().startswith("00") else config.sell_tax_rate_stock
+    symbol = str(stock_id).strip().upper()
+    if symbol.startswith("00") and "B" in symbol:
+        return config.sell_tax_rate_bond_etf
+    if symbol.startswith("00"):
+        return config.sell_tax_rate_etf
+    return config.sell_tax_rate_stock

@@ -43,6 +43,7 @@ def test_build_notification_message_uses_traditional_chinese_and_fallback_url(mo
     assert "累計已實現損益：0" in message
     assert "總資產：1,001,234" in message
     assert "累計交易成本：123" in message
+    assert "滑價假設：0.1%" in message
     assert "累計扣成本後已實現損益：-123" in message
     assert "扣成本後總資產：1,001,111" in message
     assert "今日停利筆數：1" in message

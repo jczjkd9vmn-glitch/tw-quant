@@ -4,12 +4,18 @@ import argparse
 from html import escape
 from pathlib import Path
 import re
+import sys
 from typing import Iterable
 
 import pandas as pd
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SRC_DIR = ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from tw_quant.config import load_config
 
 
 COLUMN_LABELS = {
@@ -66,8 +72,12 @@ COLUMN_LABELS = {
     "stop_loss_price": "停損價",
     "suggested_position_pct": "建議部位",
     "entry_price": "進場價",
+    "entry_price_raw": "原始進場價",
+    "slippage_rate": "滑價假設",
     "entry_slippage": "進場滑價",
+    "buy_slippage_cost": "買進滑價成本",
     "entry_commission": "買進手續費",
+    "buy_commission": "買進手續費",
     "shares": "股數",
     "original_shares": "原始股數",
     "remaining_shares": "剩餘股數",
@@ -86,9 +96,13 @@ COLUMN_LABELS = {
     "stop_loss_hit": "是否觸及停損",
     "exit_date": "出場日",
     "exit_price": "出場價",
+    "exit_price_raw": "原始出場價",
     "exit_slippage": "出場滑價",
+    "sell_slippage_cost": "賣出滑價成本",
     "exit_commission": "賣出手續費",
+    "sell_commission": "賣出手續費",
     "exit_tax": "交易稅",
+    "sell_tax": "交易稅",
     "realized_pnl_pct": "已實現損益率",
     "realized_pnl_pct_after_cost": "扣成本後已實現損益率",
     "partial_exit_1_done": "已觸發第一段停利",
@@ -143,6 +157,7 @@ SCORE_COLUMNS = {
 }
 PERCENT_COLUMNS = {
     "suggested_position_pct",
+    "slippage_rate",
     "unrealized_pnl_pct",
     "realized_pnl_pct",
     "realized_pnl_pct_after_cost",
@@ -152,9 +167,11 @@ PRICE_COLUMNS = {
     "close",
     "stop_loss_price",
     "entry_price",
+    "entry_price_raw",
     "entry_slippage",
     "current_price",
     "exit_price",
+    "exit_price_raw",
     "exit_slippage",
     "highest_price_since_entry",
     "trailing_stop_price",
@@ -168,8 +185,13 @@ AMOUNT_COLUMNS = {
     "total_equity_after_cost",
     "position_value",
     "entry_commission",
+    "buy_commission",
+    "buy_slippage_cost",
     "exit_commission",
+    "sell_commission",
+    "sell_slippage_cost",
     "exit_tax",
+    "sell_tax",
     "total_cost",
 }
 PNL_COLUMNS = {
@@ -237,6 +259,7 @@ def generate_html_report(
     paper_trades = _read_csv(report_dir / "paper_trades.csv")
     paper_summary = _read_latest_csv(report_dir, "paper_summary_*.csv")
     pending_orders = _read_all_csv(report_dir, "pending_orders_*.csv")
+    trading_cost = load_config(ROOT / "config.yaml").get("trading_cost", {})
 
     html = _render_page(
         report_dir=report_dir,
@@ -247,6 +270,7 @@ def generate_html_report(
         paper_trades=paper_trades,
         paper_summary=paper_summary,
         pending_orders=pending_orders,
+        trading_cost=trading_cost,
     )
 
     output_path = report_dir / "index.html"
@@ -267,6 +291,7 @@ def _render_page(
     paper_trades: pd.DataFrame,
     paper_summary: pd.DataFrame,
     pending_orders: pd.DataFrame,
+    trading_cost: dict[str, object],
 ) -> str:
     latest_summary = _first_row(daily_summary)
     open_positions = _filter_status(paper_trades, "OPEN")
@@ -392,7 +417,7 @@ def _render_page(
                 ),
             ),
             _section("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades)),
-            _section("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary)),
+            _section("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary, trading_cost)),
             _section("出場策略摘要", _exit_strategy_summary(latest_summary, open_positions, closed_trades)),
             _section(
                 "最近每日 summary",
@@ -658,16 +683,30 @@ def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) 
     return "".join(blocks)
 
 
-def _cost_overview(daily_summary: dict[str, object], paper_summary: dict[str, object]) -> str:
+def _cost_overview(
+    daily_summary: dict[str, object],
+    paper_summary: dict[str, object],
+    trading_cost: dict[str, object],
+) -> str:
     summary = paper_summary or daily_summary
     if not summary:
         return _empty("目前尚無交易成本資料")
     cards = [
+        ("國泰電子下單手續費率", _format_permille(trading_cost.get("commission_rate"))),
+        ("最低手續費", f"{_format_amount_plain(trading_cost.get('min_commission'))} 元"),
+        ("股票交易稅", _format_rate_percent(trading_cost.get("sell_tax_rate_stock"))),
+        ("ETF 交易稅", _format_rate_percent(trading_cost.get("sell_tax_rate_etf"))),
+        ("債券 ETF 交易稅", _format_rate_percent(trading_cost.get("sell_tax_rate_bond_etf"))),
+        ("滑價假設", _format_rate_percent(trading_cost.get("slippage_rate"))),
         ("累計交易成本", _format_cell("total_cost", summary.get("total_cost"))),
         ("扣成本後已實現損益", _format_cell("realized_pnl_after_cost", summary.get("realized_pnl_after_cost"))),
         ("扣成本後總資產", _format_cell("total_equity_after_cost", summary.get("total_equity_after_cost"))),
     ]
-    return '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+    note = (
+        '<div class="note">滑價不是券商費用，而是模擬成交價格偏離理想價格的保守估計。'
+        "買進會用較不利的較高成交價，賣出會用較不利的較低成交價。</div>"
+    )
+    return '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + note
 
 
 def _fallback_note(summary: dict[str, object]) -> str:
@@ -792,6 +831,29 @@ def _signed_number(value: float) -> str:
     if value < 0:
         return f"{value:,.0f}"
     return "0"
+
+
+def _format_permille(value: object) -> str:
+    number = _to_float(value)
+    if number is None:
+        return "-"
+    text = f"{number * 1000:.3f}".rstrip("0").rstrip(".")
+    return f"{text}‰"
+
+
+def _format_rate_percent(value: object) -> str:
+    number = _to_float(value)
+    if number is None:
+        return "-"
+    text = f"{number * 100:.3f}".rstrip("0").rstrip(".")
+    return f"{text}%"
+
+
+def _format_amount_plain(value: object) -> str:
+    number = _to_float(value)
+    if number is None:
+        return "-"
+    return f"{number:,.0f}"
 
 
 def _read_latest_csv(report_dir: Path, pattern: str) -> pd.DataFrame:

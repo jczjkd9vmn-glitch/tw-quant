@@ -297,8 +297,12 @@ def _render_page(
     open_positions = _filter_status(paper_trades, "OPEN")
     closed_trades = _filter_status(paper_trades, "CLOSED")
     latest_paper_summary = _first_row(paper_summary)
+    open_positions = _enrich_with_fundamentals(open_positions, candidates)
+    pending_orders = _enrich_with_fundamentals(pending_orders, candidates)
+    closed_trades = _enrich_with_fundamentals(closed_trades, candidates)
     health_items = _health_checks(report_dir, latest_summary, candidates, risk_pass, pending_orders, paper_trades)
     alert = _warning_banner(health_items)
+    updated_at = _report_updated_at(report_dir)
 
     return "\n".join(
         [
@@ -307,21 +311,21 @@ def _render_page(
             "<head>",
             '<meta charset="utf-8">',
             '<meta name="viewport" content="width=device-width, initial-scale=1">',
-            "<title>台股紙上交易每日報表</title>",
+            "<title>台股紙上交易帳務</title>",
             f"<style>{_css()}</style>",
             "</head>",
             "<body>",
             '<main class="page">',
-            "<header>",
-            "<p>台股量化系統</p>",
-            "<h1>台股紙上交易每日報表</h1>",
-            "<div>所有內容僅供紙上模擬交易與策略檢查使用，不代表投資建議，也不保證獲利。</div>",
-            "</header>",
+            _account_header(latest_summary, updated_at),
             alert,
-            _section("今日重點結論", _key_conclusions(latest_summary)),
-            _section("系統健康檢查", _health_section(health_items)),
-            _section("系統狀態總覽", _status_overview(latest_summary)),
-            _section("基本面摘要", _fundamental_summary(candidates)),
+            _section("損益總覽", _pnl_overview(latest_summary, latest_paper_summary, open_positions), section_id="overview", class_name="overview-section"),
+            _nav_tabs(),
+            _section("持倉", _position_cards(open_positions), section_id="positions"),
+            _section("待進場", _pending_cards(pending_orders), section_id="pending"),
+            _section("已出場", _closed_cards(closed_trades), section_id="closed"),
+            _section("基本面摘要", _fundamental_summary(candidates), section_id="fundamental"),
+            _section("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary, trading_cost), section_id="costs"),
+            _section("系統健康檢查", _health_section(health_items), section_id="health"),
             _section(
                 "今日候選股",
                 _table(
@@ -345,6 +349,7 @@ def _render_page(
                     "目前尚無候選股資料",
                     max_rows=20,
                 ),
+                section_id="candidates",
             ),
             _section(
                 "通過風控股票",
@@ -363,61 +368,9 @@ def _render_page(
                     "目前尚無通過風控的股票",
                     max_rows=20,
                 ),
-            ),
-            _section(
-                "待進場清單",
-                _responsive_records(
-                    pending_orders,
-                    [
-                        "signal_date",
-                        "planned_entry_date",
-                        "actual_entry_date",
-                        "stock_id",
-                        "stock_name",
-                        "signal_close",
-                        "entry_price",
-                        "entry_price_source",
-                        "shares",
-                        "position_value",
-                        "status",
-                        "skipped_reason",
-                        "warning",
-                    ],
-                    "目前尚無待進場資料",
-                    max_rows=50,
-                ),
-            ),
-            _section(
-                "已成交持倉",
-                _responsive_records(
-                    open_positions,
-                    [
-                        "signal_date",
-                        "trade_date",
-                        "actual_entry_date",
-                        "stock_id",
-                        "stock_name",
-                        "entry_price",
-                        "entry_price_source",
-                        "entry_commission",
-                        "original_shares",
-                        "remaining_shares",
-                        "market_value",
-                        "unrealized_pnl",
-                        "unrealized_pnl_pct",
-                        "stop_loss_price",
-                        "partial_exit_1_done",
-                        "highest_price_since_entry",
-                        "trailing_stop_price",
-                        "holding_days",
-                        "status",
-                    ],
-                    "目前尚無已成交持倉",
-                    max_rows=50,
-                ),
+                section_id="risk-pass",
             ),
             _section("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades)),
-            _section("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary, trading_cost)),
             _section("出場策略摘要", _exit_strategy_summary(latest_summary, open_positions, closed_trades)),
             _section(
                 "最近每日 summary",
@@ -462,6 +415,335 @@ def _render_page(
             "</html>",
         ]
     )
+
+
+def _account_header(summary: dict[str, object], updated_at: str) -> str:
+    requested = _format_cell("requested_date", summary.get("requested_date") or summary.get("trade_date"))
+    trade_date = _format_cell("trade_date", summary.get("trade_date"))
+    use_recent = "是" if _uses_recent_data(summary) else "否"
+    meta = [
+        ("原始執行日期", requested),
+        ("實際交易日", trade_date),
+        ("是否使用最近有效資料", use_recent),
+        ("報表更新時間", updated_at or "-"),
+    ]
+    chips = "".join(f"<span>{escape(label)}：{escape(value)}</span>" for label, value in meta)
+    return (
+        "<header class=\"account-header\">"
+        "<p>台股量化系統</p>"
+        "<h1>台股紙上交易帳務</h1>"
+        f"<div class=\"header-meta\">{chips}</div>"
+        "<small>所有內容僅供紙上模擬交易與策略檢查使用，不代表投資建議，也不保證獲利。</small>"
+        "</header>"
+    )
+
+
+def _nav_tabs() -> str:
+    tabs = [
+        ("overview", "總覽"),
+        ("positions", "持倉"),
+        ("pending", "待進場"),
+        ("closed", "已出場"),
+        ("fundamental", "基本面"),
+        ("health", "健康檢查"),
+    ]
+    links = "".join(f'<a href="#{anchor}">{label}</a>' for anchor, label in tabs)
+    return f'<nav class="section-tabs" aria-label="報表區塊導覽">{links}</nav>'
+
+
+def _pnl_overview(
+    daily_summary: dict[str, object],
+    paper_summary: dict[str, object],
+    open_positions: pd.DataFrame,
+) -> str:
+    summary = paper_summary or daily_summary
+    if not summary:
+        return _empty("目前尚無損益總覽資料")
+
+    market_value = _first_number(summary, "market_value")
+    if market_value is None:
+        market_value = _sum_column(open_positions, "market_value")
+    invested_value = _first_number(summary, "invested_value")
+    if invested_value is None:
+        invested_value = _sum_column(open_positions, "position_value")
+    total_equity_after_cost = _first_number(summary, "total_equity_after_cost") or _first_number(summary, "total_equity")
+    total_capital = _first_number(summary, "total_capital")
+    unrealized = _first_number(summary, "unrealized_pnl")
+    realized = _first_number(summary, "realized_pnl")
+    if realized is None:
+        realized = _first_number(summary, "realized_pnl_after_cost")
+    total_cost = _first_number(summary, "total_cost")
+    total_pnl = None
+    if total_equity_after_cost is not None and total_capital is not None:
+        total_pnl = round(total_equity_after_cost - total_capital, 2)
+    elif unrealized is not None or realized is not None:
+        total_pnl = round((unrealized or 0.0) + (realized or 0.0), 2)
+    return_pct = round(total_pnl / total_capital, 6) if total_pnl is not None and total_capital else None
+
+    primary = [
+        ("總現值", _format_number_or_dash(total_equity_after_cost), None, "total-value"),
+        ("總成本", _format_number_or_dash(invested_value), None, ""),
+        ("總損益", _signed_or_dash(total_pnl), total_pnl, "pnl-main"),
+        ("報酬率", _percent_or_dash(return_pct), total_pnl, "pnl-main"),
+    ]
+    secondary = [
+        ("未實現損益", _signed_or_dash(unrealized), unrealized),
+        ("累計已實現損益", _signed_or_dash(realized), realized),
+        ("累計交易成本", _format_number_or_dash(total_cost), None),
+        ("扣成本後總資產", _format_number_or_dash(total_equity_after_cost), None),
+    ]
+    primary_cards = "".join(_overview_metric(label, value, raw, class_name) for label, value, raw, class_name in primary)
+    secondary_cards = "".join(_overview_metric(label, value, raw, "") for label, value, raw in secondary)
+    return f'<div class="pnl-card"><div class="pnl-primary">{primary_cards}</div><div class="pnl-secondary">{secondary_cards}</div></div>'
+
+
+def _overview_metric(label: str, value: str, raw_value: float | None, extra_class: str = "") -> str:
+    classes = "overview-metric"
+    if extra_class:
+        classes += f" {extra_class}"
+    value_class = _profit_class(raw_value) if raw_value is not None else "profit-flat"
+    return (
+        f'<div class="{classes}"><span>{escape(label)}</span>'
+        f'<strong class="{value_class}">{escape(value)}</strong></div>'
+    )
+
+
+def _position_cards(frame: pd.DataFrame) -> str:
+    if frame.empty:
+        return _empty("目前尚無持倉")
+    cards = []
+    for _, row in frame.iterrows():
+        stock_id = _format_cell("stock_id", row.get("stock_id"))
+        stock_name = _format_cell("stock_name", row.get("stock_name"))
+        pnl = _to_float(row.get("unrealized_pnl"))
+        details = _detail_grid(
+            row,
+            [
+                "actual_entry_date",
+                "original_shares",
+                "remaining_shares",
+                "stop_loss_price",
+                "partial_exit_1_done",
+                "partial_exit_2_done",
+                "highest_price_since_entry",
+                "trailing_stop_price",
+                "entry_price_source",
+                "buy_commission",
+                "total_cost",
+                "fundamental_score",
+                "fundamental_reason",
+            ],
+        )
+        metrics = [
+            ("剩餘股數", _format_cell("remaining_shares", row.get("remaining_shares") if not _is_blank(row.get("remaining_shares")) else row.get("shares"))),
+            ("成交均價", _format_cell("entry_price", row.get("entry_price"))),
+            ("最新價格", _format_cell("current_price", row.get("current_price"))),
+            ("目前市值", _format_cell("market_value", row.get("market_value"))),
+        ]
+        metric_html = "".join(f"<div><span>{label}</span><strong>{value}</strong></div>" for label, value in metrics)
+        pnl_html = (
+            f'<div class="position-pnl {_profit_class(pnl)}">'
+            f'<span>未實現損益</span><strong>{escape(_format_cell("unrealized_pnl", row.get("unrealized_pnl")))}</strong>'
+            f'<em>{escape(_format_cell("unrealized_pnl_pct", row.get("unrealized_pnl_pct")))}</em></div>'
+        )
+        cards.append(
+            '<article class="mobile-card position-card">'
+            '<div class="holding-head">'
+            f'<div><h3>{escape(stock_id)} {escape(stock_name)}</h3><span>{escape(_format_cell("status", row.get("status")))}</span></div>'
+            '<b>現股</b>'
+            '</div>'
+            f'<div class="holding-main">{pnl_html}<div class="holding-metrics">{metric_html}</div></div>'
+            f'<details><summary>更多持倉資訊</summary>{details}</details>'
+            '</article>'
+        )
+    table = _table(
+        frame,
+        [
+            "stock_id",
+            "stock_name",
+            "status",
+            "remaining_shares",
+            "entry_price",
+            "current_price",
+            "market_value",
+            "unrealized_pnl",
+            "unrealized_pnl_pct",
+            "stop_loss_price",
+        ],
+        "目前尚無持倉",
+        max_rows=50,
+    )
+    return '<div class="broker-cards">' + "".join(cards) + "</div>" + table
+
+
+def _pending_cards(frame: pd.DataFrame) -> str:
+    if frame.empty:
+        return _empty("目前尚無待進場資料")
+    cards = []
+    for _, row in frame.iterrows():
+        stock_id = _format_cell("stock_id", row.get("stock_id"))
+        stock_name = _format_cell("stock_name", row.get("stock_name"))
+        fields = _detail_grid(
+            row,
+            [
+                "signal_date",
+                "planned_entry_date",
+                "actual_entry_date",
+                "status",
+                "signal_close",
+                "entry_price",
+                "fundamental_score",
+                "fundamental_reason",
+            ],
+        )
+        cards.append(
+            '<article class="mobile-card pending-card">'
+            f'<div class="card-title-row"><h3>{escape(stock_id)} {escape(stock_name)}</h3>'
+            f'<span>{escape(_format_cell("status", row.get("status")))}</span></div>'
+            f"{fields}</article>"
+        )
+    table = _table(
+        frame,
+        ["signal_date", "planned_entry_date", "actual_entry_date", "stock_id", "stock_name", "signal_close", "entry_price", "status", "fundamental_score", "fundamental_reason"],
+        "目前尚無待進場資料",
+        max_rows=50,
+    )
+    return '<div class="broker-cards">' + "".join(cards) + "</div>" + table
+
+
+def _closed_cards(frame: pd.DataFrame) -> str:
+    if frame.empty:
+        return _empty("目前尚無已出場交易")
+    cards = []
+    for _, row in frame.iterrows():
+        stock_id = _format_cell("stock_id", row.get("stock_id"))
+        stock_name = _format_cell("stock_name", row.get("stock_name"))
+        after_cost = _to_float(row.get("realized_pnl_after_cost"))
+        fields = _detail_grid(
+            row,
+            [
+                "exit_date",
+                "exit_reason",
+                "exit_price",
+                "realized_pnl",
+                "realized_pnl_after_cost",
+                "realized_pnl_pct_after_cost",
+                "total_cost",
+                "status",
+            ],
+        )
+        cards.append(
+            '<article class="mobile-card closed-card">'
+            f'<div class="card-title-row"><h3>{escape(stock_id)} {escape(stock_name)}</h3>'
+            f'<span>{escape(_format_cell("exit_reason", row.get("exit_reason")))}</span></div>'
+            f'<div class="closed-pnl {_profit_class(after_cost)}"><span>扣成本後損益</span>'
+            f'<strong>{escape(_format_cell("realized_pnl_after_cost", row.get("realized_pnl_after_cost")))}</strong></div>'
+            f"{fields}</article>"
+        )
+    table = _table(
+        frame,
+        ["stock_id", "stock_name", "exit_date", "exit_reason", "exit_price", "realized_pnl", "realized_pnl_after_cost", "realized_pnl_pct_after_cost", "total_cost", "status"],
+        "目前尚無已出場交易",
+        max_rows=50,
+    )
+    return '<div class="broker-cards">' + "".join(cards) + "</div>" + table
+
+
+def _detail_grid(row: pd.Series, columns: list[str]) -> str:
+    fields = []
+    for column in columns:
+        if column not in row.index:
+            continue
+        value = _format_cell(column, row.get(column))
+        if value == "-" and column == "fundamental_reason":
+            value = "基本面資料不足，採中性分數"
+        fields.append(f"<dt>{escape(COLUMN_LABELS.get(column, column))}</dt><dd>{escape(value)}</dd>")
+    return f'<dl class="detail-grid">{"".join(fields)}</dl>'
+
+
+def _enrich_with_fundamentals(frame: pd.DataFrame, candidates: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    result = frame.copy()
+    columns = ["fundamental_score", "fundamental_reason", "revenue_yoy", "revenue_mom", "accumulated_revenue_yoy"]
+    for column in columns:
+        if column not in result.columns:
+            result[column] = ""
+    if candidates.empty or "stock_id" not in candidates.columns:
+        result["fundamental_reason"] = result["fundamental_reason"].replace("", "基本面資料不足，採中性分數")
+        return result
+
+    candidate_data = candidates.copy()
+    candidate_data["stock_id"] = candidate_data["stock_id"].astype(str).str.strip()
+    lookup = candidate_data.drop_duplicates("stock_id").set_index("stock_id")
+    result["stock_id"] = result["stock_id"].astype(str).str.strip()
+    for column in columns:
+        if column not in lookup.columns:
+            continue
+        mapped = result["stock_id"].map(lookup[column])
+        current = result[column]
+        result[column] = current.where(~current.apply(_is_blank), mapped)
+    result["fundamental_reason"] = result["fundamental_reason"].fillna("").replace("", "基本面資料不足，採中性分數")
+    return result
+
+
+def _uses_recent_data(summary: dict[str, object]) -> bool:
+    requested = _format_cell("requested_date", summary.get("requested_date") or summary.get("trade_date"))
+    actual = _format_cell("trade_date", summary.get("trade_date"))
+    if requested != "-" and actual != "-":
+        return requested != actual
+    return not _is_blank(summary.get("fallback_date"))
+
+
+def _first_number(summary: dict[str, object], column: str) -> float | None:
+    if not summary:
+        return None
+    return _to_float(summary.get(column))
+
+
+def _sum_column(frame: pd.DataFrame, column: str) -> float | None:
+    if frame.empty or column not in frame.columns:
+        return None
+    values = pd.to_numeric(frame[column], errors="coerce").dropna()
+    if values.empty:
+        return None
+    return round(float(values.sum()), 2)
+
+
+def _format_number_or_dash(value: object) -> str:
+    number = _to_float(value)
+    if number is None:
+        return "-"
+    return f"{number:,.0f}"
+
+
+def _signed_or_dash(value: object) -> str:
+    number = _to_float(value)
+    if number is None:
+        return "-"
+    return _signed_number(number)
+
+
+def _percent_or_dash(value: object) -> str:
+    number = _to_float(value)
+    if number is None:
+        return "-"
+    return f"{number * 100:.2f}%"
+
+
+def _profit_class(value: object) -> str:
+    number = _to_float(value)
+    if number is None or abs(number) < 0.000001:
+        return "profit-flat"
+    return "profit-positive" if number > 0 else "profit-negative"
+
+
+def _report_updated_at(report_dir: Path) -> str:
+    files = list(report_dir.glob("*.csv"))
+    if not files:
+        return ""
+    latest_mtime = max(path.stat().st_mtime for path in files)
+    return pd.Timestamp(latest_mtime, unit="s", tz="UTC").tz_convert("Asia/Taipei").strftime("%Y-%m-%d %H:%M")
 
 
 def _status_overview(summary: dict[str, object]) -> str:
@@ -591,7 +873,7 @@ def _stale_pending_count(pending_orders: pd.DataFrame, trade_date: pd.Timestamp)
 
 def _fundamental_summary(candidates: pd.DataFrame) -> str:
     if candidates.empty:
-        return _empty("目前尚無基本面資料")
+        return _empty("基本面資料不足，採中性分數")
     positive = int((pd.to_numeric(candidates.get("fundamental_score"), errors="coerce").fillna(50) > 50).sum())
     warning = int((pd.to_numeric(candidates.get("fundamental_score"), errors="coerce").fillna(50) < 50).sum())
     cards = [
@@ -600,8 +882,16 @@ def _fundamental_summary(candidates: pd.DataFrame) -> str:
     ]
     table = _table(
         candidates,
-        ["stock_id", "stock_name", "revenue_yoy", "revenue_mom", "accumulated_revenue_yoy", "fundamental_reason"],
-        "目前尚無基本面資料",
+        [
+            "stock_id",
+            "stock_name",
+            "fundamental_score",
+            "revenue_yoy",
+            "revenue_mom",
+            "accumulated_revenue_yoy",
+            "fundamental_reason",
+        ],
+        "基本面資料不足，採中性分數",
         max_rows=20,
     )
     return '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + table
@@ -730,8 +1020,10 @@ def _fallback_note(summary: dict[str, object]) -> str:
     return '<div class="note">本次未使用替代交易日；若遇非交易日，系統會改用 SQLite 內最近有效交易日。</div>'
 
 
-def _section(title: str, content: str) -> str:
-    return f'<section><h2>{escape(title)}</h2>{content}</section>'
+def _section(title: str, content: str, section_id: str = "", class_name: str = "") -> str:
+    id_attr = f' id="{escape(section_id)}"' if section_id else ""
+    classes = f' class="{escape(class_name)}"' if class_name else ""
+    return f"<section{id_attr}{classes}><h2>{escape(title)}</h2>{content}</section>"
 
 
 def _card(label: str, value: str) -> str:
@@ -959,40 +1251,65 @@ def _empty(message: str) -> str:
 def _css() -> str:
     return """
 *{box-sizing:border-box}
-body{margin:0;background:#0b1020;color:#e5e7eb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;line-height:1.6}
-.page{width:min(1120px,100%);margin:0 auto;padding:20px}
-header{padding:24px 0 18px}
-header p{margin:0 0 6px;color:#38bdf8;font-size:14px;font-weight:700}
-header h1{margin:0 0 8px;font-size:28px;letter-spacing:0}
-header div{color:#94a3b8;font-size:14px}
-section{margin:16px 0;padding:18px;background:#111827;border:1px solid #1f2937;border-radius:8px}
-h2{margin:0 0 14px;font-size:19px}
-h3{margin:18px 0 10px;font-size:16px;color:#cbd5e1}
-.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-.card{padding:12px;background:#0f172a;border:1px solid #243244;border-radius:8px}
-.card span{display:block;color:#94a3b8;font-size:13px}
-.card strong{display:block;margin-top:4px;font-size:18px;color:#f8fafc;word-break:break-word}
-.table-wrap{width:100%;overflow-x:auto;border:1px solid #243244;border-radius:8px}
+html{scroll-behavior:smooth}
+body{margin:0;background:#080d18;color:#e5e7eb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;line-height:1.6}
+.page{width:min(1160px,100%);margin:0 auto;padding:14px}
+.account-header{padding:18px 2px 12px}
+.account-header p{margin:0 0 4px;color:#38bdf8;font-size:13px;font-weight:700}
+.account-header h1{margin:0 0 10px;font-size:26px;letter-spacing:0}
+.account-header small{display:block;margin-top:10px;color:#94a3b8;font-size:12px}
+.header-meta{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
+.header-meta span{flex:0 0 auto;padding:5px 9px;border:1px solid #243244;border-radius:999px;background:#0f172a;color:#cbd5e1;font-size:12px}
+.section-tabs{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;margin:10px -14px 12px;padding:9px 14px;background:rgba(8,13,24,.94);backdrop-filter:blur(10px);border-bottom:1px solid #1f2937}
+.section-tabs a{flex:0 0 auto;padding:8px 12px;border:1px solid #243244;border-radius:999px;background:#111827;color:#dbeafe;text-decoration:none;font-size:14px;font-weight:700}
+section{margin:12px 0;padding:14px;background:#101827;border:1px solid #1f2937;border-radius:10px}
+h2{margin:0 0 12px;font-size:18px;letter-spacing:0}
+h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
+.pnl-card{padding:14px;border:1px solid #334155;border-radius:12px;background:linear-gradient(180deg,#172033,#0f172a)}
+.pnl-primary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.pnl-secondary,.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+.overview-metric,.card{padding:12px;background:#0b1220;border:1px solid #243244;border-radius:10px}
+.overview-metric span,.card span{display:block;color:#94a3b8;font-size:12px}
+.overview-metric strong,.card strong{display:block;margin-top:4px;font-size:17px;color:#f8fafc;word-break:break-word}
+.overview-metric.pnl-main strong{font-size:24px}
+.overview-metric.total-value strong{font-size:22px}
+.profit-positive{color:#f87171!important}
+.profit-negative{color:#34d399!important}
+.profit-flat{color:#e5e7eb!important}
+.broker-cards{display:grid;gap:12px}
+.mobile-card{padding:14px;background:#0f172a;border:1px solid #263244;border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.16)}
+.holding-head,.card-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.holding-head span,.card-title-row span{display:inline-block;color:#cbd5e1;font-size:13px}
+.holding-head b{padding:3px 8px;border-radius:999px;background:#1e3a8a;color:#dbeafe;font-size:12px;white-space:nowrap}
+.holding-main{display:grid;gap:12px;margin-top:12px}
+.position-pnl,.closed-pnl{padding:12px;border-radius:10px;background:#111827;border:1px solid #243244}
+.position-pnl span,.closed-pnl span{display:block;color:#94a3b8;font-size:12px}
+.position-pnl strong,.closed-pnl strong{display:block;font-size:26px;font-weight:800}
+.position-pnl em{display:block;font-style:normal;font-size:15px;font-weight:700}
+.holding-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.holding-metrics div{padding:10px;border-radius:8px;background:#0b1220;border:1px solid #1f2937}
+.holding-metrics span{display:block;color:#94a3b8;font-size:12px}
+.holding-metrics strong{font-size:15px;color:#f8fafc}
+details{margin-top:12px;border-top:1px solid #243244;padding-top:10px}
+summary{cursor:pointer;color:#bfdbfe;font-size:14px;font-weight:700}
+.detail-grid{display:grid;grid-template-columns:120px 1fr;gap:7px 10px;margin:10px 0 0}
+.detail-grid dt{color:#94a3b8;font-size:12px}.detail-grid dd{margin:0;color:#e5e7eb;font-size:13px}
+.table-wrap{display:none;width:100%;overflow-x:auto;border:1px solid #243244;border-radius:8px;margin-top:12px}
 table{width:100%;border-collapse:collapse;min-width:760px;background:#0f172a}
 th,td{padding:10px 12px;border-bottom:1px solid #243244;text-align:left;vertical-align:top}
 th{color:#bae6fd;background:#172033;font-size:13px;white-space:nowrap}
 td{font-size:13px;color:#e5e7eb}
 tr:last-child td{border-bottom:0}
-.empty,.note{padding:13px;background:#0f172a;border:1px solid #243244;border-radius:8px;color:#cbd5e1}
-.note{border-color:#164e63;background:#082f49}
-.top-warning{display:flex;gap:10px;align-items:flex-start;margin:12px 0;padding:14px;background:#7f1d1d;border:1px solid #ef4444;border-radius:8px;color:#fee2e2}
+.empty,.note{padding:13px;background:#0f172a;border:1px solid #243244;border-radius:10px;color:#cbd5e1}
+.note{border-color:#164e63;background:#082f49;margin-top:10px}
+.top-warning{display:flex;gap:10px;align-items:flex-start;margin:10px 0;padding:12px;background:#7f1d1d;border:1px solid #ef4444;border-radius:10px;color:#fee2e2}
 .top-warning strong{white-space:nowrap}
-.health-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px}
-.health{padding:12px;background:#0f172a;border:1px solid #243244;border-radius:8px}
+.health-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.health{padding:12px;background:#0f172a;border:1px solid #243244;border-radius:10px}
 .health strong{display:inline-block;margin-right:8px;padding:2px 8px;border-radius:999px;font-size:12px}
 .health span,.health em{display:block;margin-top:5px;font-style:normal}
 .health.正常 strong{background:#065f46;color:#d1fae5}.health.注意 strong{background:#854d0e;color:#fef3c7}.health.警告 strong{background:#991b1b;color:#fee2e2}
-.mobile-cards{display:none}
-.mobile-card{padding:12px;background:#0f172a;border:1px solid #243244;border-radius:8px;margin:10px 0}
-.mobile-card h3{margin:0 0 8px;font-size:16px;color:#f8fafc}
-.mobile-card dl{display:grid;grid-template-columns:120px 1fr;gap:6px 10px;margin:0}
-.mobile-card dt{color:#94a3b8;font-size:12px}.mobile-card dd{margin:0;color:#e5e7eb;font-size:13px}
-@media(max-width:640px){.page{padding:14px}header h1{font-size:24px}section{padding:14px}.card strong{font-size:16px}table{min-width:680px}.mobile-cards{display:block}.mobile-cards+.table-wrap{display:none}.key-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}.table-wrap{display:block}}
 """
 
 

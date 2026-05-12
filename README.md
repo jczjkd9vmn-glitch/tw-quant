@@ -391,15 +391,19 @@ reports/paper_trades.csv
 
 ```yaml
 trading_cost:
-  commission_rate: 0.001425
-  commission_discount: 1.0
-  min_commission: 20
+  commission_rate: 0.000399
+  min_commission: 1
   sell_tax_rate_stock: 0.003
   sell_tax_rate_etf: 0.001
+  sell_tax_rate_bond_etf: 0.0
   slippage_rate: 0.001
 ```
 
-買進成交價會在開盤價或收盤價 fallback 上加計滑價，並計算買進手續費；建立新持倉時會從可用資金扣除成交金額與手續費。賣出停損時，成交價會扣除滑價，並計算賣出手續費與交易稅；`realized_pnl` 與 `realized_pnl_after_cost` 都會扣除交易成本。`paper_trades.csv` 會新增 `entry_slippage`、`entry_commission`、`exit_slippage`、`exit_commission`、`exit_tax`、`total_cost`、`realized_pnl_after_cost` 與 `realized_pnl_pct_after_cost`。
+`commission_rate = 0.000399` 代表國泰台股電子下單手續費率 0.399‰，`min_commission = 1` 代表最低手續費 1 元。買進手續費使用滑價後成交金額計算，買進不收證券交易稅。賣出時一般股票交易稅使用 `sell_tax_rate_stock = 0.003`，ETF 使用 `sell_tax_rate_etf = 0.001`，債券 ETF 使用 `sell_tax_rate_bond_etf = 0.0`。
+
+`slippage_rate = 0.001` 代表 0.1% 滑價假設。買進滑價會讓買進價變高：`entry_price_after_slippage = entry_price * (1 + slippage_rate)`；賣出滑價會讓賣出價變低：`exit_price_after_slippage = exit_price * (1 - slippage_rate)`。滑價不是券商實際收費，而是模擬真實成交可能偏離理想價格的保守估計。
+
+交易成本會分開記錄手續費、證券交易稅與滑價。`paper_trades.csv` 會保留既有 `entry_slippage`、`entry_commission`、`exit_slippage`、`exit_commission`、`exit_tax`，並新增或維護 `entry_price_raw`、`exit_price_raw`、`slippage_rate`、`buy_slippage_cost`、`sell_slippage_cost`、`buy_commission`、`sell_commission`、`sell_tax`、`total_cost`、`realized_pnl_after_cost` 與 `realized_pnl_pct_after_cost`。`total_cost` 會包含滑價、買賣手續費與賣出交易稅。
 
 ### 出場策略
 

@@ -41,11 +41,11 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "max_volatility_20": 0.08,
     },
     "trading_cost": {
-        "commission_rate": 0.001425,
-        "commission_discount": 1.0,
-        "min_commission": 20,
+        "commission_rate": 0.000399,
+        "min_commission": 1,
         "sell_tax_rate_stock": 0.003,
         "sell_tax_rate_etf": 0.001,
+        "sell_tax_rate_bond_etf": 0.0,
         "slippage_rate": 0.001,
     },
     "exit_strategy": {

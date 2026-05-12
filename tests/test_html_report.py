@@ -25,6 +25,16 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert "已成交持倉" in html
     assert "紙上交易績效" in html
     assert "交易成本摘要" in html
+    assert "國泰電子下單手續費率" in html
+    assert "0.399‰" in html
+    assert "最低手續費" in html
+    assert "1 元" in html
+    assert "股票交易稅" in html
+    assert "0.3%" in html
+    assert "ETF 交易稅" in html
+    assert "0.1%" in html
+    assert "債券 ETF 交易稅" in html
+    assert "滑價不是券商費用" in html
     assert "出場策略摘要" in html
     assert "最近每日 summary" in html
     assert "非交易日替代交易日說明" in html

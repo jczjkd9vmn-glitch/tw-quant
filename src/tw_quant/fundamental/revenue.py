@@ -71,6 +71,8 @@ def score_monthly_revenue(stock_id: str, revenue: pd.DataFrame) -> dict[str, obj
         "revenue_yoy": latest_yoy,
         "revenue_mom": latest_mom,
         "accumulated_revenue_yoy": accumulated_yoy,
+        "revenue_score": max(0.0, min(100.0, round(score, 2))),
+        "revenue_reason": "；".join(reasons),
         "fundamental_score": max(0.0, min(100.0, round(score, 2))),
         "fundamental_reason": "；".join(reasons),
     }
@@ -97,6 +99,8 @@ def _neutral(stock_id: str) -> dict[str, object]:
         "revenue_yoy": None,
         "revenue_mom": None,
         "accumulated_revenue_yoy": None,
+        "revenue_score": 50.0,
+        "revenue_reason": NEUTRAL_REASON,
         "fundamental_score": 50.0,
         "fundamental_reason": NEUTRAL_REASON,
     }

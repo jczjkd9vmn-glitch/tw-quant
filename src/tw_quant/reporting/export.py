@@ -8,8 +8,10 @@ from pathlib import Path
 import pandas as pd
 from sqlalchemy import Engine
 
+from tw_quant.config import load_config
 from tw_quant.data.database import load_candidate_scores
 from tw_quant.fundamental.revenue import score_revenue_for_symbols
+from tw_quant.scoring.multi_factor import apply_multi_factor_scores, write_data_fetch_status
 
 
 EXPORT_COLUMNS = [
@@ -19,15 +21,43 @@ EXPORT_COLUMNS = [
     "stock_name",
     "close",
     "total_score",
+    "original_total_score",
+    "multi_factor_score",
+    "multi_factor_reason",
     "trend_score",
     "momentum_score",
     "fundamental_score",
     "chip_score",
     "risk_score",
+    "revenue_score",
     "revenue_yoy",
     "revenue_mom",
     "accumulated_revenue_yoy",
+    "revenue_reason",
     "fundamental_reason",
+    "valuation_score",
+    "pe_ratio",
+    "pb_ratio",
+    "dividend_yield",
+    "valuation_reason",
+    "valuation_warning",
+    "financial_score",
+    "eps",
+    "roe",
+    "gross_margin",
+    "operating_margin",
+    "debt_ratio",
+    "financial_reason",
+    "financial_warning",
+    "event_score",
+    "event_reason",
+    "event_risk_level",
+    "event_blocked",
+    "institutional_score",
+    "foreign_net_buy",
+    "investment_trust_net_buy",
+    "dealer_net_buy",
+    "institutional_reason",
     "is_candidate",
     "risk_pass",
     "risk_reason",
@@ -44,6 +74,8 @@ class CandidateExportResult:
     risk_pass_candidates: pd.DataFrame
     candidates_path: Path | None
     risk_pass_path: Path | None
+    data_fetch_status_path: Path | None = None
+    data_fetch_status: pd.DataFrame | None = None
     warning: str = ""
 
 
@@ -51,6 +83,11 @@ def export_latest_candidates(
     engine: Engine,
     output_dir: str | Path = "reports",
     revenue_path: str | Path | None = None,
+    valuation_path: str | Path | None = None,
+    financials_path: str | Path | None = None,
+    events_path: str | Path | None = None,
+    institutional_path: str | Path | None = None,
+    config: dict | None = None,
 ) -> CandidateExportResult:
     scores = load_candidate_scores(engine)
     if scores.empty:
@@ -60,6 +97,8 @@ def export_latest_candidates(
             risk_pass_candidates=pd.DataFrame(columns=EXPORT_COLUMNS),
             candidates_path=None,
             risk_pass_path=None,
+            data_fetch_status_path=None,
+            data_fetch_status=pd.DataFrame(),
             warning="no scoring data found",
         )
 
@@ -73,10 +112,21 @@ def export_latest_candidates(
             risk_pass_candidates=pd.DataFrame(columns=EXPORT_COLUMNS),
             candidates_path=None,
             risk_pass_path=None,
+            data_fetch_status_path=None,
+            data_fetch_status=pd.DataFrame(),
             warning=f"no candidate stocks found for {latest_date.date()}",
         )
 
-    candidates = _format_candidates(candidates, revenue_path=revenue_path)
+    active_config = config or load_config()
+    candidates, data_fetch_status = _format_candidates(
+        candidates,
+        revenue_path=revenue_path,
+        valuation_path=valuation_path,
+        financials_path=financials_path,
+        events_path=events_path,
+        institutional_path=institutional_path,
+        config=active_config,
+    )
     risk_pass_candidates = candidates[candidates["risk_pass"].astype(int) == 1].copy()
 
     report_dir = Path(output_dir)
@@ -84,6 +134,7 @@ def export_latest_candidates(
     date_label = latest_date.strftime("%Y%m%d")
     candidates_path = report_dir / f"candidates_{date_label}.csv"
     risk_pass_path = report_dir / f"risk_pass_candidates_{date_label}.csv"
+    data_fetch_status_path = write_data_fetch_status(report_dir, latest_date, data_fetch_status)
     candidates.to_csv(candidates_path, index=False, encoding="utf-8-sig")
     risk_pass_candidates.to_csv(risk_pass_path, index=False, encoding="utf-8-sig")
 
@@ -93,10 +144,20 @@ def export_latest_candidates(
         risk_pass_candidates=risk_pass_candidates,
         candidates_path=candidates_path,
         risk_pass_path=risk_pass_path,
+        data_fetch_status_path=data_fetch_status_path,
+        data_fetch_status=data_fetch_status,
     )
 
 
-def _format_candidates(scores: pd.DataFrame, revenue_path: str | Path | None = None) -> pd.DataFrame:
+def _format_candidates(
+    scores: pd.DataFrame,
+    revenue_path: str | Path | None = None,
+    valuation_path: str | Path | None = None,
+    financials_path: str | Path | None = None,
+    events_path: str | Path | None = None,
+    institutional_path: str | Path | None = None,
+    config: dict | None = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     frame = scores.sort_values(["total_score", "risk_score"], ascending=[False, False]).reset_index(
         drop=True
     )
@@ -119,4 +180,17 @@ def _format_candidates(scores: pd.DataFrame, revenue_path: str | Path | None = N
     for column in ["revenue_yoy", "revenue_mom", "accumulated_revenue_yoy"]:
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
     frame = frame.drop(columns=["fundamental_score_revenue"], errors="ignore")
-    return frame[EXPORT_COLUMNS].copy()
+    multi_factor = apply_multi_factor_scores(
+        frame,
+        config=(config or {}).get("multi_factor", {}),
+        revenue_path=revenue_path,
+        valuation_path=valuation_path,
+        financials_path=financials_path,
+        events_path=events_path,
+        institutional_path=institutional_path,
+    )
+    frame = multi_factor.candidates
+    for column in EXPORT_COLUMNS:
+        if column not in frame.columns:
+            frame[column] = None
+    return frame[EXPORT_COLUMNS].copy(), multi_factor.data_fetch_status

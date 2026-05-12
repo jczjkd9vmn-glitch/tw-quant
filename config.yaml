@@ -46,6 +46,13 @@ exit_strategy:
   max_holding_days: 20
   min_profit_for_holding: 0.03
 
+multi_factor:
+  enabled: true
+  affect_ranking: false
+  affect_risk_pass: false
+  block_on_high_risk_event: true
+  missing_data_score: 0
+
 backtest:
   initial_cash: 1000000
   top_n: 10

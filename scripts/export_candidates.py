@@ -24,7 +24,7 @@ def main() -> None:
     config = load_config(args.config)
     engine = create_db_engine(config["database"]["url"])
     init_db(engine)
-    result = export_latest_candidates(engine, output_dir=args.output_dir)
+    result = export_latest_candidates(engine, output_dir=args.output_dir, config=config)
 
     if result.warning:
         print(f"warning: {result.warning}")
@@ -33,6 +33,7 @@ def main() -> None:
     print(result.candidates.to_string(index=False))
     print(f"candidates_csv={result.candidates_path}")
     print(f"risk_pass_candidates_csv={result.risk_pass_path}")
+    print(f"data_fetch_status_csv={result.data_fetch_status_path}")
     print(
         "summary "
         f"trade_date={result.trade_date.date()} "

@@ -18,6 +18,11 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert "損益總覽" in html
     assert "系統健康檢查" in html
     assert "基本面摘要" in html
+    assert "多因子分數摘要" in html or "多因子資料更新狀態" in html
+    assert "高風險事件警告數" in html
+    assert "估值警告候選股數" in html
+    assert "財報警告候選股數" in html
+    assert "籌碼加分候選股數" in html
     assert "今日候選股" in html
     assert "通過風控股票" in html
     assert "待進場" in html
@@ -179,6 +184,11 @@ def _write_reports(path: Path) -> None:
                 "realized_pnl_after_cost_today": 100.0,
                 "fundamental_positive_candidates": 1,
                 "fundamental_warning_candidates": 0,
+                "multi_factor_data_status": "OK:5",
+                "high_risk_event_candidates": 1,
+                "valuation_warning_candidates": 1,
+                "financial_warning_candidates": 1,
+                "institutional_positive_candidates": 1,
                 "status": "OK_WITH_FALLBACK",
             }
         ]
@@ -193,15 +203,43 @@ def _write_reports(path: Path) -> None:
                 "stock_name": "台積電",
                 "close": 1000.0,
                 "total_score": 88.12,
+                "original_total_score": 88.12,
+                "multi_factor_score": 84.3,
+                "multi_factor_reason": "原始技術/動能分數 88.12；月營收年增率大於 20%",
                 "trend_score": 90.0,
                 "momentum_score": 86.0,
                 "fundamental_score": 70.0,
                 "chip_score": 60.0,
                 "risk_score": 92.0,
+                "revenue_score": 80.0,
                 "revenue_yoy": 25.0,
                 "revenue_mom": 3.0,
                 "accumulated_revenue_yoy": 12.0,
+                "revenue_reason": "月營收年增率大於 20%",
                 "fundamental_reason": "月營收年增率大於 20%",
+                "valuation_score": 45.0,
+                "pe_ratio": 45.0,
+                "pb_ratio": 6.0,
+                "dividend_yield": 1.5,
+                "valuation_reason": "PE 過高扣分",
+                "valuation_warning": "PE 偏高",
+                "financial_score": 42.0,
+                "eps": 1.2,
+                "roe": 8.0,
+                "gross_margin": 30.0,
+                "operating_margin": 10.0,
+                "debt_ratio": 65.0,
+                "financial_reason": "負債比過高扣分",
+                "financial_warning": "負債比偏高",
+                "event_score": 20.0,
+                "event_reason": "高風險重大訊息：資安事件",
+                "event_risk_level": "HIGH",
+                "event_blocked": True,
+                "institutional_score": 70.0,
+                "foreign_net_buy": 100.0,
+                "investment_trust_net_buy": 50.0,
+                "dealer_net_buy": 10.0,
+                "institutional_reason": "投信連買",
                 "is_candidate": 1,
                 "risk_pass": 1,
                 "risk_reason": "通過風控",

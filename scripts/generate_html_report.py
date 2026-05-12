@@ -48,6 +48,11 @@ COLUMN_LABELS = {
     "realized_pnl_after_cost_today": "今日扣成本後已實現損益",
     "fundamental_positive_candidates": "基本面加分候選股數",
     "fundamental_warning_candidates": "基本面警告候選股數",
+    "high_risk_event_candidates": "高風險事件警告數",
+    "valuation_warning_candidates": "估值警告候選股數",
+    "financial_warning_candidates": "財報警告候選股數",
+    "institutional_positive_candidates": "籌碼加分候選股數",
+    "multi_factor_data_status": "多因子資料更新狀態",
     "total_capital": "初始資金",
     "invested_value": "投入金額",
     "market_value": "目前市值",
@@ -56,6 +61,9 @@ COLUMN_LABELS = {
     "stock_name": "股票名稱",
     "close": "收盤價",
     "total_score": "總分",
+    "original_total_score": "原始總分",
+    "multi_factor_score": "多因子分數",
+    "multi_factor_reason": "多因子理由",
     "trend_score": "趨勢分數",
     "momentum_score": "動能分數",
     "fundamental_score": "基本面分數",
@@ -64,7 +72,32 @@ COLUMN_LABELS = {
     "revenue_yoy": "月營收 YoY",
     "revenue_mom": "月營收 MoM",
     "accumulated_revenue_yoy": "累計營收 YoY",
+    "revenue_score": "月營收分數",
+    "revenue_reason": "月營收理由",
     "fundamental_reason": "基本面評分理由",
+    "valuation_score": "估值分數",
+    "pe_ratio": "本益比 PE",
+    "pb_ratio": "股價淨值比 PB",
+    "dividend_yield": "殖利率",
+    "valuation_reason": "估值理由",
+    "valuation_warning": "估值警告",
+    "financial_score": "財報分數",
+    "eps": "EPS",
+    "roe": "ROE",
+    "gross_margin": "毛利率",
+    "operating_margin": "營益率",
+    "debt_ratio": "負債比",
+    "financial_reason": "財報理由",
+    "financial_warning": "財報警告",
+    "event_score": "重大訊息分數",
+    "event_reason": "重大訊息理由",
+    "event_risk_level": "事件風險等級",
+    "event_blocked": "是否阻擋新進場",
+    "institutional_score": "籌碼分數",
+    "foreign_net_buy": "外資買賣超",
+    "investment_trust_net_buy": "投信買賣超",
+    "dealer_net_buy": "自營商買賣超",
+    "institutional_reason": "籌碼理由",
     "is_candidate": "是否候選",
     "risk_pass": "是否通過風控",
     "risk_reason": "風控原因",
@@ -133,6 +166,10 @@ STATUS_LABELS = {
     "SKIPPED_EXISTING_POSITION": "已有持倉，略過重複進場",
     "OPEN": "持有中",
     "no trading data": "無交易資料",
+    "HIGH": "高",
+    "MEDIUM": "中",
+    "LOW": "低",
+    "NONE": "無",
     "True": "是",
     "False": "否",
     "true": "是",
@@ -154,6 +191,13 @@ SCORE_COLUMNS = {
     "fundamental_score",
     "chip_score",
     "risk_score",
+    "original_total_score",
+    "multi_factor_score",
+    "revenue_score",
+    "valuation_score",
+    "financial_score",
+    "event_score",
+    "institutional_score",
 }
 PERCENT_COLUMNS = {
     "suggested_position_pct",
@@ -233,6 +277,8 @@ STATUS_COLUMNS = {
     "stop_loss_hit",
     "partial_exit_1_done",
     "partial_exit_2_done",
+    "event_risk_level",
+    "event_blocked",
 }
 DATE_COLUMNS = {
     "trade_date",
@@ -313,13 +359,31 @@ def _render_page(
             "stock_name",
             "close",
             "total_score",
+            "original_total_score",
+            "multi_factor_score",
             "trend_score",
             "momentum_score",
             "risk_score",
+            "revenue_score",
             "revenue_yoy",
             "revenue_mom",
             "accumulated_revenue_yoy",
-            "fundamental_reason",
+            "revenue_reason",
+            "valuation_score",
+            "pe_ratio",
+            "pb_ratio",
+            "dividend_yield",
+            "valuation_warning",
+            "financial_score",
+            "eps",
+            "roe",
+            "financial_warning",
+            "event_score",
+            "event_risk_level",
+            "event_blocked",
+            "institutional_score",
+            "institutional_reason",
+            "multi_factor_reason",
             "reason",
         ],
         "目前尚無候選股資料",
@@ -333,6 +397,9 @@ def _render_page(
             "stock_name",
             "close",
             "total_score",
+            "multi_factor_score",
+            "event_blocked",
+            "event_risk_level",
             "risk_reason",
             "stop_loss_price",
             "suggested_position_pct",
@@ -370,6 +437,11 @@ def _render_page(
             "realized_pnl_after_cost_today",
             "fundamental_positive_candidates",
             "fundamental_warning_candidates",
+            "high_risk_event_candidates",
+            "valuation_warning_candidates",
+            "financial_warning_candidates",
+            "institutional_positive_candidates",
+            "multi_factor_data_status",
         ],
         "目前尚無每日 summary",
         max_rows=10,
@@ -386,6 +458,7 @@ def _render_page(
     )
     fundamental_content = "".join(
         [
+            _multi_factor_summary(candidates, latest_summary),
             _fundamental_summary(candidates),
             _details_block("今日候選股詳細表", candidate_detail),
             _details_block("通過風控股票詳細表", risk_pass_detail),
@@ -558,6 +631,10 @@ def _position_cards(frame: pd.DataFrame) -> str:
                 "total_cost",
                 "fundamental_score",
                 "fundamental_reason",
+                "multi_factor_score",
+                "event_risk_level",
+                "event_reason",
+                "event_blocked",
             ],
         )
         metrics = [
@@ -705,7 +782,18 @@ def _enrich_with_fundamentals(frame: pd.DataFrame, candidates: pd.DataFrame) -> 
     if frame.empty:
         return frame
     result = frame.copy()
-    columns = ["fundamental_score", "fundamental_reason", "revenue_yoy", "revenue_mom", "accumulated_revenue_yoy"]
+    columns = [
+        "fundamental_score",
+        "fundamental_reason",
+        "revenue_yoy",
+        "revenue_mom",
+        "accumulated_revenue_yoy",
+        "multi_factor_score",
+        "multi_factor_reason",
+        "event_risk_level",
+        "event_reason",
+        "event_blocked",
+    ]
     for column in columns:
         if column not in result.columns:
             result[column] = ""
@@ -927,6 +1015,24 @@ def _stale_pending_count(pending_orders: pd.DataFrame, trade_date: pd.Timestamp)
     return int(((trade_date - signal_dates).dt.days > 3).fillna(False).sum())
 
 
+def _multi_factor_summary(candidates: pd.DataFrame, summary: dict[str, object]) -> str:
+    if candidates.empty:
+        return _empty("目前尚無多因子資料")
+    high_risk = _count_true(candidates, "event_blocked")
+    valuation_warning = _count_non_empty(candidates, "valuation_warning")
+    financial_warning = _count_non_empty(candidates, "financial_warning")
+    institutional_positive = _count_score_above(candidates, "institutional_score", 50)
+    cards = [
+        ("多因子資料更新狀態", _format_cell("multi_factor_data_status", summary.get("multi_factor_data_status"))),
+        ("高風險事件警告數", f"{high_risk:,.0f}"),
+        ("基本面加分候選股數", f"{_count_score_above(candidates, 'revenue_score', 50):,.0f}"),
+        ("估值警告候選股數", f"{valuation_warning:,.0f}"),
+        ("財報警告候選股數", f"{financial_warning:,.0f}"),
+        ("籌碼加分候選股數", f"{institutional_positive:,.0f}"),
+    ]
+    return '<h3>多因子分數摘要</h3><div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+
+
 def _fundamental_summary(candidates: pd.DataFrame) -> str:
     if candidates.empty:
         return _empty("基本面資料不足，採中性分數")
@@ -954,6 +1060,24 @@ def _fundamental_summary(candidates: pd.DataFrame) -> str:
         '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
         + _details_block("基本面候選股詳細表", table)
     )
+
+
+def _count_true(frame: pd.DataFrame, column: str) -> int:
+    if frame.empty or column not in frame.columns:
+        return 0
+    return int(frame[column].apply(lambda value: str(value).strip().lower() in {"true", "1", "yes", "y"}).sum())
+
+
+def _count_non_empty(frame: pd.DataFrame, column: str) -> int:
+    if frame.empty or column not in frame.columns:
+        return 0
+    return int((frame[column].fillna("").astype(str).str.strip() != "").sum())
+
+
+def _count_score_above(frame: pd.DataFrame, column: str, threshold: float) -> int:
+    if frame.empty or column not in frame.columns:
+        return 0
+    return int((pd.to_numeric(frame[column], errors="coerce").fillna(50) > threshold).sum())
 
 
 def _exit_strategy_summary(

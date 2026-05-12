@@ -96,6 +96,11 @@ def build_notification_message(summary: dict[str, object], pages_url: str | None
             f"今日扣成本後已實現損益：{_format_signed(summary.get('realized_pnl_after_cost_today'))}",
             f"今日基本面加分候選股數：{_format_int(summary.get('fundamental_positive_candidates'))}",
             f"今日基本面警告候選股數：{_format_int(summary.get('fundamental_warning_candidates'))}",
+            f"多因子資料更新狀態：{_format_text(summary.get('multi_factor_data_status'))}",
+            f"高風險事件數：{_format_int(summary.get('high_risk_event_candidates'))}",
+            f"估值警告候選股數：{_format_int(summary.get('valuation_warning_candidates'))}",
+            f"財報警告候選股數：{_format_int(summary.get('financial_warning_candidates'))}",
+            f"籌碼加分候選股數：{_format_int(summary.get('institutional_positive_candidates'))}",
             f"GitHub Pages 報表網址：{pages or '尚未設定'}",
         ]
     )
@@ -207,6 +212,12 @@ def _format_rate_percent(value: object) -> str:
         return "-"
     text = f"{number * 100:.3f}".rstrip("0").rstrip(".")
     return f"{text}%"
+
+
+def _format_text(value: object) -> str:
+    if _is_blank(value):
+        return "-"
+    return str(value)
 
 
 def _is_blank(value: object) -> bool:

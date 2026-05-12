@@ -59,6 +59,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "max_holding_days": 20,
         "min_profit_for_holding": 0.03,
     },
+    "multi_factor": {
+        "enabled": True,
+        "affect_ranking": False,
+        "affect_risk_pass": False,
+        "block_on_high_risk_event": True,
+        "missing_data_score": 0,
+    },
     "backtest": {
         "initial_cash": 1_000_000,
         "top_n": 10,

@@ -42,6 +42,11 @@ class DailyWorkflowSummary:
     realized_pnl_after_cost_today: float = 0.0
     fundamental_positive_candidates: int = 0
     fundamental_warning_candidates: int = 0
+    high_risk_event_candidates: int = 0
+    valuation_warning_candidates: int = 0
+    financial_warning_candidates: int = 0
+    institutional_positive_candidates: int = 0
+    multi_factor_data_status: str = ""
     pending_orders: int = 0
     executed_orders: int = 0
     skipped_orders: int = 0
@@ -141,7 +146,10 @@ def run_all_daily(
         config = load_config(config_path)
         engine = create_db_engine(config["database"]["url"])
         init_db(engine)
-        export_result = export_func(engine, output_dir=report_dir)
+        try:
+            export_result = export_func(engine, output_dir=report_dir, config=config)
+        except TypeError:
+            export_result = export_func(engine, output_dir=report_dir)
         if getattr(export_result, "warning", ""):
             messages.append(f"export_candidates warning {export_result.warning}")
         else:
@@ -153,6 +161,21 @@ def run_all_daily(
             )
             summary_values["fundamental_warning_candidates"] = _count_fundamental_warning(
                 export_result.candidates
+            )
+            summary_values["high_risk_event_candidates"] = _count_high_risk_events(
+                export_result.candidates
+            )
+            summary_values["valuation_warning_candidates"] = _count_non_empty(
+                export_result.candidates, "valuation_warning"
+            )
+            summary_values["financial_warning_candidates"] = _count_non_empty(
+                export_result.candidates, "financial_warning"
+            )
+            summary_values["institutional_positive_candidates"] = _count_institutional_positive(
+                export_result.candidates
+            )
+            summary_values["multi_factor_data_status"] = _data_status_text(
+                getattr(export_result, "data_fetch_status", pd.DataFrame())
             )
             messages.append(
                 "export_candidates OK "
@@ -344,6 +367,11 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "realized_pnl_after_cost_today": 0.0,
         "fundamental_positive_candidates": 0,
         "fundamental_warning_candidates": 0,
+        "high_risk_event_candidates": 0,
+        "valuation_warning_candidates": 0,
+        "financial_warning_candidates": 0,
+        "institutional_positive_candidates": 0,
+        "multi_factor_data_status": "",
         "pending_orders": 0,
         "executed_orders": 0,
         "skipped_orders": 0,
@@ -439,15 +467,51 @@ def _count_entry_price_warnings(execute_result: Any) -> int:
 
 
 def _count_fundamental_positive(frame: pd.DataFrame) -> int:
-    if frame.empty or "fundamental_score" not in frame.columns:
+    score_column = "revenue_score" if "revenue_score" in frame.columns else "fundamental_score"
+    if frame.empty or score_column not in frame.columns:
         return 0
-    return int((pd.to_numeric(frame["fundamental_score"], errors="coerce").fillna(50) > 50).sum())
+    return int((pd.to_numeric(frame[score_column], errors="coerce").fillna(50) > 50).sum())
 
 
 def _count_fundamental_warning(frame: pd.DataFrame) -> int:
-    if frame.empty or "fundamental_score" not in frame.columns:
+    score_column = "revenue_score" if "revenue_score" in frame.columns else "fundamental_score"
+    if frame.empty or score_column not in frame.columns:
         return 0
-    return int((pd.to_numeric(frame["fundamental_score"], errors="coerce").fillna(50) < 50).sum())
+    return int((pd.to_numeric(frame[score_column], errors="coerce").fillna(50) < 50).sum())
+
+
+def _count_high_risk_events(frame: pd.DataFrame) -> int:
+    if frame.empty or "event_blocked" not in frame.columns:
+        return 0
+    return int(frame["event_blocked"].apply(_to_bool).sum())
+
+
+def _count_non_empty(frame: pd.DataFrame, column: str) -> int:
+    if frame.empty or column not in frame.columns:
+        return 0
+    values = frame[column].fillna("").astype(str).str.strip()
+    return int((values != "").sum())
+
+
+def _count_institutional_positive(frame: pd.DataFrame) -> int:
+    if frame.empty or "institutional_score" not in frame.columns:
+        return 0
+    return int((pd.to_numeric(frame["institutional_score"], errors="coerce").fillna(50) > 50).sum())
+
+
+def _data_status_text(status: pd.DataFrame) -> str:
+    if status is None or status.empty or "status" not in status.columns:
+        return ""
+    counts = status["status"].fillna("").astype(str).value_counts().to_dict()
+    return "；".join(f"{key}:{value}" for key, value in sorted(counts.items()) if key)
+
+
+def _to_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"true", "1", "yes", "y"}
 
 
 def _write_summary(report_dir: Path, summary: DailyWorkflowSummary) -> Path:

@@ -1,6 +1,6 @@
 ﻿source_name,status,rows,warning,error_message
-monthly_revenue,EMPTY,0,"fetch failed, fallback to empty csv",monthly revenue public source not configured
-valuation,EMPTY,0,"fetch failed, fallback to empty csv",public source not configured
-financials,EMPTY,0,"fetch failed, fallback to empty csv",public source not configured
-material_events,EMPTY,0,"fetch failed, fallback to empty csv",public source not configured
-institutional,EMPTY,0,"fetch failed, fallback to empty csv",public source not configured
+monthly_revenue,OK,0,,
+valuation,OK,0,,
+financials,OK,0,,
+material_events,OK,0,,
+institutional,OK,0,,

@@ -512,3 +512,40 @@ python -m pytest
 - 第一版沒有任何真實下單能力。
 - 資料缺漏、OHLC 異常、重複資料或風控不通過時，系統會拒絕產生可交易指令。
 - 基本面與籌碼欄位若資料不足，評分會使用中性或保守規則，並在理由中揭露。
+
+## 多因子資料自動抓取（第一版）
+
+新增 `scripts/fetch_multi_factor_data.py`，每日會嘗試更新以下 5 個資料來源：
+
+- `monthly_revenue`
+- `valuation`
+- `financials`
+- `material_events`
+- `institutional`
+
+輸出檔案：
+
+- `data/monthly_revenue.csv`
+- `data/valuation.csv`
+- `data/financials.csv`
+- `data/material_events.csv`
+- `data/institutional.csv`
+
+每次執行會額外寫出：
+
+- `reports/data_fetch_status_YYYYMMDD.csv`
+
+狀態欄位：
+
+- `source_name`
+- `status`（`OK` / `EMPTY` / `MISSING` / `FAILED`）
+- `rows`
+- `warning`
+- `error_message`
+
+設計原則：
+
+- 優先抓公開來源。
+- 若抓取失敗，會 fallback 到既有 CSV；若連既有 CSV 都沒有，會建立對應 schema 的空檔。
+- 缺資料時不會讓 workflow 失敗，選股與交易流程維持可執行。
+- 缺資料時多因子評分採中性分數，不會假造資料。

@@ -16,7 +16,15 @@ from tw_quant.trading.paper import run_paper_trade
 def test_missing_multi_factor_data_does_not_fail_and_writes_status(tmp_path: Path) -> None:
     engine = _engine_with_scores()
 
-    result = export_latest_candidates(engine, output_dir=tmp_path)
+    result = export_latest_candidates(
+        engine,
+        output_dir=tmp_path,
+        revenue_path=tmp_path / "missing_monthly_revenue.csv",
+        valuation_path=tmp_path / "missing_valuation.csv",
+        financials_path=tmp_path / "missing_financials.csv",
+        events_path=tmp_path / "missing_material_events.csv",
+        institutional_path=tmp_path / "missing_institutional.csv",
+    )
 
     assert result.warning == ""
     assert result.data_fetch_status_path is not None

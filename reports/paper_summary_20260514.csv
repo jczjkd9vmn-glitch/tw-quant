@@ -1,0 +1,2 @@
+﻿trade_date,total_capital,invested_value,market_value,cash,unrealized_pnl,realized_pnl,total_equity,total_cost,realized_pnl_after_cost,total_equity_after_cost,take_profit_exits,stop_loss_exits,trailing_stop_exits,trend_exit_exits,time_exit_exits,realized_pnl_after_cost_today,open_positions,closed_positions
+2026-05-14,1000000.0,877204.24,880985.15,99992.59,3780.91,-22334.32,980977.74,2983.71,-22334.32,980977.74,1,1,0,0,0,-8753.42,12,3

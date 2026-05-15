@@ -32,6 +32,7 @@ class SourceSpec:
     name: str
     output_path: Path
     columns: list[str]
+    provider_maturity: str
     fetcher: Callable[[], ProviderResult | pd.DataFrame]
 
 
@@ -64,6 +65,23 @@ def _coerce_result(name: str, value: ProviderResult | pd.DataFrame, columns: lis
     return ProviderResult(name, _ensure_schema(value, columns), "OK")
 
 
+def _provider_issue_label(status: str, rows: int) -> str:
+    normalized = status.upper()
+    if normalized == "FAILED":
+        return "provider failed"
+    if normalized == "MISSING":
+        return "provider missing"
+    if normalized == "EMPTY" or rows == 0:
+        return "provider empty"
+    return "provider unavailable"
+
+
+def _append_warning(base: str, addition: str) -> str:
+    if not base:
+        return addition
+    return f"{base}; {addition}"
+
+
 def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -77,12 +95,14 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
             name="monthly_revenue",
             output_path=DATA_DIR / "monthly_revenue.csv",
             columns=MONTHLY_REVENUE_COLUMNS,
+            provider_maturity="best_effort",
             fetcher=lambda: mops.fetch_monthly_revenue(trade_date),
         ),
         SourceSpec(
             name="valuation",
             output_path=DATA_DIR / "valuation.csv",
             columns=["stock_id", "stock_name", "date", "pe_ratio", "pb_ratio", "dividend_yield", "financial_quarter"],
+            provider_maturity="csv_fallback",
             fetcher=lambda: ProviderResult("valuation", pd.DataFrame(), "EMPTY", "official valuation source not configured"),
         ),
         SourceSpec(
@@ -101,12 +121,14 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
                 "debt_ratio",
                 "operating_cash_flow",
             ],
+            provider_maturity="csv_fallback",
             fetcher=lambda: ProviderResult("financials", pd.DataFrame(), "EMPTY", "official financial source not configured"),
         ),
         SourceSpec(
             name="material_events",
             output_path=DATA_DIR / "material_events.csv",
             columns=MATERIAL_EVENT_COLUMNS,
+            provider_maturity="placeholder",
             fetcher=lambda: mops.fetch_material_events(trade_date),
         ),
         SourceSpec(
@@ -119,18 +141,21 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
                 "institutional_buy_ratio",
                 "institutional_warning",
             ],
+            provider_maturity="best_effort",
             fetcher=lambda: twse.fetch_institutional(trade_date),
         ),
         SourceSpec(
             name="margin_short",
             output_path=DATA_DIR / "margin_short.csv",
             columns=MARGIN_SHORT_COLUMNS,
+            provider_maturity="best_effort",
             fetcher=lambda: twse.fetch_margin_short(trade_date),
         ),
         SourceSpec(
             name="attention_disposition",
             output_path=DATA_DIR / "attention_disposition.csv",
             columns=ATTENTION_DISPOSITION_COLUMNS,
+            provider_maturity="csv_fallback",
             fetcher=lambda: twse.fetch_attention_disposition(trade_date),
         ),
         SourceSpec(
@@ -150,12 +175,14 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
                 "relative_strength_20d",
                 "sector_strength_rank",
             ],
+            provider_maturity="placeholder",
             fetcher=lambda: ProviderResult("sector_strength", pd.DataFrame(), "EMPTY", "sector strength is derived from local data in a later version"),
         ),
         SourceSpec(
             name="liquidity",
             output_path=DATA_DIR / "liquidity.csv",
             columns=["trade_date", "stock_id", "avg_volume_20d", "avg_turnover_20d", "intraday_trading_ratio"],
+            provider_maturity="placeholder",
             fetcher=lambda: ProviderResult("liquidity", pd.DataFrame(), "EMPTY", "liquidity source not configured"),
         ),
     ]
@@ -179,26 +206,30 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
         status = fetched.status
         warning = fetched.warning
         error_message = fetched.error_message
+        should_write = status.upper() in {"OK", "CACHE"} and rows > 0
 
-        if output.empty and status != "CACHE":
+        if should_write:
+            output = _ensure_schema(output, spec.columns)
+            output.to_csv(spec.output_path, index=False, encoding="utf-8-sig")
+        else:
             existing, existing_status = _load_existing(spec.output_path, spec.columns)
             output = existing
             rows = len(output)
             if existing_status == "OK":
                 status = "OK"
-                warning = (warning + "; " if warning else "") + "fallback to existing csv"
+                warning = _append_warning(warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, kept existing csv")
             elif existing_status == "EMPTY":
-                status = "EMPTY"
-                warning = (warning + "; " if warning else "") + "fallback to empty csv"
+                status = "EMPTY" if fetched.status.upper() != "FAILED" else "FAILED"
+                warning = _append_warning(warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, kept existing empty csv")
             else:
                 status = "MISSING" if status != "FAILED" else "FAILED"
-                warning = (warning + "; " if warning else "") + "no existing csv"
-
-        output = _ensure_schema(output, spec.columns)
-        output.to_csv(spec.output_path, index=False, encoding="utf-8-sig")
+                warning = _append_warning(warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, no existing csv, wrote empty schema")
+                output = _ensure_schema(output, spec.columns)
+                output.to_csv(spec.output_path, index=False, encoding="utf-8-sig")
         status_rows.append(
             {
                 "source_name": spec.name,
+                "provider_maturity": spec.provider_maturity,
                 "status": status,
                 "rows": rows,
                 "warning": warning,

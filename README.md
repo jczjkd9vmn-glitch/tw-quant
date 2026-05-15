@@ -696,3 +696,34 @@ python scripts/fetch_multi_factor_data.py
 ```
 
 該腳本會輸出 `reports/data_fetch_status_YYYYMMDD.csv`，記錄每個來源的 `source_name`、`status`、`rows`、`warning` 與 `error_message`，方便追蹤資料缺口。
+
+### 官方資料來源成熟度
+
+目前官方資料 provider 是分階段接入，不代表所有來源都已完整正式上線：
+
+- `TWSE institutional`：`best_effort`，目前可用，優先抓 TWSE T86 三大法人買賣超；失敗時保留既有 CSV 或使用中性分數。
+- `TWSE margin_short`：`best_effort`，目前以官方資料表解析為主，但 TWSE 欄位格式可能變動；解析失敗時不覆寫既有有效 CSV。
+- `TWSE attention_disposition`：目前以 `csv_fallback` 為主，官方注意股 / 處置股 endpoint 尚未完整接上。
+- `MOPS monthly_revenue`：`best_effort`，會嘗試抓公開月營收表格；若環境缺少 `lxml` 或 HTML table 結構變動，會 fallback 到 `data/monthly_revenue.csv`。
+- `material_events`：目前仍是 `placeholder` / local CSV fallback，尚未完整串接 MOPS 重大訊息正式 endpoint。
+- `TPEXProvider`：目前是 `placeholder`，不是完整正式資料來源，保留給後續櫃買官方資料接入。
+- `valuation`、`financials`、`sector_strength`、`liquidity`：第一版以 CSV fallback 或本地衍生資料為主，缺資料時採中性分數。
+
+`reports/data_fetch_status_YYYYMMDD.csv` 會包含 `provider_maturity` 欄位：
+
+- `production`：正式穩定來源。
+- `best_effort`：可用但仍需容錯，來源格式可能變動。
+- `placeholder`：保留架構，尚未完整接正式 endpoint。
+- `csv_fallback`：以本機 CSV 或空 schema fallback 為主。
+
+若 provider 回傳 `FAILED`、`MISSING` 或 `EMPTY`：
+
+- 既有 CSV 有資料時，保留既有資料，不覆寫成空檔。
+- 既有 CSV 不存在時，才建立只有 schema 的空 CSV。
+- `warning` 會標示 `provider failed, kept existing csv`、`provider empty, kept existing csv` 或 `no existing csv, wrote empty schema`。
+
+### final_market_score 與 multi_factor_score
+
+- `final_market_score`：官方資料 / market intelligence 綜合分，用於 HTML 報表、Discord 摘要與觀察排序參考。
+- `multi_factor_score`：原候選股多因子輔助分，目前仍不直接影響交易；只有在 config 明確開啟 `multi_factor.affect_ranking` 或 `multi_factor.affect_risk_pass` 時才會影響排序或風控通過結果。
+- `market_intel.affect_trading` 預設為 `false`，market intelligence 不會直接產生買單。

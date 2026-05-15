@@ -114,14 +114,14 @@ BOOLEAN_COLUMNS = [
 
 @dataclass(frozen=True)
 class ExitStrategyConfig:
-    take_profit_1_pct: float = 0.10
+    take_profit_1_pct: float = 0.08
     take_profit_1_sell_pct: float = 0.50
-    take_profit_2_pct: float = 0.20
-    take_profit_2_sell_pct: float = 1.00
+    take_profit_2_pct: float = 0.15
+    take_profit_2_sell_pct: float = 0.50
     trailing_stop_activate_pct: float = 0.08
-    trailing_stop_drawdown_pct: float = 0.06
+    trailing_stop_drawdown_pct: float = 0.08
     ma_exit_window: int = 20
-    max_holding_days: int = 20
+    max_holding_days: int = 30
     min_profit_for_holding: float = 0.03
 
     @classmethod
@@ -348,7 +348,7 @@ def _update_trades(
         market_value = round(remaining_shares * current_price, 2)
         unrealized_pnl = round(market_value - position_value, 2)
         unrealized_pnl_pct = round((current_price / entry_price) - 1, 6) if entry_price else 0.0
-        holding_days = int((trade_date - pd.to_datetime(row["trade_date"])).days)
+        holding_days = _trading_days_held(history, stock_id, row.get("trade_date"), trade_date)
         stop_loss_hit = current_price <= stop_loss
 
         frame.loc[index, "original_shares"] = original_shares
@@ -408,21 +408,24 @@ def _select_exit_action(
     exit_config: ExitStrategyConfig,
 ) -> tuple[str, float]:
     if current_price <= float(row["stop_loss_price"]):
-        return "STOP_LOSS", remaining_shares
+        return "stop_loss", remaining_shares
     if (
         unrealized_pnl_pct >= exit_config.take_profit_1_pct
         and not _bool_value(row.get("partial_exit_1_done"))
     ):
-        return "TAKE_PROFIT_1", max(1.0, remaining_shares * exit_config.take_profit_1_sell_pct)
-    if unrealized_pnl_pct >= exit_config.take_profit_2_pct:
-        return "TAKE_PROFIT_2", remaining_shares * exit_config.take_profit_2_sell_pct
+        return "take_profit_1", max(1.0, remaining_shares * exit_config.take_profit_1_sell_pct)
+    if (
+        unrealized_pnl_pct >= exit_config.take_profit_2_pct
+        and not _bool_value(row.get("partial_exit_2_done"))
+    ):
+        return "take_profit_2", max(1.0, remaining_shares * exit_config.take_profit_2_sell_pct)
     if trailing_stop_price > 0 and current_price <= trailing_stop_price:
-        return "TRAILING_STOP", remaining_shares
+        return "trailing_stop", remaining_shares
     ma_value = _ma_value(history, stock_id, exit_config.ma_exit_window)
     if ma_value is not None and current_price < ma_value:
-        return "MA_EXIT", remaining_shares
+        return "ma20_break", remaining_shares
     if holding_days > exit_config.max_holding_days and unrealized_pnl_pct < exit_config.min_profit_for_holding:
-        return "TIME_EXIT", remaining_shares
+        return "max_holding_days", remaining_shares
     return "", 0.0
 
 
@@ -509,9 +512,9 @@ def _apply_exit(
     frame.loc[index, "realized_pnl_pct_after_cost"] = realized_pct
     frame.loc[index, "last_exit_realized_pnl_after_cost"] = realized_delta
     frame.loc[index, "exit_reason"] = exit_reason
-    if exit_reason == "TAKE_PROFIT_1":
+    if exit_reason in {"take_profit_1", "TAKE_PROFIT_1"}:
         frame.loc[index, "partial_exit_1_done"] = True
-    if exit_reason == "TAKE_PROFIT_2":
+    if exit_reason in {"take_profit_2", "TAKE_PROFIT_2"}:
         frame.loc[index, "partial_exit_2_done"] = True
     if remaining_after <= 0:
         frame.loc[index, "status"] = "CLOSED"
@@ -530,6 +533,25 @@ def _ma_value(history: pd.DataFrame, stock_id: str, window: int) -> float | None
     if len(frame) < window:
         return None
     return float(pd.to_numeric(frame["close"], errors="coerce").tail(window).mean())
+
+
+def _trading_days_held(
+    history: pd.DataFrame,
+    stock_id: str,
+    entry_date: object,
+    trade_date: pd.Timestamp,
+) -> int:
+    entry = pd.to_datetime(entry_date, errors="coerce")
+    if pd.isna(entry) or pd.isna(trade_date):
+        return 0
+    if not history.empty and "symbol" in history.columns and "trade_date" in history.columns:
+        frame = history[history["symbol"].astype(str).str.strip() == stock_id].copy()
+        if not frame.empty:
+            dates = pd.to_datetime(frame["trade_date"], errors="coerce").dropna().dt.normalize().drop_duplicates()
+            return int(((dates > entry.normalize()) & (dates <= trade_date.normalize())).sum())
+
+    # TODO: If price history is unavailable, this fallback uses calendar days instead of trading days.
+    return max(int((trade_date.normalize() - entry.normalize()).days), 0)
 
 
 def _build_summary(
@@ -571,11 +593,13 @@ def _build_summary(
                 "total_cost": total_cost,
                 "realized_pnl_after_cost": realized_pnl_after_cost,
                 "total_equity_after_cost": total_equity,
-                "take_profit_exits": _count_reasons(today_exits, {"TAKE_PROFIT_1", "TAKE_PROFIT_2"}),
-                "stop_loss_exits": _count_reasons(today_exits, {"STOP_LOSS"}),
-                "trailing_stop_exits": _count_reasons(today_exits, {"TRAILING_STOP"}),
-                "trend_exit_exits": _count_reasons(today_exits, {"MA_EXIT"}),
-                "time_exit_exits": _count_reasons(today_exits, {"TIME_EXIT"}),
+                "take_profit_exits": _count_reasons(
+                    today_exits, {"take_profit_1", "take_profit_2", "TAKE_PROFIT_1", "TAKE_PROFIT_2"}
+                ),
+                "stop_loss_exits": _count_reasons(today_exits, {"stop_loss", "STOP_LOSS"}),
+                "trailing_stop_exits": _count_reasons(today_exits, {"trailing_stop", "TRAILING_STOP"}),
+                "trend_exit_exits": _count_reasons(today_exits, {"ma20_break", "MA_EXIT"}),
+                "time_exit_exits": _count_reasons(today_exits, {"max_holding_days", "TIME_EXIT"}),
                 "realized_pnl_after_cost_today": _sum(today_exits, "last_exit_realized_pnl_after_cost"),
                 "open_positions": int(len(open_frame)),
                 "closed_positions": int(len(closed_frame)),

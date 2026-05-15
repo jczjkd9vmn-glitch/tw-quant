@@ -169,3 +169,97 @@ def _summary_row() -> dict[str, object]:
         "institutional_positive_candidates": 4,
         "status": "OK_WITH_FALLBACK",
     }
+
+
+def test_build_notification_message_uses_traditional_chinese_and_fallback_url(monkeypatch) -> None:
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/tw-quant")
+    summary = _summary_row()
+
+    message = build_notification_message(summary)
+
+    assert "台股紙上交易每日摘要" in message
+    assert "執行狀態：成功，使用最近有效交易日" in message
+    assert "原始執行日期：2026-05-10" in message
+    assert "實際交易日：2026-05-08" in message
+    assert "使用最近有效資料：是" in message
+    assert "使用資料日期：2026-05-08" in message
+    assert "本次無新交易資料，使用資料庫最近有效資料" in message
+    assert "候選股數：20" in message
+    assert "通過風控數：6" in message
+    assert "待進場筆數：4" in message
+    assert "今日成交筆數：2" in message
+    assert "跳過進場筆數：1" in message
+    assert "未實現損益：+1,234" in message
+    assert "累計已實現損益：0" in message
+    assert "累計交易成本：123" in message
+    assert "滑價假設：0.1%" in message
+    assert "今日扣成本後已實現損益：+100" in message
+    assert "市場判斷狀態" in message
+    assert "GitHub Pages 報表網址：https://owner.github.io/tw-quant/" in message
+
+
+def test_build_notification_message_omits_fallback_details_when_requested_date_matches_trade_date() -> None:
+    summary = {
+        **_summary_row(),
+        "requested_date": "2026-05-08",
+        "trade_date": "2026-05-08",
+        "fallback_date": "",
+        "fallback_reason": "",
+        "status": "OK",
+    }
+
+    message = build_notification_message(summary, pages_url="https://example.github.io/tw-quant/")
+
+    assert "使用最近有效資料：否" in message
+    assert "使用資料日期：" not in message
+    assert "原因：" not in message
+    assert "替代交易日" not in message
+
+
+def test_send_daily_notification_posts_to_discord(tmp_path: Path) -> None:
+    _write_summary(tmp_path)
+    calls = []
+
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+    def fake_post(url, **kwargs):
+        calls.append((url, kwargs))
+        return Response()
+
+    sent = send_daily_notification(
+        reports_dir=tmp_path,
+        webhook_url="https://discord.example/webhook",
+        pages_url="https://example.github.io/tw-quant/",
+        post_func=fake_post,
+    )
+
+    assert sent is True
+    assert calls[0][0] == "https://discord.example/webhook"
+    assert calls[0][1]["json"]["content"].startswith("台股紙上交易每日摘要")
+    assert "https://example.github.io/tw-quant/" in calls[0][1]["json"]["content"]
+    assert calls[0][1]["timeout"] == 15
+
+
+def test_send_daily_notification_uses_latest_daily_summary(tmp_path: Path) -> None:
+    _write_summary(tmp_path, date_label="20260508", candidate_rows=1)
+    _write_summary(tmp_path, date_label="20260510", candidate_rows=20)
+    calls = []
+
+    class Response:
+        def raise_for_status(self) -> None:
+            return None
+
+    def fake_post(_url, **kwargs):
+        calls.append(kwargs["json"]["content"])
+        return Response()
+
+    send_daily_notification(
+        reports_dir=tmp_path,
+        webhook_url="https://discord.example/webhook",
+        pages_url="https://example.github.io/tw-quant/",
+        post_func=fake_post,
+    )
+
+    assert "候選股數：20" in calls[0]

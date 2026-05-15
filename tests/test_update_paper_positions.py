@@ -44,7 +44,7 @@ def test_update_paper_positions_closes_stop_loss(tmp_path) -> None:
     assert row["exit_price"] == 85
     assert row["realized_pnl"] == -150
     assert row["realized_pnl_pct"] == -0.15
-    assert row["exit_reason"] == "STOP_LOSS"
+    assert row["exit_reason"] == "stop_loss"
     assert bool(row["stop_loss_hit"])
 
 

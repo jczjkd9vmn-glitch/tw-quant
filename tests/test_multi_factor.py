@@ -29,7 +29,8 @@ def test_missing_multi_factor_data_does_not_fail_and_writes_status(tmp_path: Pat
     assert result.warning == ""
     assert result.data_fetch_status_path is not None
     assert result.data_fetch_status_path.exists()
-    assert set(result.data_fetch_status["status"]) == {"MISSING"}
+    assert "MISSING" in set(result.data_fetch_status["status"])
+    assert "market_intel" in set(result.data_fetch_status["source_name"])
     row = result.candidates.iloc[0]
     assert row["revenue_score"] == 50.0
     assert row["valuation_score"] == 50.0
@@ -37,6 +38,8 @@ def test_missing_multi_factor_data_does_not_fail_and_writes_status(tmp_path: Pat
     assert row["event_score"] == 50.0
     assert row["institutional_score"] == 50.0
     assert "multi_factor_score" in result.candidates.columns
+    assert "final_market_score" in result.candidates.columns
+    assert "market_intel_warning" in result.candidates.columns
 
 
 def test_revenue_yoy_above_20_adds_score(tmp_path: Path) -> None:

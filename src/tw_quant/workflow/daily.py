@@ -47,6 +47,9 @@ class DailyWorkflowSummary:
     financial_warning_candidates: int = 0
     institutional_positive_candidates: int = 0
     multi_factor_data_status: str = ""
+    market_intel_status: str = ""
+    market_intel_warning_count: int = 0
+    market_intel_top_score: float = 0.0
     pending_orders: int = 0
     executed_orders: int = 0
     skipped_orders: int = 0
@@ -176,6 +179,15 @@ def run_all_daily(
             )
             summary_values["multi_factor_data_status"] = _data_status_text(
                 getattr(export_result, "data_fetch_status", pd.DataFrame())
+            )
+            summary_values["market_intel_status"] = _market_intel_status(
+                getattr(export_result, "data_fetch_status", pd.DataFrame())
+            )
+            summary_values["market_intel_warning_count"] = _count_non_empty(
+                export_result.candidates, "market_intel_warning"
+            )
+            summary_values["market_intel_top_score"] = _max_numeric(
+                export_result.candidates, "final_market_score"
             )
             messages.append(
                 "export_candidates OK "
@@ -372,6 +384,9 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "financial_warning_candidates": 0,
         "institutional_positive_candidates": 0,
         "multi_factor_data_status": "",
+        "market_intel_status": "",
+        "market_intel_warning_count": 0,
+        "market_intel_top_score": 0.0,
         "pending_orders": 0,
         "executed_orders": 0,
         "skipped_orders": 0,
@@ -504,6 +519,24 @@ def _data_status_text(status: pd.DataFrame) -> str:
         return ""
     counts = status["status"].fillna("").astype(str).value_counts().to_dict()
     return "；".join(f"{key}:{value}" for key, value in sorted(counts.items()) if key)
+
+
+def _market_intel_status(status: pd.DataFrame) -> str:
+    if status is None or status.empty or "source_name" not in status.columns:
+        return ""
+    frame = status[status["source_name"].fillna("").astype(str) == "market_intel"].copy()
+    if frame.empty:
+        return ""
+    return str(frame.iloc[-1].get("status", "")).strip()
+
+
+def _max_numeric(frame: pd.DataFrame, column: str) -> float:
+    if frame.empty or column not in frame.columns:
+        return 0.0
+    values = pd.to_numeric(frame[column], errors="coerce").dropna()
+    if values.empty:
+        return 0.0
+    return float(round(values.max(), 2))
 
 
 def _to_bool(value: object) -> bool:

@@ -31,11 +31,18 @@ MARKET_INTEL_COLUMNS = [
     "market_fundamental_score",
     "market_valuation_score",
     "market_momentum_score",
+    "market_chip_score",
+    "credit_score",
+    "event_risk_score",
+    "liquidity_score",
+    "sector_strength_score",
     "final_market_score",
     "confidence_score",
     "market_risk_score",
     "risk_flags",
     "final_comment",
+    "data_source_warning",
+    "system_comment",
 ]
 
 
@@ -59,7 +66,8 @@ def build_market_intel_report(
     cache_enabled = bool(active_config.get("cache_enabled", True))
     if cache_enabled and cache_path.exists():
         frame = _read_cache(cache_path)
-        return frame, _status("market_intel", "CACHE", len(frame), warning=_warning_text(frame))
+        if not frame.empty:
+            return frame, _status("market_intel", "CACHE", len(frame), warning=_warning_text(frame))
 
     provider_name = str(active_config.get("provider", "mock")).strip().lower()
     provider = YFinanceMarketIntelProvider() if provider_name == "yfinance" else MockMarketIntelProvider()
@@ -84,11 +92,11 @@ def _context_from_candidate(row: pd.Series, provider_context: MarketContext | No
     provider_context = provider_context or build_market_context(
         symbol=str(row.get("stock_id", "")),
         date=_date_text(date_label),
-        warning_message="市場資料 provider 無回應，使用候選股資料補足",
+        warning_message="market intelligence provider unavailable; using candidate data",
     )
     event_text = " ".join(
         str(row.get(column, ""))
-        for column in ["event_reason", "multi_factor_reason", "reason"]
+        for column in ["event_reason", "event_keywords", "multi_factor_reason", "reason"]
         if not _is_blank(row.get(column))
     )
     warning = provider_context.warning_message
@@ -106,6 +114,14 @@ def _context_from_candidate(row: pd.Series, provider_context: MarketContext | No
         roe=row.get("roe"),
         debt_ratio=row.get("debt_ratio"),
         momentum_score_hint=row.get("momentum_score"),
+        chip_score=_first_valid(row.get("institutional_score"), row.get("chip_score")),
+        credit_score=row.get("credit_score"),
+        event_risk_score=_first_valid(row.get("event_risk_score"), row.get("event_score")),
+        liquidity_score=row.get("liquidity_score"),
+        sector_strength_score=row.get("sector_strength_score"),
+        risk_flags=row.get("risk_flags"),
+        data_source_warning=row.get("data_source_warning"),
+        system_comment=row.get("system_comment"),
         latest_news_titles=[event_text] if event_text else provider_context.latest_news_titles,
         data_source=provider_context.data_source,
         warning_message=warning,
@@ -127,16 +143,23 @@ def _flatten_context(context: MarketContext) -> dict[str, object]:
         "market_revenue_growth_yoy": context.revenue_growth_yoy,
         "market_eps_growth_yoy": context.eps_growth_yoy,
         "latest_news_titles": " | ".join(context.latest_news_titles),
-        "matched_news_keywords": "、".join(context.matched_news_keywords),
+        "matched_news_keywords": "；".join(context.matched_news_keywords),
         "news_sentiment_score": context.news_sentiment_score,
         "market_fundamental_score": context.fundamental_score,
         "market_valuation_score": context.valuation_score,
         "market_momentum_score": context.momentum_score,
+        "market_chip_score": context.chip_score,
+        "credit_score": context.credit_score,
+        "event_risk_score": context.event_risk_score,
+        "liquidity_score": context.liquidity_score,
+        "sector_strength_score": context.sector_strength_score,
         "final_market_score": context.final_market_score,
         "confidence_score": context.confidence_score,
         "market_risk_score": context.risk_score,
-        "risk_flags": "、".join(context.risk_flags),
+        "risk_flags": "；".join(context.risk_flags),
         "final_comment": context.final_comment,
+        "data_source_warning": context.data_source_warning,
+        "system_comment": context.system_comment,
     }
 
 
@@ -162,7 +185,11 @@ def _read_cache(path: Path) -> pd.DataFrame:
         records = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return pd.DataFrame(columns=["stock_id"] + MARKET_INTEL_COLUMNS)
-    return pd.DataFrame(records)
+    frame = pd.DataFrame(records)
+    for column in ["stock_id"] + MARKET_INTEL_COLUMNS:
+        if column not in frame.columns:
+            frame[column] = None
+    return frame[["stock_id"] + MARKET_INTEL_COLUMNS].copy()
 
 
 def _write_cache(path: Path, frame: pd.DataFrame) -> None:

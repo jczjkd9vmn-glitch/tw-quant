@@ -1,6 +1,6 @@
 """Rule-based market intelligence scoring.
 
-The first version intentionally uses transparent rules instead of AI judgment.
+The implementation intentionally uses transparent rules instead of AI judgment.
 Scores are auxiliary only and must not create trades by themselves.
 """
 
@@ -11,6 +11,7 @@ from collections.abc import Iterable
 import pandas as pd
 
 from tw_quant.market_intel.providers.base import MarketContext
+from tw_quant.scoring.multi_factor import calculate_final_market_score
 
 
 POSITIVE_NEWS_KEYWORDS = [
@@ -59,6 +60,14 @@ def build_market_context(
     roe: object = None,
     debt_ratio: object = None,
     momentum_score_hint: object = None,
+    chip_score: object = None,
+    credit_score: object = None,
+    event_risk_score: object = None,
+    liquidity_score: object = None,
+    sector_strength_score: object = None,
+    risk_flags: Iterable[object] | str | None = None,
+    data_source_warning: object = "",
+    system_comment: object = "",
     latest_news_titles: Iterable[object] | None = None,
     data_source: str = "mock",
     warning_message: str = "",
@@ -81,23 +90,55 @@ def build_market_context(
         volume_change_ratio=volume_change_ratio,
         close=close,
     )
-
-    news_as_0_to_100 = max(min((news_score + 100.0) / 2.0, 100.0), 0.0)
-    final_score = round(
-        momentum_score * 0.40
-        + fundamental_score * 0.25
-        + valuation_score * 0.20
-        + news_as_0_to_100 * 0.15,
-        2,
+    chip = _number(chip_score, 50.0)
+    credit = _number(credit_score, 50.0)
+    event_risk = _number(event_risk_score, 50.0)
+    liquidity = _number(liquidity_score, 50.0)
+    sector = _number(sector_strength_score, 50.0)
+    row = pd.Series(
+        {
+            "momentum_score": momentum_score,
+            "institutional_score": chip,
+            "fundamental_score": fundamental_score,
+            "valuation_score": valuation_score,
+            "sector_strength_score": sector,
+            "event_risk_score": event_risk,
+            "liquidity_score": liquidity,
+            "news_sentiment_score": news_score,
+        }
     )
-    warnings = [item for item in [warning_message, fundamental_warning, valuation_warning, momentum_warning] if item]
-    confidence_score = max(20.0, 100.0 - len(warnings) * 15.0)
-    risk_flags = fundamental_flags + valuation_flags + momentum_flags
+    final_score = calculate_final_market_score(row)
+    warnings = [
+        item
+        for item in [
+            str(warning_message or ""),
+            fundamental_warning,
+            valuation_warning,
+            momentum_warning,
+            str(data_source_warning or ""),
+        ]
+        if item
+    ]
+    missing_count = len(warnings)
+    confidence_score = max(20.0, 100.0 - missing_count * 12.0)
+    flags = _risk_flags_from_input(risk_flags) + fundamental_flags + valuation_flags + momentum_flags
     if news_score <= -40:
-        risk_flags.append("新聞偏負面")
+        flags.append("新聞明顯偏負面")
+    if event_risk < 35:
+        flags.append("事件風險偏高")
+    if liquidity < 40:
+        flags.append("流動性偏低")
     if final_score < 45:
-        risk_flags.append("綜合分數偏弱")
+        flags.append("綜合分數偏低")
     risk_score = round(max(0.0, 100.0 - final_score + max(0.0, -news_score) * 0.2), 2)
+    comment = str(system_comment or "").strip() or build_final_comment(
+        final_score,
+        fundamental_score,
+        valuation_score,
+        momentum_score,
+        news_score,
+        warnings,
+    )
 
     return MarketContext(
         symbol=str(symbol),
@@ -116,13 +157,20 @@ def build_market_context(
         fundamental_score=round(fundamental_score, 2),
         valuation_score=round(valuation_score, 2),
         momentum_score=round(momentum_score, 2),
+        chip_score=round(chip, 2),
+        credit_score=round(credit, 2),
+        event_risk_score=round(event_risk, 2),
+        liquidity_score=round(liquidity, 2),
+        sector_strength_score=round(sector, 2),
         final_market_score=final_score,
         confidence_score=round(confidence_score, 2),
         risk_score=risk_score,
-        risk_flags=risk_flags,
-        final_comment=build_final_comment(final_score, fundamental_score, valuation_score, momentum_score, news_score, warnings),
+        risk_flags=list(dict.fromkeys(flags)),
+        final_comment=comment,
         data_source=data_source,
         warning_message="；".join(warnings),
+        data_source_warning=str(data_source_warning or ""),
+        system_comment=comment,
     )
 
 
@@ -195,7 +243,7 @@ def score_valuation(
         available += 1
         if pb > 5:
             score -= 12
-            flags.append("PB 偏高")
+            flags.append("PB 過高")
         elif 0 < pb <= 2:
             score += 6
     if yield_value is not None:
@@ -222,7 +270,7 @@ def score_momentum(
             score += 8
         elif volume_ratio < 0.5:
             score -= 5
-    warning = "" if _to_float(close) is not None else "動能資料不足，採中性分數"
+    warning = "" if _to_float(close) is not None else "價格資料不足，動能採中性分數"
     return _clamp_score(score), warning, flags
 
 
@@ -244,11 +292,24 @@ def build_final_comment(
         return "基本面與動能同步轉強，可列入優先觀察"
     if final_score >= 60:
         return "動能轉強，基本面普通，適合觀察"
-    return "綜合條件普通，維持觀察"
+    return "綜合條件普通，先保守觀察"
+
+
+def _risk_flags_from_input(value: Iterable[object] | str | None) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [part.strip() for part in value.replace("；", "|").split("|") if part.strip()]
+    return [str(item).strip() for item in value if str(item).strip()]
 
 
 def _clamp_score(value: float) -> float:
     return max(0.0, min(100.0, float(value)))
+
+
+def _number(value: object, default: float) -> float:
+    parsed = _to_float(value)
+    return default if parsed is None else parsed
 
 
 def _to_float(value: object) -> float | None:

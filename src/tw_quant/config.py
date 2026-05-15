@@ -74,6 +74,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "affect_trading": False,
         "enable_market_intel_filter": False,
     },
+    "event_risk": {
+        "block_disposition_stock": True,
+        "block_attention_stock": False,
+    },
     "backtest": {
         "initial_cash": 1_000_000,
         "top_n": 10,

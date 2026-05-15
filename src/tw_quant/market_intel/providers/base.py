@@ -24,6 +24,11 @@ class MarketContext:
     fundamental_score: float = 50.0
     valuation_score: float = 50.0
     momentum_score: float = 50.0
+    chip_score: float = 50.0
+    credit_score: float = 50.0
+    event_risk_score: float = 50.0
+    liquidity_score: float = 50.0
+    sector_strength_score: float = 50.0
     final_market_score: float = 50.0
     confidence_score: float = 50.0
     risk_score: float = 50.0
@@ -31,6 +36,8 @@ class MarketContext:
     final_comment: str = "資料不足，僅能依技術面判斷"
     data_source: str = "mock"
     warning_message: str = ""
+    data_source_warning: str = ""
+    system_comment: str = ""
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)

@@ -173,6 +173,59 @@ COLUMN_LABELS = {
 }
 
 
+COLUMN_LABELS.update(
+    {
+        "market_chip_score": "市場籌碼分數",
+        "credit_score": "信用健康分數",
+        "event_risk_score": "事件風險健康分數",
+        "liquidity_score": "流動性分數",
+        "sector_strength_score": "產業相對強弱分數",
+        "data_source_warning": "資料來源警告",
+        "system_comment": "系統短評",
+        "monthly_revenue": "月營收",
+        "revenue_3m_trend": "月營收 3 個月趨勢",
+        "revenue_12m_high": "月營收 12 個月新高",
+        "revenue_warning": "月營收警告",
+        "total_institutional_net_buy": "三大法人合計買賣超",
+        "foreign_buy_days": "外資連買天數",
+        "investment_trust_buy_days": "投信連買天數",
+        "institutional_buy_ratio": "法人買超占成交量",
+        "institutional_warning": "法人籌碼警告",
+        "margin_balance": "融資餘額",
+        "margin_change": "融資增減",
+        "short_balance": "融券餘額",
+        "short_change": "融券增減",
+        "securities_lending_sell_volume": "借券賣出量",
+        "securities_lending_balance": "借券餘額",
+        "margin_usage_warning": "融資使用警告",
+        "short_selling_warning": "放空壓力警告",
+        "is_attention_stock": "是否注意股",
+        "attention_reason": "注意股原因",
+        "is_disposition_stock": "是否處置股",
+        "disposition_start_date": "處置開始日",
+        "disposition_end_date": "處置結束日",
+        "disposition_reason": "處置原因",
+        "event_keywords": "事件關鍵字",
+        "event_warning": "事件警告",
+        "industry": "產業",
+        "stock_return_5d": "個股 5 日報酬",
+        "stock_return_20d": "個股 20 日報酬",
+        "market_return_5d": "大盤 5 日報酬",
+        "market_return_20d": "大盤 20 日報酬",
+        "sector_return_5d": "產業 5 日報酬",
+        "sector_return_20d": "產業 20 日報酬",
+        "relative_strength_5d": "5 日相對強弱",
+        "relative_strength_20d": "20 日相對強弱",
+        "sector_strength_rank": "產業強度排名",
+        "sector_strength_reason": "產業強弱理由",
+        "avg_volume_20d": "20 日均量",
+        "avg_turnover_20d": "20 日均成交金額",
+        "intraday_trading_ratio": "當日量能倍數",
+        "liquidity_warning": "流動性警告",
+        "slippage_risk_score": "滑價風險分數",
+    }
+)
+
 STATUS_LABELS = {
     "OK": "成功",
     "OK_WITH_FALLBACK": "成功，使用最近有效交易日",
@@ -339,6 +392,45 @@ DATE_COLUMNS = {
     "planned_entry_date",
     "actual_entry_date",
 }
+SCORE_COLUMNS.update(
+    {
+        "market_chip_score",
+        "credit_score",
+        "event_risk_score",
+        "liquidity_score",
+        "sector_strength_score",
+        "slippage_risk_score",
+    }
+)
+PERCENT_COLUMNS.update(
+    {
+        "institutional_buy_ratio",
+        "stock_return_5d",
+        "stock_return_20d",
+        "market_return_5d",
+        "market_return_20d",
+        "sector_return_5d",
+        "sector_return_20d",
+        "relative_strength_5d",
+        "relative_strength_20d",
+    }
+)
+AMOUNT_COLUMNS.update({"monthly_revenue", "avg_turnover_20d"})
+INTEGER_COLUMNS.update(
+    {
+        "foreign_buy_days",
+        "investment_trust_buy_days",
+        "margin_balance",
+        "margin_change",
+        "short_balance",
+        "short_change",
+        "securities_lending_sell_volume",
+        "securities_lending_balance",
+        "avg_volume_20d",
+    }
+)
+STATUS_COLUMNS.update({"is_attention_stock", "is_disposition_stock", "revenue_12m_high"})
+DATE_COLUMNS.update({"disposition_start_date", "disposition_end_date"})
 
 
 def generate_html_report(
@@ -436,9 +528,16 @@ def _render_page(
             "event_blocked",
             "institutional_score",
             "institutional_reason",
+            "credit_score",
+            "event_risk_score",
+            "liquidity_score",
+            "sector_strength_score",
+            "data_source_warning",
+            "system_comment",
             "market_fundamental_score",
             "market_valuation_score",
             "market_momentum_score",
+            "market_chip_score",
             "news_sentiment_score",
             "final_market_score",
             "confidence_score",
@@ -461,6 +560,11 @@ def _render_page(
             "multi_factor_score",
             "final_market_score",
             "confidence_score",
+            "institutional_score",
+            "credit_score",
+            "event_risk_score",
+            "liquidity_score",
+            "sector_strength_score",
             "risk_flags",
             "final_comment",
             "event_blocked",
@@ -748,10 +852,16 @@ def _position_cards(frame: pd.DataFrame) -> str:
                 "fundamental_score",
                 "fundamental_reason",
                 "multi_factor_score",
+                "institutional_score",
+                "credit_score",
+                "event_risk_score",
+                "liquidity_score",
+                "sector_strength_score",
                 "final_market_score",
                 "confidence_score",
                 "risk_flags",
                 "final_comment",
+                "data_source_warning",
                 "event_risk_level",
                 "event_reason",
                 "event_blocked",
@@ -820,6 +930,11 @@ def _pending_cards(frame: pd.DataFrame) -> str:
                 "entry_price",
                 "fundamental_score",
                 "fundamental_reason",
+                "institutional_score",
+                "credit_score",
+                "event_risk_score",
+                "liquidity_score",
+                "sector_strength_score",
                 "final_market_score",
                 "confidence_score",
                 "risk_flags",
@@ -920,11 +1035,17 @@ def _enrich_with_fundamentals(frame: pd.DataFrame, candidates: pd.DataFrame) -> 
         "market_fundamental_score",
         "market_valuation_score",
         "market_momentum_score",
+        "market_chip_score",
+        "credit_score",
+        "event_risk_score",
+        "liquidity_score",
+        "sector_strength_score",
         "news_sentiment_score",
         "final_market_score",
         "confidence_score",
         "risk_flags",
         "final_comment",
+        "data_source_warning",
         "market_intel_warning",
     ]
     for column in columns:
@@ -1230,11 +1351,19 @@ def _market_intel_summary(
         "market_fundamental_score",
         "market_valuation_score",
         "market_momentum_score",
+        "market_chip_score",
+        "institutional_score",
+        "credit_score",
+        "event_risk_score",
+        "liquidity_score",
+        "sector_strength_score",
         "news_sentiment_score",
         "final_market_score",
         "confidence_score",
         "risk_flags",
         "final_comment",
+        "data_source_warning",
+        "system_comment",
         "market_intel_warning",
     ]
     detail = _responsive_records(frame, columns, "今日無市場判斷資料", 20)
@@ -1267,8 +1396,13 @@ def _multi_factor_summary(candidates: pd.DataFrame, summary: dict[str, object]) 
 def _fundamental_summary(candidates: pd.DataFrame) -> str:
     if candidates.empty:
         return _empty("基本面資料不足，採中性分數")
-    positive = int((pd.to_numeric(candidates.get("fundamental_score"), errors="coerce").fillna(50) > 50).sum())
-    warning = int((pd.to_numeric(candidates.get("fundamental_score"), errors="coerce").fillna(50) < 50).sum())
+    fundamental_values = (
+        pd.to_numeric(candidates["fundamental_score"], errors="coerce").fillna(50)
+        if "fundamental_score" in candidates.columns
+        else pd.Series([50] * len(candidates))
+    )
+    positive = int((fundamental_values > 50).sum())
+    warning = int((fundamental_values < 50).sum())
     cards = [
         ("基本面加分候選股數", f"{positive:,.0f}"),
         ("基本面警告候選股數", f"{warning:,.0f}"),

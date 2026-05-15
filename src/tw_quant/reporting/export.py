@@ -30,10 +30,18 @@ EXPORT_COLUMNS = [
     "fundamental_score",
     "chip_score",
     "risk_score",
+    "credit_score",
+    "event_risk_score",
+    "liquidity_score",
+    "sector_strength_score",
     "revenue_score",
+    "monthly_revenue",
     "revenue_yoy",
     "revenue_mom",
     "accumulated_revenue_yoy",
+    "revenue_3m_trend",
+    "revenue_12m_high",
+    "revenue_warning",
     "revenue_reason",
     "fundamental_reason",
     "valuation_score",
@@ -53,12 +61,52 @@ EXPORT_COLUMNS = [
     "event_score",
     "event_reason",
     "event_risk_level",
+    "event_keywords",
+    "event_warning",
     "event_blocked",
     "institutional_score",
     "foreign_net_buy",
     "investment_trust_net_buy",
     "dealer_net_buy",
+    "total_institutional_net_buy",
+    "foreign_buy_days",
+    "investment_trust_buy_days",
+    "institutional_buy_ratio",
+    "institutional_warning",
     "institutional_reason",
+    "margin_balance",
+    "margin_change",
+    "short_balance",
+    "short_change",
+    "securities_lending_sell_volume",
+    "securities_lending_balance",
+    "margin_usage_warning",
+    "short_selling_warning",
+    "is_attention_stock",
+    "attention_reason",
+    "is_disposition_stock",
+    "disposition_start_date",
+    "disposition_end_date",
+    "disposition_reason",
+    "industry",
+    "stock_return_5d",
+    "stock_return_20d",
+    "market_return_5d",
+    "market_return_20d",
+    "sector_return_5d",
+    "sector_return_20d",
+    "relative_strength_5d",
+    "relative_strength_20d",
+    "sector_strength_rank",
+    "sector_strength_reason",
+    "avg_volume_20d",
+    "avg_turnover_20d",
+    "intraday_trading_ratio",
+    "liquidity_warning",
+    "slippage_risk_score",
+    "risk_flags",
+    "data_source_warning",
+    "system_comment",
     *MARKET_INTEL_COLUMNS,
     "is_candidate",
     "risk_pass",
@@ -67,6 +115,7 @@ EXPORT_COLUMNS = [
     "stop_loss_price",
     "suggested_position_pct",
 ]
+EXPORT_COLUMNS = list(dict.fromkeys(EXPORT_COLUMNS))
 
 
 @dataclass(frozen=True)
@@ -89,6 +138,10 @@ def export_latest_candidates(
     financials_path: str | Path | None = None,
     events_path: str | Path | None = None,
     institutional_path: str | Path | None = None,
+    credit_path: str | Path | None = None,
+    attention_path: str | Path | None = None,
+    sector_strength_path: str | Path | None = None,
+    liquidity_path: str | Path | None = None,
     config: dict | None = None,
 ) -> CandidateExportResult:
     scores = load_candidate_scores(engine)
@@ -129,6 +182,10 @@ def export_latest_candidates(
         financials_path=financials_path,
         events_path=events_path,
         institutional_path=institutional_path,
+        credit_path=credit_path,
+        attention_path=attention_path,
+        sector_strength_path=sector_strength_path,
+        liquidity_path=liquidity_path,
         config=active_config,
     )
     market_intel, market_status = build_market_intel_report(
@@ -172,6 +229,10 @@ def _format_candidates(
     financials_path: str | Path | None = None,
     events_path: str | Path | None = None,
     institutional_path: str | Path | None = None,
+    credit_path: str | Path | None = None,
+    attention_path: str | Path | None = None,
+    sector_strength_path: str | Path | None = None,
+    liquidity_path: str | Path | None = None,
     config: dict | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     frame = scores.sort_values(["total_score", "risk_score"], ascending=[False, False]).reset_index(
@@ -193,17 +254,21 @@ def _format_candidates(
     frame = frame.merge(revenue_scores, on="stock_id", how="left", suffixes=("", "_revenue"))
     frame["fundamental_score"] = pd.to_numeric(frame["fundamental_score_revenue"], errors="coerce").fillna(50.0)
     frame["fundamental_reason"] = frame["fundamental_reason"].fillna("基本面資料不足，採中性分數")
-    for column in ["revenue_yoy", "revenue_mom", "accumulated_revenue_yoy"]:
+    for column in ["revenue_yoy", "revenue_mom", "accumulated_revenue_yoy", "monthly_revenue"]:
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
     frame = frame.drop(columns=["fundamental_score_revenue"], errors="ignore")
     multi_factor = apply_multi_factor_scores(
         frame,
-        config=(config or {}).get("multi_factor", {}),
+        config=config or {},
         revenue_path=revenue_path,
         valuation_path=valuation_path,
         financials_path=financials_path,
         events_path=events_path,
         institutional_path=institutional_path,
+        credit_path=credit_path,
+        attention_path=attention_path,
+        sector_strength_path=sector_strength_path,
+        liquidity_path=liquidity_path,
     )
     frame = multi_factor.candidates
     for column in EXPORT_COLUMNS:

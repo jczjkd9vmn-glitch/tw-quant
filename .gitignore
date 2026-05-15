@@ -10,6 +10,7 @@ data/*.db
 .env
 logs/*
 !logs/.gitkeep
+reports/cache/
 
 # Streamlit runtime logs
 streamlit*.log

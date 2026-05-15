@@ -643,3 +643,56 @@ Discord 每日通知新增今日市場判斷摘要、分數最高前 5 名候選
 - 若抓取失敗，會 fallback 到既有 CSV；若連既有 CSV 都沒有，會建立對應 schema 的空檔。
 - 缺資料時不會讓 workflow 失敗，選股與交易流程維持可執行。
 - 缺資料時多因子評分採中性分數，不會假造資料。
+## 官方市場資料來源 provider
+
+本專案新增官方市場資料來源 provider，主要放在 `src/tw_quant/data_sources/`，用於補強 market intelligence 與多因子輔助評分。第一版資料只影響報表、分數、排序參考、warning 與 Discord 通知；不會直接產生買單，也不會改變既有選股核心邏輯。`market_intel.affect_trading` 預設為 `false`。
+
+目前資料來源與 fallback：
+
+- `TWSEProvider`：三大法人買賣超、信用交易 / 融資融券資料、注意股 / 處置股資料的官方 TWSE provider。三大法人會優先抓 TWSE T86；信用與事件資料抓不到時會回傳 warning 並使用空資料。
+- `MOPSProvider`：月營收與重大訊息 provider。月營收會嘗試讀官方公開表格，失敗時 fallback 到 `data/monthly_revenue.csv`；重大訊息第一版保留為非中斷式 warning。
+- `TPEXProvider`：櫃買資料 provider 骨架，第一版回傳 warning 與空資料，方便後續補齊 OTC 官方端點。
+- 本機 CSV fallback：`data/institutional.csv`、`data/margin_short.csv`、`data/attention_disposition.csv`、`data/monthly_revenue.csv`、`data/material_events.csv`、`data/sector_strength.csv`、`data/liquidity.csv`。
+
+外部資料 cache 會寫到 `reports/cache/`，此目錄已加入 `.gitignore`，不應 commit。cache 損壞或資料來源失敗時，流程不會 crash，會記錄 warning 並以中性分數繼續。
+
+新增輔助欄位包含：
+
+- 籌碼：`chip_score`、`foreign_net_buy`、`investment_trust_net_buy`、`dealer_net_buy`、`total_institutional_net_buy`。
+- 信用風險：`credit_score`、`margin_balance`、`margin_change`、`short_balance`、`securities_lending_sell_volume`。
+- 事件風險：`event_risk_score`、`event_risk_level`、`event_blocked`、`risk_flags`。
+- 月營收：`monthly_revenue`、`revenue_yoy`、`revenue_mom`、`accumulated_revenue_yoy`、`fundamental_score`。
+- 產業相對強弱：`sector_strength_score`、`relative_strength_5d`、`relative_strength_20d`。
+- 流動性：`liquidity_score`、`avg_turnover_20d`、`slippage_risk_score`。
+- 綜合判斷：`final_market_score`、`confidence_score`、`data_source_warning`、`system_comment`。
+
+`final_market_score` 第一版權重：
+
+- 動能：25%
+- 籌碼：20%
+- 基本面 / 月營收：15%
+- 估值：10%
+- 產業相對強弱：10%
+- 事件風險：10%
+- 流動性：5%
+- 新聞情緒：5%
+
+`news_sentiment_score` 會先由 `-100` 到 `+100` 轉成 `0` 到 `100` 再加權。缺資料時使用中性分數 `50`，並降低 `confidence_score`。
+
+事件風險設定：
+
+```yaml
+event_risk:
+  block_disposition_stock: true
+  block_attention_stock: false
+```
+
+處置股預設會阻擋新增 pending order，這屬於風控阻擋，不是 market intelligence 自動下單。注意股預設只顯示 warning 與 risk flag。
+
+可手動更新多因子資料：
+
+```powershell
+python scripts/fetch_multi_factor_data.py
+```
+
+該腳本會輸出 `reports/data_fetch_status_YYYYMMDD.csv`，記錄每個來源的 `source_name`、`status`、`rows`、`warning` 與 `error_message`，方便追蹤資料缺口。

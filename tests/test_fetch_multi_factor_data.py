@@ -19,6 +19,10 @@ def test_generate_required_csv_and_status_when_sources_missing(tmp_path: Path, m
         "financials",
         "material_events",
         "institutional",
+        "margin_short",
+        "attention_disposition",
+        "sector_strength",
+        "liquidity",
     }
     assert all((tmp_path / "data" / name).exists() for name in [
         "monthly_revenue.csv",
@@ -26,6 +30,10 @@ def test_generate_required_csv_and_status_when_sources_missing(tmp_path: Path, m
         "financials.csv",
         "material_events.csv",
         "institutional.csv",
+        "margin_short.csv",
+        "attention_disposition.csv",
+        "sector_strength.csv",
+        "liquidity.csv",
     ])
     report_files = list((tmp_path / "reports").glob("data_fetch_status_*.csv"))
     assert len(report_files) == 1

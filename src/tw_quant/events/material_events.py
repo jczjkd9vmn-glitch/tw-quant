@@ -16,11 +16,36 @@ EVENT_COLUMNS = [
     "event_type",
     "event_sentiment",
     "event_risk_level",
+    "event_keywords",
+    "event_warning",
 ]
 
-POSITIVE_KEYWORDS = ["接單", "營收創高", "獲利成長", "法說展望佳", "擴產", "合約"]
-NEGATIVE_KEYWORDS = ["虧損", "訴訟", "停工", "違約", "下修", "處分", "資安事件", "財報重編", "內控缺失"]
-HIGH_RISK_KEYWORDS = ["訴訟", "停工", "違約", "資安事件", "財報重編", "內控缺失"]
+POSITIVE_KEYWORDS = [
+    "營收創高",
+    "獲利成長",
+    "接單增加",
+    "擴產",
+    "股利增加",
+    "毛利率改善",
+    "客戶需求強",
+]
+NEGATIVE_KEYWORDS = [
+    "檢調",
+    "虧損",
+    "下修",
+    "砍單",
+    "調降財測",
+    "財報不如預期",
+    "毛利率下滑",
+    "庫存過高",
+    "停止交易",
+    "處分",
+    "訴訟",
+    "減資",
+    "資安事件",
+    "內控缺失",
+]
+HIGH_RISK_KEYWORDS = ["檢調", "停止交易", "處分", "訴訟", "減資", "財報不如預期", "資安事件", "內控缺失"]
 
 
 def score_material_events_for_symbols(
@@ -41,37 +66,39 @@ def score_material_events(stock_id: str, events: pd.DataFrame) -> dict[str, obje
 
     frame = frame.sort_values("event_date")
     latest = frame.iloc[-1]
-    text = f"{latest.get('title', '')} {latest.get('summary', '')}"
-    sentiment, risk_level, blocked, reason = classify_event_text(text)
+    text = f"{latest.get('title', '')} {latest.get('summary', '')} {latest.get('event_keywords', '')}"
+    sentiment, risk_level, blocked, reason, keywords = classify_event_text(text)
     score = 50.0
     if sentiment == "positive":
-        score += 5
+        score += 8
     elif risk_level == "HIGH":
         score -= 35
     elif sentiment == "negative":
         score -= 18
-
     return {
         "stock_id": symbol,
         "event_score": _bounded(score),
+        "event_risk_score": _bounded(score),
         "event_risk_level": risk_level,
         "event_reason": reason,
+        "event_keywords": "；".join(keywords),
+        "event_warning": reason if risk_level in {"HIGH", "MEDIUM"} else "",
         "event_blocked": bool(blocked),
     }
 
 
-def classify_event_text(text: str) -> tuple[str, str, bool, str]:
+def classify_event_text(text: str) -> tuple[str, str, bool, str, list[str]]:
     normalized = str(text)
     positive_hits = [keyword for keyword in POSITIVE_KEYWORDS if keyword in normalized]
     negative_hits = [keyword for keyword in NEGATIVE_KEYWORDS if keyword in normalized]
     high_hits = [keyword for keyword in HIGH_RISK_KEYWORDS if keyword in normalized]
     if high_hits:
-        return "negative", "HIGH", True, "高風險重大訊息：" + "、".join(high_hits)
+        return "negative", "HIGH", True, "重大負面事件：" + "；".join(high_hits), high_hits
     if negative_hits:
-        return "negative", "MEDIUM", False, "重大利空訊息：" + "、".join(negative_hits)
+        return "negative", "MEDIUM", False, "負面重大訊息：" + "；".join(negative_hits), negative_hits
     if positive_hits:
-        return "positive", "LOW", False, "重大利多訊息：" + "、".join(positive_hits)
-    return "neutral", "NONE", False, "近期無重大事件風險"
+        return "positive", "LOW", False, "正面重大訊息：" + "；".join(positive_hits), positive_hits
+    return "neutral", "NONE", False, "無重大事件資料", []
 
 
 def load_material_events(path: str | Path) -> pd.DataFrame:
@@ -91,8 +118,11 @@ def _neutral(stock_id: str) -> dict[str, object]:
     return {
         "stock_id": str(stock_id).strip(),
         "event_score": 50.0,
+        "event_risk_score": 50.0,
         "event_risk_level": "NONE",
-        "event_reason": "近期無重大事件風險",
+        "event_reason": "無重大事件資料",
+        "event_keywords": "",
+        "event_warning": "",
         "event_blocked": False,
     }
 

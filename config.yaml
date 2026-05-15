@@ -36,14 +36,14 @@ trading_cost:
   slippage_rate: 0.001
 
 exit_strategy:
-  take_profit_1_pct: 0.10
+  take_profit_1_pct: 0.08
   take_profit_1_sell_pct: 0.50
-  take_profit_2_pct: 0.20
-  take_profit_2_sell_pct: 1.00
+  take_profit_2_pct: 0.15
+  take_profit_2_sell_pct: 0.50
   trailing_stop_activate_pct: 0.08
-  trailing_stop_drawdown_pct: 0.06
+  trailing_stop_drawdown_pct: 0.08
   ma_exit_window: 20
-  max_holding_days: 20
+  max_holding_days: 30
   min_profit_for_holding: 0.03
 
 multi_factor:
@@ -52,6 +52,14 @@ multi_factor:
   affect_risk_pass: false
   block_on_high_risk_event: true
   missing_data_score: 0
+
+market_intel:
+  enabled: true
+  provider: mock
+  cache_enabled: true
+  affect_ranking: false
+  affect_trading: false
+  enable_market_intel_filter: false
 
 backtest:
   initial_cash: 1000000

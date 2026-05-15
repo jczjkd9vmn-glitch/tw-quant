@@ -543,6 +543,100 @@ python -m pytest
 - `warning`
 - `error_message`
 
+## Mobile Report、出場策略與 Market Intelligence
+
+本專案新增手機優先的 GitHub Pages 報表、完整紙上交易出場策略，以及 market intelligence 輔助判斷模組。這些功能不保證獲利，且不會改變既有選股核心邏輯、pending order 隔日進場架構或真實下單限制。
+
+### 手機版報表
+
+`scripts/generate_html_report.py` 會產生：
+
+```text
+reports/index.html
+docs/index.html
+```
+
+報表首頁加入「今日重點結論」與「系統健康檢查」，手機上優先顯示結論，再用卡片式呈現候選股、通過風控股票、待進場、目前持倉、已出場交易與 market intelligence 摘要。桌機版仍保留表格，詳細資料預設用 `<details><summary>` 收合。
+
+損益顏色採台股習慣：紅色代表正損益，綠色代表負損益，灰白色代表 0 或無資料。資料缺失時會顯示 warning 或「今日無資料」，不會讓整份 HTML 報表失敗。
+
+### 出場策略
+
+`config.yaml` 的 `exit_strategy` 預設值：
+
+```yaml
+exit_strategy:
+  take_profit_1_pct: 0.08
+  take_profit_1_sell_pct: 0.50
+  take_profit_2_pct: 0.15
+  take_profit_2_sell_pct: 0.50
+  trailing_stop_activate_pct: 0.08
+  trailing_stop_drawdown_pct: 0.08
+  ma_exit_window: 20
+  max_holding_days: 30
+  min_profit_for_holding: 0.03
+```
+
+每日更新紙上持倉時依序檢查：
+
+1. 跌破停損價：賣出剩餘全部部位，`exit_reason=stop_loss`。
+2. 報酬達 +8%：賣出 50%，`exit_reason=take_profit_1`，並記錄 `partial_exit_1_done`。
+3. 報酬達 +15%：賣出剩餘部位 50%，`exit_reason=take_profit_2`，並記錄 `partial_exit_2_done`。
+4. 從持有期間最高價回落 8%：賣出剩餘全部部位，`exit_reason=trailing_stop`。
+5. 收盤跌破 20 日均線：賣出剩餘全部部位，`exit_reason=ma20_break`。資料不足 20 日時會略過，不會失敗。
+6. 持有超過 30 個交易日且獲利不足 3%：賣出剩餘全部部位，`exit_reason=max_holding_days`。
+
+出場同樣套用既有交易成本與滑價模型，會計算賣出手續費、證券交易稅、賣出滑價與扣成本後損益。舊版 `paper_trades.csv` 缺少新欄位時會自動補欄位並轉 dtype，保留 legacy CSV 相容性。
+
+完整出場策略預設啟用；若未來需要停用，應透過明確 config（例如 `enable_exit_strategy: false`）控制，不要透過省略 `exit_strategy` 來隱性關閉。
+
+### Market Intelligence
+
+新增模組：
+
+```text
+src/tw_quant/market_intel/providers/base.py
+src/tw_quant/market_intel/providers/mock_provider.py
+src/tw_quant/market_intel/providers/yfinance_provider.py
+src/tw_quant/market_intel/scoring.py
+src/tw_quant/market_intel/report.py
+```
+
+第一版預設使用 `mock` provider 與既有候選股 / 多因子欄位補足資料，不需要 API key。`yfinance` provider 是可替換設計；若未安裝或外部來源失敗，只會回傳 warning 與中性分數，不會讓 pipeline crash。
+
+Market intelligence 會輸出基本面分數、估值分數、動能分數、新聞情緒分數、綜合市場分數、信心分數、主要風險標籤、系統短評、資料來源與 warning。
+
+輸出檔案：
+
+```text
+reports/market_intel_YYYYMMDD.csv
+reports/cache/market_intel_YYYYMMDD.json
+```
+
+`reports/cache/market_intel_YYYYMMDD.json` 是快取，避免重跑時重複打外部 provider。若 cache 存在，系統會優先讀 cache；若不存在，會使用 provider 建立並寫入 cache。
+
+### 交易限制
+
+Market intelligence 預設只影響報表、Discord 摘要與候選股輔助欄位，不會直接產生買單，不會直接排除股票，也不會改變 pending order 進場日期邏輯。
+
+預設設定：
+
+```yaml
+market_intel:
+  enabled: true
+  provider: mock
+  cache_enabled: true
+  affect_ranking: false
+  affect_trading: false
+  enable_market_intel_filter: false
+```
+
+若未來要讓 market intelligence 影響排序或進場，必須先透過 config 明確開啟，且仍需保留風控檢查與可追蹤理由。
+
+### Discord 通知
+
+Discord 每日通知新增今日市場判斷摘要、分數最高前 5 名候選股、新聞風險最高前 5 名、資料不足警告、今日系統健康狀態、目前 OPEN 持倉重點與今日 exit signal / 出場原因摘要。Webhook URL 仍從 GitHub Secrets 的 `DISCORD_WEBHOOK_URL` 讀取，不可寫死在程式碼。
+
 設計原則：
 
 - 優先抓公開來源。

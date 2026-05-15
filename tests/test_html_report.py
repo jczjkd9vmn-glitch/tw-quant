@@ -485,3 +485,113 @@ def _write_reports(path: Path) -> None:
             }
         ]
     ).to_csv(path / "paper_summary_20260508.csv", index=False, encoding="utf-8-sig")
+
+
+def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert output_path.exists()
+    assert "台股紙上交易帳務" in html
+    assert "今日重點結論" in html
+    assert "損益總覽" in html
+    assert "目前持倉" in html
+    assert "待進場" in html
+    assert "今日 / 最近已出場" in html
+    assert "基本面摘要" in html
+    assert "市場判斷摘要" in html
+    assert "系統健康檢查" in html
+    assert "交易成本摘要" in html
+
+
+def test_generate_html_report_creates_docs_index_for_github_pages(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    _write_reports(tmp_path)
+
+    reports_index = generate_html_report(tmp_path, docs_dir=docs_dir)
+    docs_index = docs_dir / "index.html"
+    docs_html = docs_index.read_text(encoding="utf-8")
+
+    assert docs_index.exists()
+    assert docs_html == reports_index.read_text(encoding="utf-8")
+    assert "台股紙上交易帳務" in docs_html
+    assert 'lang="zh-Hant"' in docs_html
+
+
+def test_generate_html_report_translates_fallback_status(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "成功，使用最近有效交易日" in html
+    assert "無交易資料" in html
+    assert "等待進場" in html
+    assert "已有持倉，略過重複進場" in html
+
+
+def test_generate_html_report_does_not_show_raw_english_field_names(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    visible_raw_field_names = [
+        ">trade_date<",
+        ">requested_date<",
+        ">fallback_date<",
+        ">candidate_rows<",
+        ">risk_pass_rows<",
+        ">total_score<",
+    ]
+    assert not any(field_name in html for field_name in visible_raw_field_names)
+
+
+def test_generate_html_report_handles_missing_data_with_chinese_messages(tmp_path: Path) -> None:
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "今日無重點結論資料" in html
+    assert "今日無市場判斷資料" in html
+    assert "目前尚無紙上交易紀錄" in html or "今日無資料" in html
+
+
+def test_generate_html_report_uses_broker_app_cards_and_profit_classes(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert 'class="section-tabs tab-nav"' in html
+    assert 'data-tab-target="overview"' in html
+    assert 'data-tab-target="positions"' in html
+    assert 'data-tab-target="pending"' in html
+    assert 'data-tab-target="closed"' in html
+    assert '<details class="collapse-block"' in html
+    assert "profit-positive" in html
+    assert "profit-negative" in html
+    assert "positive" in html
+    assert "negative" in html
+    assert "mobile-card position-card" in html
+    assert "pending-card" in html
+    assert "closed-card" in html
+    assert "持有中" in html
+    assert "已出場" in html
+    assert "等待進場" in html
+    assert "已有持倉，略過重複進場" in html
+
+
+def test_generate_html_report_translates_all_exit_reasons(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "停損" in html
+    assert "第一段停利" in html
+    assert "第二段停利" in html
+    assert "移動停利" in html
+    assert "跌破 20 日均線" in html
+    assert "持有過久出場" in html

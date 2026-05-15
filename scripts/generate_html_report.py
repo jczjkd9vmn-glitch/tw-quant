@@ -144,6 +144,30 @@ COLUMN_LABELS = {
     "highest_pnl_pct_since_entry": "持有期間最高損益率",
     "trailing_stop_price": "移動停利線",
     "exit_reason": "出場原因",
+    "market_intel_status": "市場判斷狀態",
+    "market_intel_warning_count": "市場判斷警告數",
+    "market_intel_top_score": "市場判斷最高分",
+    "market_intel_source": "市場判斷來源",
+    "market_intel_warning": "市場判斷警告",
+    "market_close": "市場資料收盤價",
+    "market_volume": "市場資料成交量",
+    "volume_change_ratio": "量能變化",
+    "market_pe_ratio": "市場資料 PE",
+    "market_pb_ratio": "市場資料 PB",
+    "market_dividend_yield": "市場資料殖利率",
+    "market_revenue_growth_yoy": "市場資料營收 YoY",
+    "market_eps_growth_yoy": "市場資料 EPS YoY",
+    "latest_news_titles": "最新新聞標題",
+    "matched_news_keywords": "新聞命中關鍵字",
+    "news_sentiment_score": "新聞情緒分數",
+    "market_fundamental_score": "市場基本面分數",
+    "market_valuation_score": "市場估值分數",
+    "market_momentum_score": "市場動能分數",
+    "final_market_score": "市場綜合分數",
+    "confidence_score": "信心分數",
+    "market_risk_score": "市場風險分數",
+    "risk_flags": "主要風險標籤",
+    "final_comment": "系統短評",
     "error_step": "失敗步驟",
     "error_message": "錯誤訊息",
 }
@@ -152,6 +176,11 @@ COLUMN_LABELS = {
 STATUS_LABELS = {
     "OK": "成功",
     "OK_WITH_FALLBACK": "成功，使用最近有效交易日",
+    "OK_WITH_WARNING": "成功但有資料警告",
+    "CACHE": "使用快取資料",
+    "MISSING": "資料缺失",
+    "EMPTY": "無資料",
+    "DISABLED": "已停用",
     "FAILED": "失敗",
     "OPEN": "持有中",
     "CLOSED": "已出場",
@@ -161,6 +190,19 @@ STATUS_LABELS = {
     "TRAILING_STOP": "移動停利",
     "MA_EXIT": "跌破 20 日均線",
     "TIME_EXIT": "持有過久出場",
+    "stop_loss": "停損",
+    "take_profit_1": "第一段停利",
+    "take_profit_2": "第二段停利",
+    "trailing_stop": "移動停利",
+    "ma20_break": "跌破 20 日均線",
+    "max_holding_days": "持有過久出場",
+    "manual_or_legacy": "手動或舊版出場",
+    "error": "錯誤",
+    "pending_entry": "等待隔日進場",
+    "open": "持有中",
+    "closed": "已出場",
+    "skipped": "略過",
+    "no_signal": "無訊號",
     "PENDING": "等待進場",
     "EXECUTED": "已成交",
     "SKIPPED_EXISTING_POSITION": "已有持倉，略過重複進場",
@@ -198,6 +240,12 @@ SCORE_COLUMNS = {
     "financial_score",
     "event_score",
     "institutional_score",
+    "market_fundamental_score",
+    "market_valuation_score",
+    "market_momentum_score",
+    "final_market_score",
+    "confidence_score",
+    "market_risk_score",
 }
 PERCENT_COLUMNS = {
     "suggested_position_pct",
@@ -263,6 +311,7 @@ INTEGER_COLUMNS = {
     "time_exit_exits",
     "fundamental_positive_candidates",
     "fundamental_warning_candidates",
+    "market_intel_warning_count",
     "shares",
     "original_shares",
     "remaining_shares",
@@ -279,6 +328,7 @@ STATUS_COLUMNS = {
     "partial_exit_2_done",
     "event_risk_level",
     "event_blocked",
+    "market_intel_status",
 }
 DATE_COLUMNS = {
     "trade_date",
@@ -305,6 +355,7 @@ def generate_html_report(
     paper_trades = _read_csv(report_dir / "paper_trades.csv")
     paper_summary = _read_latest_csv(report_dir, "paper_summary_*.csv")
     pending_orders = _read_all_csv(report_dir, "pending_orders_*.csv")
+    market_intel = _read_latest_csv(report_dir, "market_intel_*.csv")
     trading_cost = load_config(ROOT / "config.yaml").get("trading_cost", {})
 
     html = _render_page(
@@ -316,6 +367,7 @@ def generate_html_report(
         paper_trades=paper_trades,
         paper_summary=paper_summary,
         pending_orders=pending_orders,
+        market_intel=market_intel,
         trading_cost=trading_cost,
     )
 
@@ -337,6 +389,7 @@ def _render_page(
     paper_trades: pd.DataFrame,
     paper_summary: pd.DataFrame,
     pending_orders: pd.DataFrame,
+    market_intel: pd.DataFrame,
     trading_cost: dict[str, object],
 ) -> str:
     latest_summary = _first_row(daily_summary)
@@ -346,11 +399,11 @@ def _render_page(
     open_positions = _enrich_with_fundamentals(open_positions, candidates)
     pending_orders = _enrich_with_fundamentals(pending_orders, candidates)
     closed_trades = _enrich_with_fundamentals(closed_trades, candidates)
-    health_items = _health_checks(report_dir, latest_summary, candidates, risk_pass, pending_orders, paper_trades)
+    health_items = _health_checks(report_dir, latest_summary, candidates, risk_pass, pending_orders, paper_trades, market_intel)
     alert = _warning_banner(health_items)
     updated_at = _report_updated_at(report_dir)
 
-    candidate_detail = _table(
+    candidate_detail = _responsive_records(
         candidates,
         [
             "rank",
@@ -383,13 +436,21 @@ def _render_page(
             "event_blocked",
             "institutional_score",
             "institutional_reason",
+            "market_fundamental_score",
+            "market_valuation_score",
+            "market_momentum_score",
+            "news_sentiment_score",
+            "final_market_score",
+            "confidence_score",
+            "risk_flags",
+            "final_comment",
             "multi_factor_reason",
             "reason",
         ],
         "目前尚無候選股資料",
         max_rows=20,
     )
-    risk_pass_detail = _table(
+    risk_pass_detail = _responsive_records(
         risk_pass,
         [
             "rank",
@@ -398,6 +459,10 @@ def _render_page(
             "close",
             "total_score",
             "multi_factor_score",
+            "final_market_score",
+            "confidence_score",
+            "risk_flags",
+            "final_comment",
             "event_blocked",
             "event_risk_level",
             "risk_reason",
@@ -449,6 +514,7 @@ def _render_page(
 
     overview_content = "".join(
         [
+            _section("今日重點結論", _key_conclusions_v2(latest_summary), class_name="key-conclusion-section"),
             _pnl_overview(latest_summary, latest_paper_summary, open_positions),
             _details_block("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary, trading_cost)),
             _details_block("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades)),
@@ -458,6 +524,7 @@ def _render_page(
     )
     fundamental_content = "".join(
         [
+            _market_intel_summary(candidates, market_intel, latest_summary),
             _multi_factor_summary(candidates, latest_summary),
             _fundamental_summary(candidates),
             _details_block("今日候選股詳細表", candidate_detail),
@@ -484,9 +551,9 @@ def _render_page(
             "</head>",
             "<body>",
             '<main class="page">',
-            _account_header(latest_summary, updated_at),
+            _account_header_v2(latest_summary, updated_at),
             alert,
-            _nav_tabs(),
+            _nav_tabs_v2(),
             _tab_panel("overview", "總覽", overview_content, active=True),
             _tab_panel("positions", "目前持倉", _position_cards(open_positions)),
             _tab_panel("pending", "待進場", _pending_cards(pending_orders)),
@@ -542,8 +609,57 @@ def _nav_tabs() -> str:
     return f'<nav class="section-tabs tab-nav" aria-label="報表區塊導覽">{"".join(buttons)}</nav>'
 
 
+def _account_header_v2(summary: dict[str, object], updated_at: str) -> str:
+    requested = _format_cell("requested_date", summary.get("requested_date") or summary.get("trade_date"))
+    trade_date = _format_cell("trade_date", summary.get("trade_date"))
+    use_recent = "是" if _uses_recent_data(summary) else "否"
+    meta = [
+        ("原始執行日期", requested),
+        ("實際交易日", trade_date),
+        ("是否使用最近有效資料", use_recent),
+        ("報表更新時間", updated_at or "-"),
+    ]
+    chips = "".join(f"<span>{escape(label)}：{escape(value)}</span>" for label, value in meta)
+    return (
+        '<header class="account-header">'
+        "<p>台股自動化系統</p>"
+        "<h1>台股紙上交易帳務</h1>"
+        f'<div class="header-meta">{chips}</div>'
+        "<small>本頁為紙上交易帳務與風控檢查報表，不代表投資建議，不保證獲利。</small>"
+        "</header>"
+    )
+
+
+def _nav_tabs_v2() -> str:
+    tabs = [
+        ("overview", "總覽"),
+        ("positions", "持倉"),
+        ("pending", "待進場"),
+        ("closed", "已出場"),
+        ("fundamental", "基本面"),
+        ("health", "健康檢查"),
+    ]
+    buttons = []
+    for index, (anchor, label) in enumerate(tabs):
+        active = " active" if index == 0 else ""
+        selected = "true" if index == 0 else "false"
+        buttons.append(
+            f'<button type="button" class="tab-button{active}" data-tab-target="{anchor}" '
+            f'aria-controls="tab-{anchor}" aria-selected="{selected}">{escape(label)}</button>'
+        )
+    return f'<nav class="section-tabs tab-nav" aria-label="報表區塊導覽">{"".join(buttons)}</nav>'
+
+
 def _tab_panel(panel_id: str, title: str, content: str, active: bool = False) -> str:
     classes = "tab-panel active" if active else "tab-panel"
+    title = {
+        "overview": "總覽",
+        "positions": "目前持倉",
+        "pending": "待進場",
+        "closed": "今日 / 最近已出場",
+        "fundamental": "基本面摘要",
+        "health": "系統健康檢查",
+    }.get(panel_id, title)
     return (
         f'<section id="tab-{escape(panel_id)}" class="{classes}" data-tab-panel="{escape(panel_id)}" '
         f'role="tabpanel"><h2>{escape(title)}</h2>{content}</section>'
@@ -632,6 +748,10 @@ def _position_cards(frame: pd.DataFrame) -> str:
                 "fundamental_score",
                 "fundamental_reason",
                 "multi_factor_score",
+                "final_market_score",
+                "confidence_score",
+                "risk_flags",
+                "final_comment",
                 "event_risk_level",
                 "event_reason",
                 "event_blocked",
@@ -700,6 +820,10 @@ def _pending_cards(frame: pd.DataFrame) -> str:
                 "entry_price",
                 "fundamental_score",
                 "fundamental_reason",
+                "final_market_score",
+                "confidence_score",
+                "risk_flags",
+                "final_comment",
             ],
         )
         cards.append(
@@ -793,6 +917,15 @@ def _enrich_with_fundamentals(frame: pd.DataFrame, candidates: pd.DataFrame) -> 
         "event_risk_level",
         "event_reason",
         "event_blocked",
+        "market_fundamental_score",
+        "market_valuation_score",
+        "market_momentum_score",
+        "news_sentiment_score",
+        "final_market_score",
+        "confidence_score",
+        "risk_flags",
+        "final_comment",
+        "market_intel_warning",
     ]
     for column in columns:
         if column not in result.columns:
@@ -862,8 +995,8 @@ def _percent_or_dash(value: object) -> str:
 def _profit_class(value: object) -> str:
     number = _to_float(value)
     if number is None or abs(number) < 0.000001:
-        return "profit-flat"
-    return "profit-positive" if number > 0 else "profit-negative"
+        return "profit-flat neutral"
+    return "profit-positive positive" if number > 0 else "profit-negative negative"
 
 
 def _report_updated_at(report_dir: Path) -> str:
@@ -925,6 +1058,23 @@ def _key_conclusions(summary: dict[str, object]) -> str:
     return '<div class="cards key-cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
 
 
+def _key_conclusions_v2(summary: dict[str, object]) -> str:
+    if not summary:
+        return _empty("今日無重點結論資料")
+    has_issue = not _is_blank(summary.get("error_message")) or str(summary.get("status", "")).upper() == "FAILED"
+    cards = [
+        ("今日日期", _format_cell("trade_date", summary.get("trade_date"))),
+        ("今日候選股數量", _format_cell("candidate_rows", summary.get("candidate_rows"))),
+        ("今日 risk pass 股票數量", _format_cell("risk_pass_rows", summary.get("risk_pass_rows"))),
+        ("今日 pending orders 數量", _format_cell("pending_orders", summary.get("pending_orders"))),
+        ("今日 open positions 數量", _format_cell("open_positions", summary.get("open_positions"))),
+        ("今日 closed trades 數量", _format_cell("closed_positions", summary.get("closed_positions"))),
+        ("今日 market intelligence 狀態", _format_cell("market_intel_status", summary.get("market_intel_status"))),
+        ("資料缺口或錯誤", _format_cell("error_message", summary.get("error_message")) if has_issue else "無重大錯誤"),
+    ]
+    return '<div class="cards key-cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+
+
 def _health_checks(
     report_dir: Path,
     summary: dict[str, object],
@@ -932,6 +1082,7 @@ def _health_checks(
     risk_pass: pd.DataFrame,
     pending_orders: pd.DataFrame,
     paper_trades: pd.DataFrame,
+    market_intel: pd.DataFrame,
 ) -> list[tuple[str, str, str]]:
     trade_date = pd.to_datetime(summary.get("trade_date"), errors="coerce") if summary else pd.NaT
     items = [
@@ -961,6 +1112,45 @@ def _health_checks(
             "本次報表已成功產生",
         ),
     ]
+    items.extend(
+        [
+            (
+                "data update",
+                "警告" if summary and summary.get("status") == "FAILED" and summary.get("error_step") == "run_daily" else "正常",
+                _format_cell("status", summary.get("status")) if summary else "缺少 daily summary",
+            ),
+            (
+                "candidate export",
+                "注意" if candidates.empty else "正常",
+                "今日無候選股資料" if candidates.empty else f"{len(candidates):,.0f} 筆",
+            ),
+            (
+                "paper trade",
+                "正常" if list(report_dir.glob("pending_orders_*.csv")) or not pending_orders.empty else "注意",
+                "已檢查 pending order 檔案" if list(report_dir.glob("pending_orders_*.csv")) or not pending_orders.empty else "尚無 pending order 檔案",
+            ),
+            (
+                "position update",
+                "注意" if paper_trades.empty else "正常",
+                "目前尚無紙上交易紀錄" if paper_trades.empty else f"{len(paper_trades):,.0f} 筆",
+            ),
+            (
+                "market intelligence",
+                "注意" if market_intel.empty else "正常",
+                "市場判斷資料不足" if market_intel.empty else f"{len(market_intel):,.0f} 筆",
+            ),
+            (
+                "report generation",
+                "正常",
+                "reports/index.html 已產生",
+            ),
+            (
+                "Discord notification",
+                "注意",
+                "GitHub Actions 執行時才可確認 webhook 結果",
+            ),
+        ]
+    )
     stale = _stale_pending_count(pending_orders, trade_date)
     items.append(
         (
@@ -985,9 +1175,9 @@ def _health_section(items: list[tuple[str, str, str]]) -> str:
 def _health_summary_cards(items: list[tuple[str, str, str]]) -> str:
     if not items:
         return _empty("目前尚無健康檢查資料")
-    warning_count = sum(1 for _, status, _ in items if status == "警告")
-    attention_count = sum(1 for _, status, _ in items if status == "注意")
-    normal_count = sum(1 for _, status, _ in items if status == "正常")
+    warning_count = sum(1 for _, status, _ in items if status in {"警告", "霅血?"})
+    attention_count = sum(1 for _, status, _ in items if status in {"注意", "瘜冽?"})
+    normal_count = sum(1 for _, status, _ in items if status in {"正常", "甇?虜"})
     status = "警告" if warning_count else "注意" if attention_count else "正常"
     cards = [
         ("整體狀態", status),
@@ -999,7 +1189,7 @@ def _health_summary_cards(items: list[tuple[str, str, str]]) -> str:
 
 
 def _warning_banner(items: list[tuple[str, str, str]]) -> str:
-    warnings = [f"{name}：{detail}" for name, status, detail in items if status == "警告"]
+    warnings = [f"{name}：{detail}" for name, status, detail in items if status in {"警告", "霅血?"}]
     if not warnings:
         return ""
     return '<div class="top-warning"><strong>警告</strong><span>' + escape("；".join(warnings)) + "</span></div>"
@@ -1013,6 +1203,47 @@ def _stale_pending_count(pending_orders: pd.DataFrame, trade_date: pd.Timestamp)
         return 0
     signal_dates = pd.to_datetime(frame["signal_date"], errors="coerce")
     return int(((trade_date - signal_dates).dt.days > 3).fillna(False).sum())
+
+
+def _market_intel_summary(
+    candidates: pd.DataFrame,
+    market_intel: pd.DataFrame,
+    summary: dict[str, object],
+) -> str:
+    frame = market_intel if not market_intel.empty else candidates
+    if frame.empty:
+        return _section("市場判斷摘要", _empty("今日無市場判斷資料"), class_name="market-intel-summary")
+    warning_count = _count_non_empty(frame, "market_intel_warning")
+    negative_news = 0
+    if "news_sentiment_score" in frame.columns:
+        negative_news = int((pd.to_numeric(frame["news_sentiment_score"], errors="coerce").fillna(0) < 0).sum())
+    top_score = _format_cell("final_market_score", summary.get("market_intel_top_score"))
+    cards = [
+        ("市場判斷狀態", _format_cell("market_intel_status", summary.get("market_intel_status"))),
+        ("市場判斷最高分", top_score),
+        ("資料不足警告", f"{warning_count:,.0f}"),
+        ("新聞偏負面候選", f"{negative_news:,.0f}"),
+    ]
+    columns = [
+        "stock_id",
+        "stock_name",
+        "market_fundamental_score",
+        "market_valuation_score",
+        "market_momentum_score",
+        "news_sentiment_score",
+        "final_market_score",
+        "confidence_score",
+        "risk_flags",
+        "final_comment",
+        "market_intel_warning",
+    ]
+    detail = _responsive_records(frame, columns, "今日無市場判斷資料", 20)
+    return _section(
+        "市場判斷摘要",
+        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        + _details_block("市場判斷候選股明細", detail),
+        class_name="market-intel-summary",
+    )
 
 
 def _multi_factor_summary(candidates: pd.DataFrame, summary: dict[str, object]) -> str:
@@ -1498,6 +1729,9 @@ h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
 .profit-positive{color:#f87171!important}
 .profit-negative{color:#34d399!important}
 .profit-flat{color:#e5e7eb!important}
+.positive{color:#f87171!important}
+.negative{color:#34d399!important}
+.neutral{color:#e5e7eb!important}
 .broker-cards{display:grid;gap:12px}
 .mobile-card{padding:14px;background:#0f172a;border:1px solid #263244;border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.16)}
 .holding-head,.card-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -1538,6 +1772,7 @@ tr:last-child td{border-bottom:0}
 .health{padding:12px;background:#0f172a;border:1px solid #243244;border-radius:10px}
 .health strong{display:inline-block;margin-right:8px;padding:2px 8px;border-radius:999px;font-size:12px}
 .health span,.health em{display:block;margin-top:5px;font-style:normal}
+.health.正常 strong{background:#065f46;color:#d1fae5}.health.注意 strong{background:#854d0e;color:#fef3c7}.health.警告 strong{background:#991b1b;color:#fee2e2}
 .health.正常 strong{background:#065f46;color:#d1fae5}.health.注意 strong{background:#854d0e;color:#fef3c7}.health.警告 strong{background:#991b1b;color:#fee2e2}
 @media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}}
 """

@@ -62,7 +62,7 @@ def test_sell_tax_rate_uses_etf_and_bond_etf_rates() -> None:
 def test_buy_commission_is_deducted_from_cash(tmp_path: Path) -> None:
     _write_risk_report(tmp_path, stop_loss=80.0)
     run_paper_trade(reports_dir=tmp_path, capital=10_000)
-    engine = _engine_with_prices(tmp_path, [_price_frame("20260509", open_price=100.0, close=110.0)])
+    engine = _engine_with_prices(tmp_path, [_price_frame("20260509", open_price=100.0, close=107.0)])
 
     execute_pending_orders(
         engine,
@@ -77,7 +77,7 @@ def test_buy_commission_is_deducted_from_cash(tmp_path: Path) -> None:
     assert trade["entry_commission"] == 10.0
     assert summary["cash"] == 8990.0
     assert summary["total_cost"] == 10.0
-    assert summary["total_equity_after_cost"] == 10090.0
+    assert summary["total_equity_after_cost"] == 10060.0
 
 
 def test_sell_commission_tax_slippage_and_after_cost_pnl(tmp_path: Path) -> None:

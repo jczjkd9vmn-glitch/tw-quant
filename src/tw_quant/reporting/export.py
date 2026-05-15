@@ -11,6 +11,7 @@ from sqlalchemy import Engine
 from tw_quant.config import load_config
 from tw_quant.data.database import load_candidate_scores
 from tw_quant.fundamental.revenue import score_revenue_for_symbols
+from tw_quant.market_intel.report import MARKET_INTEL_COLUMNS, build_market_intel_report
 from tw_quant.scoring.multi_factor import apply_multi_factor_scores, write_data_fetch_status
 
 
@@ -58,6 +59,7 @@ EXPORT_COLUMNS = [
     "investment_trust_net_buy",
     "dealer_net_buy",
     "institutional_reason",
+    *MARKET_INTEL_COLUMNS,
     "is_candidate",
     "risk_pass",
     "risk_reason",
@@ -118,6 +120,8 @@ def export_latest_candidates(
         )
 
     active_config = config or load_config()
+    report_dir = Path(output_dir)
+    report_dir.mkdir(parents=True, exist_ok=True)
     candidates, data_fetch_status = _format_candidates(
         candidates,
         revenue_path=revenue_path,
@@ -127,10 +131,22 @@ def export_latest_candidates(
         institutional_path=institutional_path,
         config=active_config,
     )
+    market_intel, market_status = build_market_intel_report(
+        candidates,
+        reports_dir=report_dir,
+        trade_date=latest_date,
+        config=active_config.get("market_intel", {}),
+    )
+    if not market_intel.empty:
+        candidates = candidates.drop(columns=[column for column in MARKET_INTEL_COLUMNS if column in candidates.columns])
+        candidates = candidates.merge(market_intel, on="stock_id", how="left")
+    for column in EXPORT_COLUMNS:
+        if column not in candidates.columns:
+            candidates[column] = None
+    candidates = candidates[EXPORT_COLUMNS].copy()
+    data_fetch_status = pd.concat([data_fetch_status, market_status], ignore_index=True)
     risk_pass_candidates = candidates[candidates["risk_pass"].astype(int) == 1].copy()
 
-    report_dir = Path(output_dir)
-    report_dir.mkdir(parents=True, exist_ok=True)
     date_label = latest_date.strftime("%Y%m%d")
     candidates_path = report_dir / f"candidates_{date_label}.csv"
     risk_pass_path = report_dir / f"risk_pass_candidates_{date_label}.csv"

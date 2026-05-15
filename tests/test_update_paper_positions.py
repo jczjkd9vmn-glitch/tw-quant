@@ -10,7 +10,7 @@ def test_update_paper_positions_updates_open_position(tmp_path) -> None:
     engine = create_db_engine("sqlite:///:memory:")
     init_db(engine)
     _write_trades(tmp_path, [_trade("2330", entry_price=100, shares=10, stop_loss=90)])
-    save_daily_prices(engine, _prices("20260509", {"2330": 110}))
+    save_daily_prices(engine, _prices("20260509", {"2330": 107}))
 
     result = update_paper_positions(engine, reports_dir=tmp_path, trade_date="20260509", capital=10_000)
 
@@ -22,10 +22,10 @@ def test_update_paper_positions_updates_open_position(tmp_path) -> None:
     assert result.summary_path.exists()
     assert list(result.updated_trades.columns) == TRADE_COLUMNS
     assert row["status"] == "OPEN"
-    assert row["current_price"] == 110
-    assert row["market_value"] == 1100
-    assert row["unrealized_pnl"] == 100
-    assert row["unrealized_pnl_pct"] == 0.1
+    assert row["current_price"] == 107
+    assert row["market_value"] == 1070
+    assert row["unrealized_pnl"] == 70
+    assert row["unrealized_pnl_pct"] == 0.07
     assert row["holding_days"] == 1
     assert not bool(row["stop_loss_hit"])
 
@@ -44,7 +44,7 @@ def test_update_paper_positions_closes_stop_loss(tmp_path) -> None:
     assert row["exit_price"] == 85
     assert row["realized_pnl"] == -150
     assert row["realized_pnl_pct"] == -0.15
-    assert row["exit_reason"] == "STOP_LOSS"
+    assert row["exit_reason"] == "stop_loss"
     assert bool(row["stop_loss_hit"])
 
 
@@ -71,7 +71,7 @@ def test_update_paper_positions_summary_is_correct(tmp_path) -> None:
             _trade("2317", entry_price=50, shares=20, stop_loss=46),
         ],
     )
-    save_daily_prices(engine, _prices("20260509", {"2330": 110, "2317": 45}))
+    save_daily_prices(engine, _prices("20260509", {"2330": 107, "2317": 45}))
 
     result = update_paper_positions(engine, reports_dir=tmp_path, trade_date="20260509", capital=10_000)
     summary = result.summary.iloc[0]
@@ -79,11 +79,11 @@ def test_update_paper_positions_summary_is_correct(tmp_path) -> None:
     assert list(result.summary.columns) == SUMMARY_COLUMNS
     assert summary["total_capital"] == 10_000
     assert summary["invested_value"] == 1000
-    assert summary["market_value"] == 1100
+    assert summary["market_value"] == 1070
     assert summary["cash"] == 8900
-    assert summary["unrealized_pnl"] == 100
+    assert summary["unrealized_pnl"] == 70
     assert summary["realized_pnl"] == -100
-    assert summary["total_equity"] == 10000
+    assert summary["total_equity"] == 9970
     assert summary["open_positions"] == 1
     assert summary["closed_positions"] == 1
 

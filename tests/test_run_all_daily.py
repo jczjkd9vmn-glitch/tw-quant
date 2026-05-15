@@ -228,9 +228,40 @@ def test_run_all_daily_with_explicit_date_runs_requested_date_normally(tmp_path)
     assert not any(message.startswith("fallback_date=") for message in result.messages)
 
 
-def _config(tmp_path, database_url: str = "sqlite:///:memory:") -> str:
+def test_run_all_daily_passes_exit_strategy_config_to_update(tmp_path) -> None:
+    captured = {}
+
+    def fake_update(**kwargs):
+        captured.update(kwargs)
+        return _fake_update(**kwargs)
+
+    result = run_all_daily(
+        config_path=_config(
+            tmp_path,
+            extra=(
+                "exit_strategy:\n"
+                "  take_profit_1_pct: 0.08\n"
+                "  take_profit_2_pct: 0.15\n"
+            ),
+        ),
+        trade_date="20260508",
+        capital=1_000_000,
+        reports_dir=tmp_path / "reports",
+        run_daily_func=_fake_run_daily,
+        export_func=_fake_export,
+        paper_func=_fake_paper,
+        execute_func=_fake_execute,
+        update_func=fake_update,
+    )
+
+    assert result.summary.status == "OK"
+    assert captured["exit_strategy"]["take_profit_1_pct"] == 0.08
+    assert captured["exit_strategy"]["take_profit_2_pct"] == 0.15
+
+
+def _config(tmp_path, database_url: str = "sqlite:///:memory:", extra: str = "") -> str:
     path = tmp_path / "config.yaml"
-    path.write_text(f"database:\n  url: {database_url}\n", encoding="utf-8")
+    path.write_text(f"database:\n  url: {database_url}\n{extra}", encoding="utf-8")
     return str(path)
 
 

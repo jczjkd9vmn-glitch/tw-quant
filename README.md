@@ -278,6 +278,18 @@ reports/data_fetch_status_YYYYMMDD.csv
 
 用來追蹤各資料來源狀態、筆數、warning 與錯誤訊息。若 `multi_factor.block_on_high_risk_event` 為 `true`，高風險重大訊息會阻擋新進場；但在預設 `affect_ranking: false`、`affect_risk_pass: false` 下，不會改變原本候選股排序與 `risk_pass` 欄位。
 
+### 報表一致性與資料來源揭露
+
+GitHub Pages 報表會避免把「原始執行日期」與「實際使用資料日期」混在一起：只有 `requested_date` 與 `fallback_date` 不同時，才會顯示已使用最近有效交易日；兩者相同時會明確標示未切換替代交易日。
+
+「今日重點結論」的資料品質摘要會納入 `market_intel_warning_count` 與最新 `reports/data_fetch_status_YYYYMMDD.csv`。若資料來源為 `FAILED`、`MISSING`、`EMPTY` 或 `CACHE`，報表會揭露 fallback / cache / 中性資料狀態，不會直接顯示成「無重大錯誤」。
+
+原「基本面」頁已改為「市場情報 / 多因子」。此頁會顯示資料可信度總覽、mock / cache 狀態、基本面資料不足股票數，以及 `total_score`、`multi_factor_score`、`final_market_score`、`confidence_score` 的用途。若多數股票仍使用中性基本面分數 50，報表會提示不可視為完整財報分析。
+
+舊版 `paper_trades.csv` 可能缺少 `actual_entry_date`、`entry_price_source` 或成本欄位。報表只做顯示層 fallback：進場日空白時顯示交易日加上「舊資料 fallback」，未記錄的成交來源與成本顯示「舊資料未記錄」，不會回寫或修改原始交易紀錄。
+
+`reports/cache/` 為產生式快取，應維持忽略且不納入版本追蹤。
+
 ### GitHub Pages 設定方式
 
 1. 開啟 GitHub repo 的 `Settings`。

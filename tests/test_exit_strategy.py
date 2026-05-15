@@ -28,6 +28,26 @@ def test_take_profit_1_sells_half_and_keeps_position_open(tmp_path) -> None:
     assert bool(row["partial_exit_1_done"])
 
 
+def test_default_exit_strategy_is_enabled_when_none_is_passed(tmp_path) -> None:
+    engine = _engine()
+    _write_trades(tmp_path, [_trade(shares=10)])
+    save_daily_prices(engine, _prices({"20260509": 108}))
+
+    result = update_paper_positions(
+        engine,
+        reports_dir=tmp_path,
+        trade_date="20260509",
+        capital=10_000,
+        exit_strategy=None,
+    )
+
+    row = result.updated_trades.iloc[0]
+    assert row["status"] == "OPEN"
+    assert row["exit_reason"] == "take_profit_1"
+    assert row["remaining_shares"] == 5
+    assert bool(row["partial_exit_1_done"])
+
+
 def test_take_profit_2_sells_half_of_remaining_position(tmp_path) -> None:
     engine = _engine()
     _write_trades(tmp_path, [_trade(shares=100, remaining_shares=50, partial_exit_1_done=True)])

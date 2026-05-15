@@ -660,13 +660,7 @@ def _resolve_exit_strategy(exit_strategy: dict | ExitStrategyConfig | None) -> E
     if isinstance(exit_strategy, ExitStrategyConfig):
         return exit_strategy
     if exit_strategy is None:
-        return ExitStrategyConfig(
-            take_profit_1_pct=999.0,
-            take_profit_2_pct=999.0,
-            trailing_stop_activate_pct=999.0,
-            ma_exit_window=0,
-            max_holding_days=1_000_000,
-        )
+        return ExitStrategyConfig()
     return ExitStrategyConfig.from_mapping(exit_strategy)
 
 

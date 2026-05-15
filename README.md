@@ -588,6 +588,8 @@ exit_strategy:
 
 出場同樣套用既有交易成本與滑價模型，會計算賣出手續費、證券交易稅、賣出滑價與扣成本後損益。舊版 `paper_trades.csv` 缺少新欄位時會自動補欄位並轉 dtype，保留 legacy CSV 相容性。
 
+完整出場策略預設啟用；若未來需要停用，應透過明確 config（例如 `enable_exit_strategy: false`）控制，不要透過省略 `exit_strategy` 來隱性關閉。
+
 ### Market Intelligence
 
 新增模組：

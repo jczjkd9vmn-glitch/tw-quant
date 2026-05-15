@@ -82,6 +82,14 @@ def _append_warning(base: str, addition: str) -> str:
     return f"{base}; {addition}"
 
 
+def _truncate(value: object, limit: int = 300) -> str:
+    text = "" if value is None else str(value)
+    text = " ".join(text.split())
+    if len(text) <= limit:
+        return text
+    return f"{text[: limit - 3]}..."
+
+
 def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -155,7 +163,7 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
             name="attention_disposition",
             output_path=DATA_DIR / "attention_disposition.csv",
             columns=ATTENTION_DISPOSITION_COLUMNS,
-            provider_maturity="csv_fallback",
+            provider_maturity="best_effort",
             fetcher=lambda: twse.fetch_attention_disposition(trade_date),
         ),
         SourceSpec(
@@ -207,6 +215,7 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
         warning = fetched.warning
         error_message = fetched.error_message
         should_write = status.upper() in {"OK", "CACHE"} and rows > 0
+        fallback_action = "cache_used" if status.upper() == "CACHE" and rows > 0 else "wrote_new_data"
 
         if should_write:
             output = _ensure_schema(output, spec.columns)
@@ -218,22 +227,26 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
             if existing_status == "OK":
                 status = "OK"
                 warning = _append_warning(warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, kept existing csv")
+                fallback_action = "kept_existing_csv"
             elif existing_status == "EMPTY":
                 status = "EMPTY" if fetched.status.upper() != "FAILED" else "FAILED"
                 warning = _append_warning(warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, kept existing empty csv")
+                fallback_action = "kept_existing_csv"
             else:
                 status = "MISSING" if status != "FAILED" else "FAILED"
                 warning = _append_warning(warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, no existing csv, wrote empty schema")
                 output = _ensure_schema(output, spec.columns)
                 output.to_csv(spec.output_path, index=False, encoding="utf-8-sig")
+                fallback_action = "wrote_empty_schema"
         status_rows.append(
             {
                 "source_name": spec.name,
                 "provider_maturity": spec.provider_maturity,
                 "status": status,
                 "rows": rows,
-                "warning": warning,
-                "error_message": error_message,
+                "warning": _truncate(warning, 500),
+                "error_message": _truncate(error_message),
+                "fallback_action": fallback_action,
             }
         )
 

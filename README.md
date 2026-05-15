@@ -727,3 +727,19 @@ python scripts/fetch_multi_factor_data.py
 - `final_market_score`：官方資料 / market intelligence 綜合分，用於 HTML 報表、Discord 摘要與觀察排序參考。
 - `multi_factor_score`：原候選股多因子輔助分，目前仍不直接影響交易；只有在 config 明確開啟 `multi_factor.affect_ranking` 或 `multi_factor.affect_risk_pass` 時才會影響排序或風控通過結果。
 - `market_intel.affect_trading` 預設為 `false`，market intelligence 不會直接產生買單。
+## Official Provider Robustness Notes
+
+本專案的官方資料來源仍採分階段接入，資料源失敗時不會中斷每日流程，也不會覆寫既有有效 CSV。
+
+- MOPS 月營收：使用 `requests.Session()` 與瀏覽器風格 headers。若 MOPS 回傳 `THE PAGE CANNOT BE ACCESSED`、`FOR SECURITY REASONS` 或 `頁面無法執行`，會回傳 `FAILED`，warning 顯示 `MOPS security block detected; fallback to existing csv`，並保留既有 `data/monthly_revenue.csv`。
+- MOPS HTML parser：月營收 HTML 解析使用 `pandas.read_html(StringIO(html))`，因此 `requirements.txt` 已加入 `lxml>=4.9`。若官方 HTML table 結構改變，會 fallback，不會 crash。
+- TWSE margin_short：目前為 `best_effort`，會自動掃描 `fields/data`、`fields9/data9`、`fields1/data1` 與 `tables`，並容忍「代號 / 股票代號 / 證券代號」、「名稱 / 股票名稱 / 證券名稱」、「融資今日餘額 / 融資餘額 / 今日餘額」等欄位別名。少部分欄位缺失時會填空，不會讓整個 pipeline 失敗。
+- TWSE attention_disposition：已改為 `best_effort`，使用 TWSE 公開的 `announcement/notice` 與 `announcement/punish` JSON 端點。若官方端點失敗，仍 fallback to existing CSV。處置股是否阻擋新增 pending order 仍由 `event_risk.block_disposition_stock` 控制。
+- material_events：仍是 `placeholder / local CSV fallback`，尚未完整接 MOPS 重大訊息端點。
+- TPEXProvider：仍是 `placeholder`，尚未完整接櫃買正式資料來源。
+
+`reports/data_fetch_status_YYYYMMDD.csv` 欄位包含：
+
+- `provider_maturity`：`best_effort`、`placeholder`、`csv_fallback` 或未來的 `production`。
+- `fallback_action`：`wrote_new_data`、`cache_used`、`kept_existing_csv`、`wrote_empty_schema`。
+- `error_message`：會截斷在合理長度內，避免把整段 HTML 安全頁寫進報表。

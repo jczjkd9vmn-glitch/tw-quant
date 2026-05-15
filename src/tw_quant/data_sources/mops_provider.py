@@ -1,12 +1,13 @@
 """Best-effort MOPS official provider.
 
 The module deliberately returns warnings instead of raising when the public
-source changes format or is unavailable.
+source changes format, is blocked, or is unavailable.
 """
 
 from __future__ import annotations
 
 from datetime import date
+from io import StringIO
 from pathlib import Path
 from typing import Callable
 
@@ -39,18 +40,44 @@ MATERIAL_EVENT_COLUMNS = [
     "event_risk_level",
 ]
 
+MOPS_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.7,en;q=0.6",
+    "Referer": "https://mops.twse.com.tw/mops/web/index",
+    "Connection": "keep-alive",
+}
+
+SECURITY_BLOCK_MARKERS = [
+    "THE PAGE CANNOT BE ACCESSED",
+    "FOR SECURITY REASONS",
+    "頁面無法執行",
+]
+
 
 class MOPSProvider:
     source_name = "mops"
 
     def __init__(
         self,
-        requester: Callable[..., object] | None = None,
+        requester: Callable[..., object] | object | None = None,
         timeout: int = 15,
         cache_dir: str | Path | None = None,
         cache_enabled: bool = True,
     ) -> None:
-        self.requester = requester or requests.get
+        if requester is None:
+            self.session = requests.Session()
+            self.session.headers.update(MOPS_HEADERS)
+            self.requester = self.session.get
+        elif hasattr(requester, "get"):
+            self.session = requester
+            self.requester = requester.get  # type: ignore[union-attr]
+        else:
+            self.session = None
+            self.requester = requester  # type: ignore[assignment]
         self.timeout = timeout
         self.cache_dir = Path(cache_dir) if cache_dir is not None else None
         self.cache_enabled = cache_enabled
@@ -70,6 +97,14 @@ class MOPSProvider:
             if hasattr(response, "raise_for_status"):
                 response.raise_for_status()
             text = getattr(response, "text", "")
+            if is_mops_security_block(text):
+                return ProviderResult(
+                    "monthly_revenue",
+                    pd.DataFrame(columns=MONTHLY_REVENUE_COLUMNS),
+                    "FAILED",
+                    "MOPS security block detected; fallback to existing csv",
+                    "security block: MOPS returned an access denied page",
+                )
             frame = normalize_monthly_revenue_html(text, f"{parsed.year}{month:02d}")
             return self._result_with_cache("monthly_revenue", date_label, frame, MONTHLY_REVENUE_COLUMNS)
         except Exception as exc:  # noqa: BLE001
@@ -111,7 +146,7 @@ class MOPSProvider:
             if column not in frame.columns:
                 frame[column] = None
         frame = frame[columns].copy()
-        if self.cache_dir and self.cache_enabled:
+        if self.cache_dir and self.cache_enabled and not frame.empty:
             write_cache(self.cache_dir, source_name, date_label, frame)
         status = "OK" if not frame.empty else "EMPTY"
         warning = "" if not frame.empty else "official source returned empty data"
@@ -119,42 +154,65 @@ class MOPSProvider:
 
 
 def normalize_monthly_revenue_html(html: str, year_month: str) -> pd.DataFrame:
-    if not html.strip():
+    if not html.strip() or is_mops_security_block(html):
         return pd.DataFrame(columns=MONTHLY_REVENUE_COLUMNS)
     try:
-        tables = pd.read_html(html)
+        tables = pd.read_html(StringIO(html))
     except ValueError:
         return pd.DataFrame(columns=MONTHLY_REVENUE_COLUMNS)
     rows: list[dict[str, object]] = []
     for table in tables:
-        table.columns = [str(column).strip() for column in table.columns]
+        table.columns = [_flatten_column(column) for column in table.columns]
         field_text = " ".join(table.columns)
-        if "公司代號" not in field_text or "營業收入" not in field_text:
+        if not _has_any(field_text, ["公司代號", "股票代號", "證券代號"]) or not _has_any(
+            field_text,
+            ["當月營收", "本月營收", "營業收入"],
+        ):
             continue
         for _, row in table.iterrows():
-            stock_id = _first_value(row, ["公司代號"])
+            stock_id = _first_value(row, ["公司代號", "股票代號", "證券代號"])
             if _is_blank(stock_id) or not str(stock_id).strip().isdigit():
                 continue
             rows.append(
                 {
                     "stock_id": str(stock_id).strip(),
-                    "stock_name": str(_first_value(row, ["公司名稱"]) or "").strip(),
+                    "stock_name": str(_first_value(row, ["公司名稱", "公司簡稱", "股票名稱", "證券名稱"]) or "").strip(),
                     "year_month": year_month,
-                    "revenue": _number(_first_value(row, ["當月營收", "營業收入"])),
-                    "revenue_yoy": _number(_first_value(row, ["去年同月增減", "年增"])),
-                    "revenue_mom": _number(_first_value(row, ["上月比較增減", "月增"])),
-                    "accumulated_revenue": _number(_first_value(row, ["累計營收"])),
-                    "accumulated_revenue_yoy": _number(_first_value(row, ["前期比較增減", "累計增減"])),
+                    "revenue": _number(_first_value(row, ["當月營收", "本月營收", "營業收入"])),
+                    "revenue_yoy": _number(_first_value(row, ["去年同月增減", "年增率", "YoY"])),
+                    "revenue_mom": _number(_first_value(row, ["上月比較增減", "月增率", "MoM"])),
+                    "accumulated_revenue": _number(_first_value(row, ["當月累計營收", "累計營收"])),
+                    "accumulated_revenue_yoy": _number(
+                        _first_value(row, ["前期比較增減", "累計營收年增", "累計增減"])
+                    ),
                 }
             )
     return pd.DataFrame(rows, columns=MONTHLY_REVENUE_COLUMNS)
+
+
+def is_mops_security_block(html: str) -> bool:
+    upper = html.upper()
+    return any(marker.upper() in upper for marker in SECURITY_BLOCK_MARKERS)
+
+
+def _flatten_column(column: object) -> str:
+    if isinstance(column, tuple):
+        return " ".join(str(part).strip() for part in column if str(part).strip() and not str(part).startswith("Unnamed"))
+    return str(column).strip()
+
+
+def _has_any(text: str, patterns: list[str]) -> bool:
+    return any(pattern in text for pattern in patterns)
 
 
 def _first_value(row: pd.Series, contains: list[str]) -> object:
     for pattern in contains:
         for column in row.index:
             if pattern in str(column):
-                return row[column]
+                value = row[column]
+                if isinstance(value, pd.Series):
+                    return value.iloc[0] if not value.empty else None
+                return value
     return None
 
 

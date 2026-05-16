@@ -1,0 +1,10 @@
+﻿source_name,provider_maturity,status,rows,warning,error_message,fallback_action
+monthly_revenue,best_effort,FAILED,0,"provider failed; fallback to local csv or neutral scores; provider failed, kept existing empty csv",HTTPError: 404 Client Error: for url: https://mops.twse.com.tw/nas/t21/sii/t21sc03_115_5_0.html,kept_existing_csv
+valuation,csv_fallback,EMPTY,0,"official valuation source not configured; provider empty, kept existing empty csv",,kept_existing_csv
+financials,csv_fallback,EMPTY,0,"official financial source not configured; provider empty, kept existing empty csv",,kept_existing_csv
+material_events,placeholder,EMPTY,0,"MOPS material event endpoint is not configured; fallback to local csv; provider empty, kept existing empty csv",,kept_existing_csv
+institutional,best_effort,OK,1311,"official source returned no data; provider empty, kept existing csv",,kept_existing_csv
+margin_short,best_effort,OK,1269,"official source returned no data; provider empty, kept existing csv",,kept_existing_csv
+attention_disposition,best_effort,OK,24,,,wrote_new_data
+sector_strength,placeholder,EMPTY,0,"sector strength is derived from local data in a later version; provider empty, kept existing empty csv",,kept_existing_csv
+liquidity,placeholder,EMPTY,0,"liquidity source not configured; provider empty, kept existing empty csv",,kept_existing_csv

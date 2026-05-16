@@ -3,8 +3,8 @@ monthly_revenue,best_effort,FAILED,0,"provider failed; fallback to local csv or 
 valuation,csv_fallback,EMPTY,0,"official valuation source not configured; provider empty, kept existing empty csv",,kept_existing_csv
 financials,csv_fallback,EMPTY,0,"official financial source not configured; provider empty, kept existing empty csv",,kept_existing_csv
 material_events,placeholder,EMPTY,0,"MOPS material event endpoint is not configured; fallback to local csv; provider empty, kept existing empty csv",,kept_existing_csv
-institutional,best_effort,OK,1311,"official source returned no data; provider empty, kept existing csv",,kept_existing_csv
-margin_short,best_effort,OK,1269,"official source returned no data; provider empty, kept existing csv",,kept_existing_csv
+institutional,best_effort,OK_WITH_FALLBACK,1311,"official source returned no data; provider empty, kept existing csv; 官方來源本次無法提供新資料，保留既有 CSV，rows 為既有資料筆數。",,kept_existing_csv
+margin_short,best_effort,OK_WITH_FALLBACK,1269,"official source returned no data; provider empty, kept existing csv; 官方來源本次無法提供新資料，保留既有 CSV，rows 為既有資料筆數。",,kept_existing_csv
 attention_disposition,best_effort,OK,24,,,wrote_new_data
 sector_strength,placeholder,EMPTY,0,"sector strength is derived from local data in a later version; provider empty, kept existing empty csv",,kept_existing_csv
 liquidity,placeholder,EMPTY,0,"liquidity source not configured; provider empty, kept existing empty csv",,kept_existing_csv

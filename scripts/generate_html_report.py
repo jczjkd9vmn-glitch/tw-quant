@@ -144,6 +144,8 @@ COLUMN_LABELS = {
     "highest_pnl_pct_since_entry": "持有期間最高損益率",
     "trailing_stop_price": "移動停利線",
     "exit_reason": "出場原因",
+    "exit_type": "出場類型",
+    "recent_partial_exit_reason": "最近部分出場原因",
     "market_intel_status": "市場判斷狀態",
     "market_intel_warning_count": "市場情報資料不足股票數",
     "market_intel_top_score": "市場判斷最高分",
@@ -489,12 +491,13 @@ def _render_page(
     candidates = _normalize_attention_disposition_display(candidates)
     risk_pass = _normalize_attention_disposition_display(_enrich_with_fundamentals(risk_pass, candidates))
     market_intel = _normalize_attention_disposition_display(market_intel)
+    enrichment_source = _combined_enrichment_sources(candidates, risk_pass, market_intel)
     open_positions = _filter_status(paper_trades, "OPEN")
     closed_trades = _filter_status(paper_trades, "CLOSED")
     latest_paper_summary = _first_row(paper_summary)
-    open_positions = _enrich_with_fundamentals(open_positions, candidates)
-    pending_orders = _enrich_with_fundamentals(pending_orders, candidates)
-    closed_trades = _enrich_with_fundamentals(closed_trades, candidates)
+    open_positions = _mark_missing_market_context(_enrich_with_fundamentals(open_positions, enrichment_source), enrichment_source)
+    pending_orders = _enrich_with_fundamentals(pending_orders, enrichment_source)
+    closed_trades = _enrich_with_fundamentals(closed_trades, enrichment_source)
     health_items = _health_checks(
         report_dir,
         latest_summary,
@@ -644,7 +647,7 @@ def _render_page(
             _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
             _pnl_overview(latest_summary, latest_paper_summary, open_positions),
             _details_block("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary, trading_cost)),
-            _details_block("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades)),
+            _details_block("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades, open_positions)),
             _details_block("出場策略摘要", _exit_strategy_summary(latest_summary, open_positions, closed_trades)),
             _details_block("非交易日替代交易日說明", _fallback_note(latest_summary)),
         ]
@@ -1048,6 +1051,8 @@ def _position_detail_grid(row: pd.Series) -> str:
         "sector_strength_score",
         "final_market_score",
         "confidence_score",
+        "market_intel_source",
+        "market_intel_warning",
         "risk_flags",
         "final_comment",
         "data_source_warning",
@@ -1103,6 +1108,15 @@ def _detail_grid(row: pd.Series, columns: list[str]) -> str:
     return f'<dl class="detail-grid">{"".join(fields)}</dl>'
 
 
+def _combined_enrichment_sources(*frames: pd.DataFrame) -> pd.DataFrame:
+    usable = [frame.copy() for frame in frames if not frame.empty and "stock_id" in frame.columns]
+    if not usable:
+        return pd.DataFrame()
+    combined = pd.concat(usable, ignore_index=True, sort=False)
+    combined["stock_id"] = combined["stock_id"].astype(str).str.strip()
+    return combined.drop_duplicates("stock_id", keep="first")
+
+
 def _enrich_with_fundamentals(frame: pd.DataFrame, candidates: pd.DataFrame) -> pd.DataFrame:
     if frame.empty:
         return frame
@@ -1133,6 +1147,7 @@ def _enrich_with_fundamentals(frame: pd.DataFrame, candidates: pd.DataFrame) -> 
         "final_comment",
         "data_source_warning",
         "market_intel_warning",
+        "market_intel_source",
     ]
     for column in columns:
         if column not in result.columns:
@@ -1152,6 +1167,24 @@ def _enrich_with_fundamentals(frame: pd.DataFrame, candidates: pd.DataFrame) -> 
         current = result[column]
         result[column] = current.where(~current.apply(_is_blank), mapped)
     result["fundamental_reason"] = result["fundamental_reason"].fillna("").replace("", "基本面資料不足，採中性分數")
+    return result
+
+
+def _mark_missing_market_context(frame: pd.DataFrame, enrichment_source: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty or "stock_id" not in frame.columns:
+        return frame
+    result = frame.copy()
+    known_ids = set()
+    if not enrichment_source.empty and "stock_id" in enrichment_source.columns:
+        known_ids = set(enrichment_source["stock_id"].astype(str).str.strip())
+    for column in ["final_comment", "market_intel_warning", "data_source_warning"]:
+        if column not in result.columns:
+            result[column] = ""
+        result[column] = result[column].astype("object")
+    missing_mask = ~result["stock_id"].astype(str).str.strip().isin(known_ids)
+    message = "今日未入選候選股，暫無最新多因子資料"
+    for column in ["final_comment", "market_intel_warning", "data_source_warning"]:
+        result.loc[missing_mask & result[column].apply(_is_blank), column] = message
     return result
 
 
@@ -1328,14 +1361,17 @@ def _key_conclusions(summary: dict[str, object]) -> str:
 def _key_conclusions_v2(summary: dict[str, object], data_fetch_status: pd.DataFrame) -> str:
     if not summary:
         return _empty("今日無重點結論資料")
+    fallback_active = _uses_recent_data(summary)
+    day_label = "資料交易日" if fallback_active else "今日日期"
+    prefix = "最近有效交易日" if fallback_active else "今日"
     cards = [
-        ("今日日期", _format_cell("trade_date", summary.get("trade_date"))),
-        ("今日候選股數量", _format_cell("candidate_rows", summary.get("candidate_rows"))),
-        ("今日通過風控股票數量", _format_cell("risk_pass_rows", summary.get("risk_pass_rows"))),
-        ("今日 pending orders 數量", _format_cell("pending_orders", summary.get("pending_orders"))),
-        ("今日 open positions 數量", _format_cell("open_positions", summary.get("open_positions"))),
-        ("今日 closed trades 數量", _format_cell("closed_positions", summary.get("closed_positions"))),
-        ("今日 market intelligence 狀態", _format_cell("market_intel_status", summary.get("market_intel_status"))),
+        (day_label, _format_cell("trade_date", summary.get("trade_date"))),
+        (f"{prefix}候選股數量", _format_cell("candidate_rows", summary.get("candidate_rows"))),
+        (f"{prefix}通過風控股票數量", _format_cell("risk_pass_rows", summary.get("risk_pass_rows"))),
+        (f"{prefix} pending orders 數量", _format_cell("pending_orders", summary.get("pending_orders"))),
+        (f"{prefix} open positions 數量", _format_cell("open_positions", summary.get("open_positions"))),
+        (f"{prefix} closed trades 數量", _format_cell("closed_positions", summary.get("closed_positions"))),
+        (f"{prefix} market intelligence 狀態", _format_cell("market_intel_status", summary.get("market_intel_status"))),
         ("資料品質摘要", _data_quality_summary(summary, data_fetch_status)),
     ]
     return '<div class="cards key-cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
@@ -1344,22 +1380,53 @@ def _key_conclusions_v2(summary: dict[str, object], data_fetch_status: pd.DataFr
 def _data_quality_summary(summary: dict[str, object], data_fetch_status: pd.DataFrame) -> str:
     if not summary:
         return "缺少每日 summary"
+    issues: list[str] = []
     if str(summary.get("status", "")).upper() == "FAILED" or not _is_blank(summary.get("error_message")):
         error = _format_cell("error_message", summary.get("error_message"))
-        return error if error != "-" else "流程執行失敗"
+        issues.append(_humanize_top_error(error if error != "-" else "流程執行失敗"))
     if (_to_float(summary.get("market_intel_warning_count")) or 0) > 0:
-        return "有市場情報資料不足警告，未影響流程"
+        issues.append("市場情報資料不足，未影響流程")
     if str(summary.get("market_intel_status", "")).upper() == "CACHE":
-        return "市場情報使用快取資料"
+        issues.append("市場情報使用快取資料")
     if not data_fetch_status.empty and "status" in data_fetch_status.columns:
-        statuses = data_fetch_status["status"].fillna("").astype(str).str.upper()
-        if statuses.isin(["FAILED", "MISSING"]).any():
-            return "部分資料來源失敗，已 fallback"
-        if statuses.eq("EMPTY").any():
-            return "部分資料來源為空，採中性或既有資料"
-        if statuses.eq("CACHE").any():
-            return "部分資料來源使用快取資料"
-    return "無重大錯誤"
+        for _, row in data_fetch_status.iterrows():
+            issue = _data_source_quality_issue(row)
+            if issue and issue not in issues:
+                issues.append(issue)
+    return "；".join(issues) if issues else "無重大錯誤"
+
+
+def _data_source_quality_issue(row: pd.Series) -> str:
+    source = str(row.get("source_name", "")).strip()
+    status = str(row.get("status", "")).strip().upper()
+    fallback_action = str(row.get("fallback_action", "")).strip()
+    warning = str(row.get("warning", "")).strip()
+    error_message = str(row.get("error_message", "")).strip()
+    if source == "monthly_revenue" and ("HTTPError: 404" in error_message or "404 Client Error" in error_message):
+        return "月營收資料尚未取得，已保留既有資料，不影響今日流程"
+    if status == "OK_WITH_FALLBACK" or fallback_action == "kept_existing_csv":
+        return _monthly_revenue_fallback_text(source) if source == "monthly_revenue" else "部分資料來源已保留既有資料"
+    if status in {"FAILED", "MISSING"}:
+        return _monthly_revenue_fallback_text(source) if source == "monthly_revenue" else "部分資料來源失敗，已 fallback"
+    if status == "EMPTY":
+        return "部分資料來源為空，採中性或既有資料"
+    if status == "CACHE":
+        return "部分資料來源使用快取資料"
+    if "kept existing csv" in warning:
+        return _monthly_revenue_fallback_text(source) if source == "monthly_revenue" else "部分資料來源已保留既有資料"
+    return ""
+
+
+def _monthly_revenue_fallback_text(source: str) -> str:
+    if source == "monthly_revenue":
+        return "月營收資料尚未取得，已保留既有資料，不影響今日流程"
+    return "部分資料來源已保留既有資料"
+
+
+def _humanize_top_error(message: str) -> str:
+    if "mops.twse.com.tw" in message or "HTTPError" in message:
+        return "資料來源暫不可用，已使用 fallback 或既有資料"
+    return message
 
 
 def _health_checks(
@@ -1462,11 +1529,11 @@ def _data_source_health_items(data_fetch_status: pd.DataFrame) -> list[tuple[str
         rows = int(_to_float(row.get("rows")) or 0)
         maturity = str(row.get("provider_maturity", "")).strip()
         fallback_action = str(row.get("fallback_action", "")).strip()
-        warning = str(row.get("warning", "")).strip()
+        warning = _data_source_warning_text(row)
         error_message = str(row.get("error_message", "")).strip()
         health_status = _provider_health_status(status_text, rows, maturity)
         detail_parts = [
-            f"狀態：{_format_cell('market_intel_status', status_text)}",
+            f"狀態：{_format_data_source_status(status_text)}",
             f"筆數：{rows:,.0f}",
         ]
         if maturity:
@@ -1481,12 +1548,31 @@ def _data_source_health_items(data_fetch_status: pd.DataFrame) -> list[tuple[str
     return items
 
 
+def _data_source_warning_text(row: pd.Series) -> str:
+    source = str(row.get("source_name", "")).strip()
+    error_message = str(row.get("error_message", "")).strip()
+    if source == "monthly_revenue" and ("HTTPError: 404" in error_message or "404 Client Error" in error_message):
+        return "月營收資料尚未發布或來源暫不可用，已保留既有資料。"
+    return str(row.get("warning", "")).strip()
+
+
+def _format_data_source_status(status_text: str) -> str:
+    return {
+        "OK": "正常",
+        "OK_WITH_FALLBACK": "成功，保留既有資料",
+        "CACHE": "使用快取資料",
+        "EMPTY": "無資料",
+        "FAILED": "失敗",
+        "MISSING": "資料缺失",
+    }.get(str(status_text).strip().upper(), status_text)
+
+
 def _provider_health_status(status_text: str, rows: int, maturity: str) -> str:
     maturity_text = str(maturity).strip().lower()
     status = str(status_text).strip().upper()
     if status in {"FAILED", "MISSING"}:
         return "警告"
-    if status in {"CACHE", "EMPTY"}:
+    if status in {"CACHE", "EMPTY", "OK_WITH_FALLBACK"}:
         return "注意"
     if status == "OK" and rows == 0:
         return "注意"
@@ -1522,10 +1608,26 @@ def _health_summary_cards(items: list[tuple[str, str, str]]) -> str:
 
 
 def _warning_banner(items: list[tuple[str, str, str]]) -> str:
-    warnings = [f"{name}：{detail}" for name, status, detail in items if status == "警告"]
-    if not warnings:
+    warnings = [_top_warning_message(name, detail) for name, status, detail in items if status == "警告"]
+    notices = [
+        "月營收資料尚未取得，已保留既有資料，不影響今日流程。"
+        for name, status, detail in items
+        if status == "注意" and "資料來源：monthly_revenue" in name and "已保留既有資料" in detail
+    ]
+    messages = warnings + list(dict.fromkeys(notices))
+    if not messages:
         return ""
-    return '<div class="top-warning"><strong>警告</strong><span>' + escape("；".join(warnings)) + "</span></div>"
+    return '<div class="top-warning"><strong>注意</strong><span>' + escape("；".join(messages)) + "</span></div>"
+
+
+def _top_warning_message(name: str, detail: str) -> str:
+    if "資料來源：monthly_revenue" in name and ("HTTPError: 404" in detail or "404 Client Error" in detail):
+        return "月營收資料尚未取得，已保留既有資料，不影響今日流程。"
+    return f"{name}：{_strip_urls(detail)}"
+
+
+def _strip_urls(text: str) -> str:
+    return re.sub(r"https?://\S+", "[URL 已隱藏]", text)
 
 
 def _stale_pending_count(pending_orders: pd.DataFrame, trade_date: pd.Timestamp) -> int:
@@ -1784,15 +1886,19 @@ def _exit_strategy_summary(
     open_positions: pd.DataFrame,
     closed_trades: pd.DataFrame,
 ) -> str:
+    prefix = "最近有效交易日" if _uses_recent_data(summary) else "今日"
     cards = [
-        ("今日停利筆數", _format_cell("take_profit_exits", summary.get("take_profit_exits"))),
-        ("今日停損筆數", _format_cell("stop_loss_exits", summary.get("stop_loss_exits"))),
-        ("今日移動停利筆數", _format_cell("trailing_stop_exits", summary.get("trailing_stop_exits"))),
-        ("今日趨勢出場筆數", _format_cell("trend_exit_exits", summary.get("trend_exit_exits"))),
-        ("今日扣成本後已實現損益", _format_cell("realized_pnl_after_cost_today", summary.get("realized_pnl_after_cost_today"))),
+        (f"{prefix}停利筆數", _format_cell("take_profit_exits", summary.get("take_profit_exits"))),
+        (f"{prefix}停損筆數", _format_cell("stop_loss_exits", summary.get("stop_loss_exits"))),
+        (f"{prefix}移動停利筆數", _format_cell("trailing_stop_exits", summary.get("trailing_stop_exits"))),
+        (f"{prefix}趨勢出場筆數", _format_cell("trend_exit_exits", summary.get("trend_exit_exits"))),
+        (f"{prefix}扣成本後已實現損益", _format_cell("realized_pnl_after_cost_today", summary.get("realized_pnl_after_cost_today"))),
     ]
+    open_display = open_positions.copy()
+    if not open_display.empty and "exit_reason" in open_display.columns:
+        open_display["recent_partial_exit_reason"] = open_display["exit_reason"]
     open_table = _table(
-        open_positions,
+        open_display,
         [
             "stock_id",
             "stock_name",
@@ -1800,7 +1906,7 @@ def _exit_strategy_summary(
             "remaining_shares",
             "highest_price_since_entry",
             "trailing_stop_price",
-            "exit_reason",
+            "recent_partial_exit_reason",
         ],
         "目前尚無出場策略持倉資料",
         max_rows=50,
@@ -1811,7 +1917,7 @@ def _exit_strategy_summary(
     )
 
 
-def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) -> str:
+def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame, open_positions: pd.DataFrame) -> str:
     blocks: list[str] = []
     if summary:
         cards = [
@@ -1830,7 +1936,7 @@ def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) 
     else:
         blocks.append(_empty("目前尚無紙上交易績效資料"))
 
-    today_exits = _today_exit_frame(closed_trades, summary.get("trade_date") if summary else None)
+    today_exits = _today_exit_frame(closed_trades, open_positions, summary.get("trade_date") if summary else None)
     blocks.append(
         _details_block(
             "今日出場明細",
@@ -1839,12 +1945,14 @@ def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) 
                 [
                     "stock_id",
                     "stock_name",
+                    "exit_type",
                     "exit_date",
                     "exit_reason",
                     "exit_price",
                     "realized_pnl_after_cost",
                     "realized_pnl_pct_after_cost",
                     "total_cost",
+                    "status",
                 ],
                 "今日尚無出場交易",
                 max_rows=50,
@@ -1881,15 +1989,49 @@ def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame) 
     return "".join(blocks)
 
 
-def _today_exit_frame(closed_trades: pd.DataFrame, trade_date: object) -> pd.DataFrame:
-    if closed_trades.empty or "exit_date" not in closed_trades.columns:
-        return pd.DataFrame()
+def _today_exit_frame(
+    closed_trades: pd.DataFrame,
+    open_positions_or_trade_date: pd.DataFrame | object | None = None,
+    trade_date: object | None = None,
+) -> pd.DataFrame:
+    if trade_date is None:
+        if isinstance(open_positions_or_trade_date, pd.DataFrame):
+            open_positions = open_positions_or_trade_date
+            trade_date = None
+        else:
+            open_positions = pd.DataFrame()
+            trade_date = open_positions_or_trade_date
+    else:
+        open_positions = open_positions_or_trade_date if isinstance(open_positions_or_trade_date, pd.DataFrame) else pd.DataFrame()
     target = _normalized_date_text(trade_date)
     if not target:
         return pd.DataFrame()
-    frame = closed_trades.copy()
-    exit_dates = frame["exit_date"].apply(_normalized_date_text)
-    return frame[exit_dates == target].copy()
+    frames: list[pd.DataFrame] = []
+    if not closed_trades.empty and "exit_date" in closed_trades.columns:
+        closed = closed_trades.copy()
+        closed = closed[closed["exit_date"].apply(_normalized_date_text) == target].copy()
+        if not closed.empty:
+            closed["exit_type"] = "完整出場"
+            frames.append(closed)
+    if not open_positions.empty and {"exit_date", "exit_reason"}.issubset(open_positions.columns):
+        open_frame = open_positions.copy()
+        reasons = open_frame["exit_reason"].fillna("").astype(str).str.upper()
+        open_frame = open_frame[
+            (open_frame["exit_date"].apply(_normalized_date_text) == target)
+            & reasons.isin({"TAKE_PROFIT_1", "TAKE_PROFIT_2"})
+        ].copy()
+        if not open_frame.empty:
+            open_frame["exit_type"] = "部分停利 / 部分出場"
+            if "exit_price" not in open_frame.columns:
+                open_frame["exit_price"] = ""
+            open_frame["exit_price"] = open_frame["exit_price"].where(
+                ~open_frame["exit_price"].apply(_is_blank),
+                "部分出場紀錄",
+            )
+            frames.append(open_frame)
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True, sort=False)
 
 
 def _cost_overview(

@@ -137,7 +137,7 @@ def test_fetch_multi_factor_keeps_existing_monthly_revenue_on_mops_security_bloc
 
     row = status[status["source_name"] == "monthly_revenue"].iloc[0]
     assert path.read_text(encoding="utf-8") == before
-    assert row["status"] == "OK"
+    assert row["status"] == "OK_WITH_FALLBACK"
     assert row["fallback_action"] == "kept_existing_csv"
     assert len(row["error_message"]) <= 300
 
@@ -337,7 +337,7 @@ def test_attention_provider_failure_does_not_overwrite_existing_csv(tmp_path: Pa
 
     row = status[status["source_name"] == "attention_disposition"].iloc[0]
     assert path.read_text(encoding="utf-8") == before
-    assert row["status"] == "OK"
+    assert row["status"] == "OK_WITH_FALLBACK"
     assert row["fallback_action"] == "kept_existing_csv"
 
 

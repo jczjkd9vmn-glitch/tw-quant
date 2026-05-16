@@ -76,6 +76,13 @@ def _provider_issue_label(status: str, rows: int) -> str:
     return "provider unavailable"
 
 
+def _kept_existing_warning(source_name: str, status: str, rows: int) -> str:
+    issue = _provider_issue_label(status, rows)
+    if source_name == "monthly_revenue" and issue == "provider empty":
+        return f"{issue}, kept existing csv; 官方來源本次無資料，保留既有 CSV，rows 為既有資料筆數。"
+    return f"{issue}, kept existing csv; 官方來源本次無法提供新資料，保留既有 CSV，rows 為既有資料筆數。"
+
+
 def _append_warning(base: str, addition: str) -> str:
     if not base:
         return addition
@@ -225,15 +232,15 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
             output = existing
             rows = len(output)
             if existing_status == "OK":
-                status = "OK"
-                warning = _append_warning(warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, kept existing csv")
+                status = "OK_WITH_FALLBACK"
+                warning = _append_warning(warning, _kept_existing_warning(spec.name, fetched.status, len(fetched.data)))
                 fallback_action = "kept_existing_csv"
             elif existing_status == "EMPTY":
                 status = "EMPTY" if fetched.status.upper() != "FAILED" else "FAILED"
                 warning = _append_warning(warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, kept existing empty csv")
                 fallback_action = "kept_existing_csv"
             else:
-                status = "MISSING" if status != "FAILED" else "FAILED"
+                status = "EMPTY" if status != "FAILED" else "FAILED"
                 warning = _append_warning(warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, no existing csv, wrote empty schema")
                 output = _ensure_schema(output, spec.columns)
                 output.to_csv(spec.output_path, index=False, encoding="utf-8-sig")

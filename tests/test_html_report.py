@@ -17,7 +17,7 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert "台股紙上交易帳務" in html
     assert "損益總覽" in html
     assert "系統健康檢查" in html
-    assert "基本面摘要" in html
+    assert "市場情報 / 多因子" in html
     assert "多因子分數摘要" in html or "多因子資料更新狀態" in html
     assert "高風險事件警告數" in html
     assert "估值警告候選股數" in html
@@ -500,7 +500,7 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert "目前持倉" in html
     assert "待進場" in html
     assert "今日 / 最近已出場" in html
-    assert "基本面摘要" in html
+    assert "市場情報 / 多因子" in html
     assert "市場判斷摘要" in html
     assert "系統健康檢查" in html
     assert "交易成本摘要" in html

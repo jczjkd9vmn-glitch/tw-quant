@@ -136,11 +136,17 @@ def test_data_quality_summary_collects_multiple_issues_without_raw_urls(tmp_path
 
     html = generate_html_report(tmp_path).read_text(encoding="utf-8")
 
+    quality_card = html.split("資料品質摘要", 1)[1].split("</section>", 1)[0]
+    detail_block = html.split("資料品質詳細說明", 1)[1].split("</details>", 1)[0]
+
+    assert "資料品質：有注意事項" in quality_card
     assert "市場情報資料不足，未影響流程" in html
     assert "市場情報使用快取資料" in html
     assert "月營收資料尚未取得，已保留既有資料，不影響今日流程" in html
     assert "部分資料來源為空，採中性或既有資料" in html
-    assert "https://mops.twse.com.tw" not in html.split("資料品質摘要", 1)[1].split("</section>", 1)[0]
+    assert "<li>市場情報資料不足，未影響流程</li>" in detail_block
+    assert "<li>市場情報使用快取資料</li>" in detail_block
+    assert "https://mops.twse.com.tw" not in quality_card
 
 
 def test_data_quality_summary_only_says_no_issue_when_clean(tmp_path: Path) -> None:
@@ -152,7 +158,8 @@ def test_data_quality_summary_only_says_no_issue_when_clean(tmp_path: Path) -> N
 
     html = generate_html_report(tmp_path).read_text(encoding="utf-8")
 
-    assert "無重大錯誤" in html
+    assert "資料品質：正常" in html
+    assert "目前未偵測到重大資料品質問題" in html
 
 
 def test_health_checks_include_data_fetch_status_without_mojibake_status(tmp_path: Path) -> None:
@@ -171,22 +178,30 @@ def test_health_checks_include_data_fetch_status_without_mojibake_status(tmp_pat
 
     html = generate_html_report(tmp_path).read_text(encoding="utf-8")
 
-    assert "資料來源：monthly_revenue" in html
-    assert "資料來源：margin_short" in html
-    assert "資料來源：institutional" in html
+    assert "資料來源摘要表" in html
+    assert "資料來源技術細節" in html
+    summary_table = html.split("資料來源摘要表", 1)[1].split("資料來源技術細節", 1)[0]
+    technical = html.split("資料來源技術細節", 1)[1].split("</details>", 1)[0]
+    assert "月營收" in summary_table
+    assert "融資融券" in summary_table
+    assert "三大法人" in summary_table
+    assert "provider_maturity" not in summary_table
+    assert "fallback_action" not in summary_table
+    assert "provider_maturity" in technical
+    assert "fallback_action" in technical
     assert "正常資料源數" in html
     assert "注意資料源數" in html
     assert "警告資料源數" in html
-    assert "失敗" in html
-    assert "無資料" in html
+    assert "尚未取得資料，採中性或既有資料" in html
     assert "使用快取資料" in html
-    assert "成功，保留既有資料" in html
+    assert "尚未取得新資料，已保留既有資料" in html
+    assert "nan" not in html.lower()
     assert "霅血" not in html
     assert "瘜冽" not in html
     assert "甇" not in html
 
 
-def test_monthly_revenue_404_top_warning_is_human_readable(tmp_path: Path) -> None:
+def test_monthly_revenue_404_top_notice_is_human_readable(tmp_path: Path) -> None:
     _write_reports(
         tmp_path,
         summary_overrides={"market_intel_warning_count": 0},
@@ -206,11 +221,30 @@ def test_monthly_revenue_404_top_warning_is_human_readable(tmp_path: Path) -> No
     )
 
     html = generate_html_report(tmp_path).read_text(encoding="utf-8")
-    top_warning = html.split('class="top-warning"', 1)[1].split("</div>", 1)[0]
+    top_notice = html.split('class="top-notice"', 1)[1].split("</div>", 1)[0]
 
-    assert "月營收資料尚未取得，已保留既有資料，不影響今日流程" in top_warning
-    assert "https://mops.twse.com.tw" not in top_warning
+    assert 'class="top-warning"' not in html
+    assert "月營收資料尚未取得，已保留既有資料，不影響今日流程" in top_notice
+    assert "https://mops.twse.com.tw" not in top_notice
     assert "HTTPError: 404 Client Error" in html
+
+
+def test_pipeline_failed_uses_top_warning(tmp_path: Path) -> None:
+    _write_reports(
+        tmp_path,
+        summary_overrides={
+            "status": "FAILED",
+            "error_step": "run_daily",
+            "error_message": "DataQualityError: no trading data",
+            "market_intel_warning_count": 0,
+        },
+        data_fetch_status=_status_frame([("institutional", "OK", 10, "best_effort", "wrote_new_data")]),
+    )
+
+    html = generate_html_report(tmp_path).read_text(encoding="utf-8")
+
+    assert 'class="top-warning"' in html
+    assert "data update" in html
 
 
 def test_market_intel_page_discloses_mock_and_score_usage(tmp_path: Path) -> None:
@@ -285,6 +319,8 @@ def test_today_exit_detail_filters_by_trade_date(tmp_path: Path) -> None:
     assert "累計已平倉交易明細" in html
     assert "部分停利 / 部分出場" in html
     assert "部分出場紀錄" in html
+    assert "最近有效交易日完整出場筆數" in html
+    assert "最近有效交易日部分出場筆數" in html
 
 
 def test_pending_orders_are_split_between_waiting_and_skipped(tmp_path: Path) -> None:
@@ -343,7 +379,33 @@ def test_report_wording_and_css_are_updated(tmp_path: Path) -> None:
     assert "市場情報資料不足股票數" in html
     assert "總現值" not in html
     assert ".mobile-cards" in html
+    assert "width:min(1440px,100%)" in html
+    assert "minmax(320px,1fr)" in html
+    assert "white-space:nowrap" in html
     assert html.count(".health.正常 strong") == 1
+
+
+def test_recent_summary_is_short_and_full_raw_summary_is_collapsed(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    html = generate_html_report(tmp_path).read_text(encoding="utf-8")
+    recent_block = html.split("<summary>最近每日 summary</summary>", 1)[1].split("</details>", 1)[0]
+
+    assert "帳戶總資產" in recent_block
+    assert "entry_price_source_warnings" not in recent_block
+    assert "完整每日 summary 原始資料" in html
+
+
+def test_market_intel_candidate_cards_use_collapsed_details(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    html = generate_html_report(tmp_path).read_text(encoding="utf-8")
+    fundamental_tab = html.split('data-tab-panel="fundamental"', 1)[1].split('data-tab-panel="health"', 1)[0]
+
+    assert "market-card" in fundamental_tab
+    assert "展開完整資料" in fundamental_tab
+    first_card = fundamental_tab.split('class="mobile-card market-card"', 1)[1].split("<summary>展開完整資料</summary>", 1)[0]
+    assert "多因子理由" not in first_card
 
 
 def _write_reports(

@@ -177,6 +177,17 @@ COLUMN_LABELS = {
 
 COLUMN_LABELS.update(
     {
+        "summary_requested_date": "執行日",
+        "summary_trade_date": "交易日",
+        "summary_status": "狀態",
+        "summary_candidate_rows": "候選",
+        "summary_risk_pass_rows": "風控通過",
+        "summary_pending_orders": "待進場",
+        "summary_executed_orders": "成交",
+        "summary_open_positions": "持倉",
+        "summary_closed_positions": "已出場",
+        "summary_total_equity_after_cost": "帳戶總資產",
+        "summary_data_status": "資料狀態",
         "market_chip_score": "市場籌碼分數",
         "credit_score": "信用健康分數",
         "event_risk_score": "事件風險健康分數",
@@ -371,6 +382,12 @@ INTEGER_COLUMNS = {
     "original_shares",
     "remaining_shares",
     "holding_days",
+    "summary_candidate_rows",
+    "summary_risk_pass_rows",
+    "summary_pending_orders",
+    "summary_executed_orders",
+    "summary_open_positions",
+    "summary_closed_positions",
 }
 STATUS_COLUMNS = {
     "status",
@@ -384,6 +401,8 @@ STATUS_COLUMNS = {
     "event_risk_level",
     "event_blocked",
     "market_intel_status",
+    "summary_status",
+    "summary_data_status",
 }
 DATE_COLUMNS = {
     "trade_date",
@@ -393,7 +412,10 @@ DATE_COLUMNS = {
     "signal_date",
     "planned_entry_date",
     "actual_entry_date",
+    "summary_requested_date",
+    "summary_trade_date",
 }
+AMOUNT_COLUMNS.add("summary_total_equity_after_cost")
 SCORE_COLUMNS.update(
     {
         "market_chip_score",
@@ -511,86 +533,83 @@ def _render_page(
     alert = _warning_banner(health_items)
     updated_at = _report_updated_at(report_dir)
 
-    candidate_detail = _responsive_records(
+    market_summary_columns = [
+        "stock_id",
+        "stock_name",
+        "total_score",
+        "multi_factor_score",
+        "final_market_score",
+        "confidence_score",
+        "risk_pass",
+        "is_attention_stock",
+        "is_disposition_stock",
+        "risk_flags",
+        "final_comment",
+    ]
+    market_detail_columns = [
+        "rank",
+        "trade_date",
+        "close",
+        "original_total_score",
+        "trend_score",
+        "momentum_score",
+        "risk_score",
+        "revenue_score",
+        "revenue_yoy",
+        "revenue_mom",
+        "accumulated_revenue_yoy",
+        "revenue_reason",
+        "valuation_score",
+        "pe_ratio",
+        "pb_ratio",
+        "dividend_yield",
+        "valuation_warning",
+        "financial_score",
+        "eps",
+        "roe",
+        "financial_warning",
+        "event_score",
+        "event_risk_level",
+        "event_blocked",
+        "attention_reason",
+        "disposition_reason",
+        "event_reason",
+        "institutional_score",
+        "institutional_reason",
+        "credit_score",
+        "event_risk_score",
+        "liquidity_score",
+        "sector_strength_score",
+        "data_source_warning",
+        "market_intel_warning",
+        "system_comment",
+        "market_fundamental_score",
+        "market_valuation_score",
+        "market_momentum_score",
+        "market_chip_score",
+        "news_sentiment_score",
+        "multi_factor_reason",
+        "reason",
+    ]
+    candidate_detail = _responsive_compact_records(
         candidates,
-        [
-            "rank",
-            "trade_date",
-            "stock_id",
-            "stock_name",
-            "close",
-            "total_score",
-            "original_total_score",
-            "multi_factor_score",
-            "trend_score",
-            "momentum_score",
-            "risk_score",
-            "revenue_score",
-            "revenue_yoy",
-            "revenue_mom",
-            "accumulated_revenue_yoy",
-            "revenue_reason",
-            "valuation_score",
-            "pe_ratio",
-            "pb_ratio",
-            "dividend_yield",
-            "valuation_warning",
-            "financial_score",
-            "eps",
-            "roe",
-            "financial_warning",
-            "event_score",
-            "event_risk_level",
-            "event_blocked",
-            "is_attention_stock",
-            "attention_reason",
-            "is_disposition_stock",
-            "disposition_reason",
-            "event_reason",
-            "institutional_score",
-            "institutional_reason",
-            "credit_score",
-            "event_risk_score",
-            "liquidity_score",
-            "sector_strength_score",
-            "data_source_warning",
-            "system_comment",
-            "market_fundamental_score",
-            "market_valuation_score",
-            "market_momentum_score",
-            "market_chip_score",
-            "news_sentiment_score",
-            "final_market_score",
-            "confidence_score",
-            "risk_flags",
-            "final_comment",
-            "multi_factor_reason",
-            "reason",
-        ],
+        market_summary_columns,
+        market_detail_columns,
         "目前尚無候選股資料",
         max_rows=20,
     )
-    risk_pass_detail = _responsive_records(
+    risk_pass_detail = _responsive_compact_records(
         risk_pass,
+        market_summary_columns,
         [
             "rank",
-            "stock_id",
-            "stock_name",
             "close",
-            "total_score",
-            "multi_factor_score",
-            "final_market_score",
-            "confidence_score",
             "institutional_score",
             "credit_score",
             "event_risk_score",
             "liquidity_score",
             "sector_strength_score",
-            "risk_flags",
-            "final_comment",
-            "is_attention_stock",
             "attention_reason",
-            "is_disposition_stock",
             "disposition_reason",
             "event_reason",
             "event_blocked",
@@ -598,53 +617,44 @@ def _render_page(
             "risk_reason",
             "stop_loss_price",
             "suggested_position_pct",
+            "data_source_warning",
+            "market_intel_warning",
+            "system_comment",
+            "multi_factor_reason",
+            "reason",
         ],
         "目前尚無通過風控的股票",
         max_rows=20,
     )
-    recent_summary_detail = _table(
-        recent_summaries,
+    recent_summary_brief = _table(
+        _brief_recent_summaries(recent_summaries),
         [
-            "requested_date",
-            "trade_date",
-            "status",
-            "fallback_date",
-            "fallback_reason",
-            "scored_rows",
-            "candidate_rows",
-            "risk_pass_rows",
-            "pending_orders",
-            "executed_orders",
-            "skipped_orders",
-            "entry_price_source_warnings",
-            "open_positions",
-            "closed_positions",
-            "unrealized_pnl",
-            "realized_pnl",
-            "total_equity",
-            "total_cost",
-            "realized_pnl_after_cost",
-            "total_equity_after_cost",
-            "take_profit_exits",
-            "stop_loss_exits",
-            "trailing_stop_exits",
-            "trend_exit_exits",
-            "realized_pnl_after_cost_today",
-            "fundamental_positive_candidates",
-            "fundamental_warning_candidates",
-            "high_risk_event_candidates",
-            "valuation_warning_candidates",
-            "financial_warning_candidates",
-            "institutional_positive_candidates",
-            "multi_factor_data_status",
+            "summary_requested_date",
+            "summary_trade_date",
+            "summary_status",
+            "summary_candidate_rows",
+            "summary_risk_pass_rows",
+            "summary_pending_orders",
+            "summary_executed_orders",
+            "summary_open_positions",
+            "summary_closed_positions",
+            "summary_total_equity_after_cost",
+            "summary_data_status",
         ],
         "目前尚無每日 summary",
+        max_rows=10,
+    )
+    recent_summary_full = _table(
+        recent_summaries,
+        [column for column in recent_summaries.columns if not column.startswith("_")],
+        "目前尚無每日 summary 原始資料",
         max_rows=10,
     )
 
     overview_content = "".join(
         [
             _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
+            _data_quality_detail_block(latest_summary, data_fetch_status),
             _pnl_overview(latest_summary, latest_paper_summary, open_positions),
             _details_block("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary, trading_cost)),
             _details_block("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades, open_positions)),
@@ -665,8 +675,11 @@ def _render_page(
     health_content = "".join(
         [
             _health_summary_cards(health_items),
-            _details_block("系統健康檢查詳細項目", _health_section(health_items)),
-            _details_block("最近每日 summary", recent_summary_detail),
+            _data_source_summary_section(data_fetch_status),
+            _details_block("資料來源技術細節", _data_source_technical_details(data_fetch_status)),
+            _details_block("系統健康檢查詳細項目", _health_section(_non_data_source_health_items(health_items))),
+            _details_block("最近每日 summary", recent_summary_brief),
+            _details_block("完整每日 summary 原始資料", recent_summary_full),
         ]
     )
 
@@ -1378,8 +1391,25 @@ def _key_conclusions_v2(summary: dict[str, object], data_fetch_status: pd.DataFr
 
 
 def _data_quality_summary(summary: dict[str, object], data_fetch_status: pd.DataFrame) -> str:
+    issues = _data_quality_issues(summary, data_fetch_status)
+    if not issues:
+        return "資料品質：正常"
+    if _has_data_quality_warning(summary, data_fetch_status):
+        return "資料品質：有警告"
+    return "資料品質：有注意事項"
+
+
+def _data_quality_detail_block(summary: dict[str, object], data_fetch_status: pd.DataFrame) -> str:
+    issues = _data_quality_issues(summary, data_fetch_status)
+    if not issues:
+        issues = ["目前未偵測到重大資料品質問題"]
+    items = "".join(f"<li>{escape(issue)}</li>" for issue in issues)
+    return _details_block("資料品質詳細說明", f'<ul class="quality-list">{items}</ul>')
+
+
+def _data_quality_issues(summary: dict[str, object], data_fetch_status: pd.DataFrame) -> list[str]:
     if not summary:
-        return "缺少每日 summary"
+        return ["缺少每日 summary"]
     issues: list[str] = []
     if str(summary.get("status", "")).upper() == "FAILED" or not _is_blank(summary.get("error_message")):
         error = _format_cell("error_message", summary.get("error_message"))
@@ -1393,7 +1423,23 @@ def _data_quality_summary(summary: dict[str, object], data_fetch_status: pd.Data
             issue = _data_source_quality_issue(row)
             if issue and issue not in issues:
                 issues.append(issue)
-    return "；".join(issues) if issues else "無重大錯誤"
+    return issues
+
+
+def _has_data_quality_warning(summary: dict[str, object], data_fetch_status: pd.DataFrame) -> bool:
+    if not summary:
+        return True
+    if str(summary.get("status", "")).upper() == "FAILED" or not _is_blank(summary.get("error_message")):
+        return True
+    if data_fetch_status.empty or "status" not in data_fetch_status.columns:
+        return False
+    for _, row in data_fetch_status.iterrows():
+        status = str(row.get("status", "")).strip().upper()
+        fallback_action = str(row.get("fallback_action", "")).strip()
+        source = str(row.get("source_name", "")).strip()
+        if status in {"FAILED", "MISSING"} and fallback_action != "kept_existing_csv" and source != "monthly_revenue":
+            return True
+    return False
 
 
 def _data_source_quality_issue(row: pd.Series) -> str:
@@ -1529,9 +1575,9 @@ def _data_source_health_items(data_fetch_status: pd.DataFrame) -> list[tuple[str
         rows = int(_to_float(row.get("rows")) or 0)
         maturity = str(row.get("provider_maturity", "")).strip()
         fallback_action = str(row.get("fallback_action", "")).strip()
-        warning = _data_source_warning_text(row)
-        error_message = str(row.get("error_message", "")).strip()
-        health_status = _provider_health_status(status_text, rows, maturity)
+        warning = "" if _data_source_warning_text(row) == "無" else _data_source_warning_text(row)
+        error_message = "" if _safe_text(row.get("error_message")) == "無" else _safe_text(row.get("error_message"))
+        health_status = _provider_health_status_from_row(row)
         detail_parts = [
             f"狀態：{_format_data_source_status(status_text)}",
             f"筆數：{rows:,.0f}",
@@ -1548,12 +1594,146 @@ def _data_source_health_items(data_fetch_status: pd.DataFrame) -> list[tuple[str
     return items
 
 
-def _data_source_warning_text(row: pd.Series) -> str:
+def _non_data_source_health_items(items: list[tuple[str, str, str]]) -> list[tuple[str, str, str]]:
+    return [item for item in items if not item[0].startswith("資料來源：")]
+
+
+def _data_source_summary_section(data_fetch_status: pd.DataFrame) -> str:
+    return _section("資料來源摘要表", _data_source_summary_table(data_fetch_status), class_name="data-source-summary")
+
+
+def _data_source_summary_table(data_fetch_status: pd.DataFrame) -> str:
+    if data_fetch_status.empty:
+        return _empty("目前尚無 data_fetch_status 資料")
+
+    rows = []
+    for _, row in data_fetch_status.iterrows():
+        status_text = str(row.get("status", "")).strip().upper()
+        rows.append(
+            [
+                _source_display_name(row.get("source_name")),
+                _provider_health_status_from_row(row),
+                _data_source_plain_description(row),
+                _format_source_rows(row.get("rows")),
+                _data_source_impact(row),
+            ]
+        )
+    return _plain_table(["資料源", "狀態", "人話說明", "筆數", "影響程度"], rows, class_name="summary-table source-summary-table")
+
+
+def _data_source_technical_details(data_fetch_status: pd.DataFrame) -> str:
+    if data_fetch_status.empty:
+        return _empty("目前尚無資料來源技術細節")
+    rows = []
+    for _, row in data_fetch_status.iterrows():
+        rows.append(
+            [
+                _safe_text(row.get("source_name")),
+                _safe_text(row.get("provider_maturity")),
+                _safe_text(row.get("status")),
+                _safe_text(row.get("fallback_action")),
+                _truncate_text(_safe_text(row.get("warning")), 220),
+                _truncate_text(_safe_text(row.get("error_message")), 220),
+            ]
+        )
+    return _plain_table(
+        ["source_name", "provider_maturity", "status", "fallback_action", "warning", "error_message"],
+        rows,
+        class_name="technical-table",
+    )
+
+
+def _plain_table(headers: list[str], rows: list[list[str]], class_name: str = "") -> str:
+    if not rows:
+        return _empty("目前尚無資料")
+    class_attr = f' class="{escape(class_name)}"' if class_name else ""
+    header = "".join(f"<th>{escape(header_text)}</th>" for header_text in headers)
+    body = []
+    for row in rows:
+        cells = "".join(f"<td>{escape(_safe_text(value))}</td>" for value in row)
+        body.append(f"<tr>{cells}</tr>")
+    return f'<div class="table-wrap always-table"><table{class_attr}><thead><tr>{header}</tr></thead><tbody>{"".join(body)}</tbody></table></div>'
+
+
+def _source_display_name(value: object) -> str:
+    source = _safe_text(value)
+    return {
+        "monthly_revenue": "月營收",
+        "institutional": "三大法人",
+        "margin_short": "融資融券",
+        "valuation": "估值",
+        "financials": "財報",
+        "attention_disposition": "注意 / 處置股",
+        "material_events": "重大訊息",
+        "sector_strength": "產業相對強弱",
+        "liquidity": "流動性",
+    }.get(source, source)
+
+
+def _data_source_plain_description(row: pd.Series) -> str:
     source = str(row.get("source_name", "")).strip()
+    status = str(row.get("status", "")).strip().upper()
+    rows = int(_to_float(row.get("rows")) or 0)
+    maturity = str(row.get("provider_maturity", "")).strip().lower()
+    fallback_action = str(row.get("fallback_action", "")).strip()
     error_message = str(row.get("error_message", "")).strip()
     if source == "monthly_revenue" and ("HTTPError: 404" in error_message or "404 Client Error" in error_message):
+        return "尚未取得新資料，已保留既有資料"
+    if fallback_action == "kept_existing_csv" or status == "OK_WITH_FALLBACK":
+        return "尚未取得新資料，已保留既有資料"
+    if status == "CACHE":
+        return "使用快取資料"
+    if status == "OK" and rows > 0:
+        return "已取得資料"
+    if status in {"EMPTY", "MISSING"}:
+        return "尚未取得資料，採中性或既有資料"
+    if status == "FAILED":
+        return "資料來源失敗，已使用 fallback 或採中性"
+    if maturity in {"placeholder", "csv_fallback"}:
+        return "尚未接正式來源，採中性或既有資料"
+    return "未提供"
+
+
+def _data_source_impact(row: pd.Series) -> str:
+    status = str(row.get("status", "")).strip().upper()
+    fallback_action = str(row.get("fallback_action", "")).strip()
+    source = str(row.get("source_name", "")).strip()
+    if status == "OK" and fallback_action != "kept_existing_csv":
+        return "正常"
+    if source == "monthly_revenue" or fallback_action == "kept_existing_csv" or status in {"CACHE", "EMPTY", "OK_WITH_FALLBACK"}:
+        return "不影響流程"
+    if status in {"FAILED", "MISSING"}:
+        return "需人工確認"
+    return "不影響流程"
+
+
+def _format_source_rows(value: object) -> str:
+    number = _to_float(value)
+    if number is None:
+        return "未提供"
+    return f"{number:,.0f}"
+
+
+def _truncate_text(value: str, limit: int) -> str:
+    if len(value) <= limit:
+        return value
+    return value[: limit - 1] + "…"
+
+
+def _safe_text(value: object) -> str:
+    if _is_blank(value):
+        return "無"
+    text = str(value).strip()
+    return "無" if text.lower() == "nan" or text == "" else text
+
+
+def _data_source_warning_text(row: pd.Series) -> str:
+    source = str(row.get("source_name", "")).strip()
+    error_message = "" if _safe_text(row.get("error_message")) == "無" else _safe_text(row.get("error_message"))
+    if source == "monthly_revenue" and ("HTTPError: 404" in error_message or "404 Client Error" in error_message):
         return "月營收資料尚未發布或來源暫不可用，已保留既有資料。"
-    return str(row.get("warning", "")).strip()
+    warning = _safe_text(row.get("warning"))
+    return "" if warning == "無" else warning
 
 
 def _format_data_source_status(status_text: str) -> str:
@@ -1579,6 +1759,17 @@ def _provider_health_status(status_text: str, rows: int, maturity: str) -> str:
     if maturity_text in {"placeholder", "csv_fallback"}:
         return "注意"
     return "正常"
+
+
+def _provider_health_status_from_row(row: pd.Series) -> str:
+    fallback_action = str(row.get("fallback_action", "")).strip()
+    if fallback_action == "kept_existing_csv":
+        return "注意"
+    return _provider_health_status(
+        str(row.get("status", "")).strip().upper(),
+        int(_to_float(row.get("rows")) or 0),
+        str(row.get("provider_maturity", "")).strip(),
+    )
 
 
 def _health_section(items: list[tuple[str, str, str]]) -> str:
@@ -1608,16 +1799,65 @@ def _health_summary_cards(items: list[tuple[str, str, str]]) -> str:
 
 
 def _warning_banner(items: list[tuple[str, str, str]]) -> str:
-    warnings = [_top_warning_message(name, detail) for name, status, detail in items if status == "警告"]
-    notices = [
-        "月營收資料尚未取得，已保留既有資料，不影響今日流程。"
-        for name, status, detail in items
-        if status == "注意" and "資料來源：monthly_revenue" in name and "已保留既有資料" in detail
-    ]
-    messages = warnings + list(dict.fromkeys(notices))
-    if not messages:
-        return ""
-    return '<div class="top-warning"><strong>注意</strong><span>' + escape("；".join(messages)) + "</span></div>"
+    warnings: list[str] = []
+    notices: list[str] = []
+    infos: list[str] = []
+    for name, status, detail in items:
+        if _is_top_notice(name, status, detail):
+            notices.append(_top_notice_message(name, detail))
+        elif _is_top_warning(name, status, detail):
+            warnings.append(_top_warning_message(name, detail))
+        elif _is_top_info(name, status, detail):
+            infos.append(_top_info_message(name, detail))
+
+    blocks = []
+    for level, title, messages in [
+        ("warning", "警告", warnings),
+        ("notice", "注意", notices),
+        ("info", "資訊", infos),
+    ]:
+        unique_messages = list(dict.fromkeys(message for message in messages if message))
+        if unique_messages:
+            blocks.append(
+                f'<div class="top-{level}"><strong>{escape(title)}</strong><span>{escape("；".join(unique_messages))}</span></div>'
+            )
+    return "".join(blocks)
+
+
+def _is_top_warning(name: str, status: str, detail: str) -> bool:
+    if status != "警告":
+        return False
+    if name.startswith("資料來源："):
+        return False
+    return name in {
+        "最新有效交易日",
+        "paper_trades.csv",
+        "reports/index.html",
+        "data update",
+        "candidate export",
+        "position update",
+        "report generation",
+    }
+
+
+def _is_top_notice(name: str, status: str, detail: str) -> bool:
+    if name.startswith("資料來源：monthly_revenue") and "已保留既有資料" in detail:
+        return True
+    return False
+
+
+def _is_top_info(name: str, status: str, detail: str) -> bool:
+    return False
+
+
+def _top_notice_message(name: str, detail: str) -> str:
+    if "資料來源：monthly_revenue" in name:
+        return "月營收資料尚未取得，已保留既有資料，不影響今日流程。"
+    return f"{name}：{_strip_urls(detail)}"
+
+
+def _top_info_message(name: str, detail: str) -> str:
+    return f"{name}：{_strip_urls(detail)}"
 
 
 def _top_warning_message(name: str, detail: str) -> str:
@@ -1887,11 +2127,16 @@ def _exit_strategy_summary(
     closed_trades: pd.DataFrame,
 ) -> str:
     prefix = "最近有效交易日" if _uses_recent_data(summary) else "今日"
+    today_exits = _today_exit_frame(closed_trades, open_positions, summary.get("trade_date") if summary else None)
+    complete_exit_count = _count_exit_type(today_exits, "完整出場")
+    partial_exit_count = _count_exit_type(today_exits, "部分停利 / 部分出場")
     cards = [
         (f"{prefix}停利筆數", _format_cell("take_profit_exits", summary.get("take_profit_exits"))),
         (f"{prefix}停損筆數", _format_cell("stop_loss_exits", summary.get("stop_loss_exits"))),
         (f"{prefix}移動停利筆數", _format_cell("trailing_stop_exits", summary.get("trailing_stop_exits"))),
         (f"{prefix}趨勢出場筆數", _format_cell("trend_exit_exits", summary.get("trend_exit_exits"))),
+        (f"{prefix}完整出場筆數", f"{complete_exit_count:,.0f}"),
+        (f"{prefix}部分出場筆數", f"{partial_exit_count:,.0f}"),
         (f"{prefix}扣成本後已實現損益", _format_cell("realized_pnl_after_cost_today", summary.get("realized_pnl_after_cost_today"))),
     ]
     open_display = open_positions.copy()
@@ -1915,6 +2160,12 @@ def _exit_strategy_summary(
         '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
         + _details_block("出場策略持倉明細", open_table)
     )
+
+
+def _count_exit_type(frame: pd.DataFrame, exit_type: str) -> int:
+    if frame.empty or "exit_type" not in frame.columns:
+        return 0
+    return int((frame["exit_type"].fillna("").astype(str) == exit_type).sum())
 
 
 def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame, open_positions: pd.DataFrame) -> str:
@@ -2081,6 +2332,24 @@ def _fallback_note(summary: dict[str, object]) -> str:
     return '<div class="note">本次使用原始交易日資料，未切換至替代交易日。</div>'
 
 
+def _brief_recent_summaries(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return pd.DataFrame()
+    result = pd.DataFrame(index=frame.index)
+    result["summary_requested_date"] = frame.get("requested_date", "")
+    result["summary_trade_date"] = frame.get("trade_date", "")
+    result["summary_status"] = frame.get("status", "")
+    result["summary_candidate_rows"] = frame.get("candidate_rows", "")
+    result["summary_risk_pass_rows"] = frame.get("risk_pass_rows", "")
+    result["summary_pending_orders"] = frame.get("pending_orders", "")
+    result["summary_executed_orders"] = frame.get("executed_orders", "")
+    result["summary_open_positions"] = frame.get("open_positions", "")
+    result["summary_closed_positions"] = frame.get("closed_positions", "")
+    result["summary_total_equity_after_cost"] = frame.get("total_equity_after_cost", frame.get("total_equity", ""))
+    result["summary_data_status"] = frame.get("multi_factor_data_status", frame.get("market_intel_status", frame.get("status", "")))
+    return result
+
+
 def _section(title: str, content: str, section_id: str = "", class_name: str = "") -> str:
     id_attr = f' id="{escape(section_id)}"' if section_id else ""
     classes = f' class="{escape(class_name)}"' if class_name else ""
@@ -2113,7 +2382,7 @@ def _table(frame: pd.DataFrame, columns: list[str], empty_message: str, max_rows
         return _empty(empty_message)
 
     rows = frame.head(max_rows).copy()
-    header = "".join(f"<th>{escape(COLUMN_LABELS[column])}</th>" for column in visible_columns)
+    header = "".join(f"<th>{escape(COLUMN_LABELS.get(column, column))}</th>" for column in visible_columns)
     body_rows = []
     for _, row in rows.iterrows():
         cells = "".join(
@@ -2143,6 +2412,43 @@ def _responsive_records(frame: pd.DataFrame, columns: list[str], empty_message: 
                 f"<dt>{escape(COLUMN_LABELS[column])}</dt><dd>{escape(_format_cell(column, row.get(column)))}</dd>"
             )
         cards.append(f'<article class="mobile-card"><h3>{escape(title or "持倉")}</h3><dl>{"".join(fields)}</dl></article>')
+    return '<div class="mobile-cards">' + "".join(cards) + "</div>" + table
+
+
+def _responsive_compact_records(
+    frame: pd.DataFrame,
+    summary_columns: list[str],
+    detail_columns: list[str],
+    empty_message: str,
+    max_rows: int,
+) -> str:
+    table = _table(frame, summary_columns, empty_message, max_rows)
+    if frame.empty:
+        return table
+    summary_visible = [column for column in summary_columns if column in frame.columns]
+    detail_visible = [column for column in detail_columns if column in frame.columns and column not in summary_visible]
+    cards = []
+    for _, row in frame.head(max_rows).iterrows():
+        title_parts = [
+            _format_cell("stock_id", row.get("stock_id")),
+            _format_cell("stock_name", row.get("stock_name")),
+        ]
+        title = " ".join(part for part in title_parts if part != "-")
+        summary_fields = []
+        for column in summary_visible:
+            if column in {"stock_id", "stock_name"}:
+                continue
+            summary_fields.append(
+                f"<dt>{escape(COLUMN_LABELS.get(column, column))}</dt><dd>{escape(_format_cell(column, row.get(column)))}</dd>"
+            )
+        details = _detail_grid(row, detail_visible)
+        cards.append(
+            '<article class="mobile-card market-card">'
+            f'<h3>{escape(title or "候選股")}</h3>'
+            f'<dl class="detail-grid compact-grid">{"".join(summary_fields)}</dl>'
+            f'<details class="card-details"><summary>展開完整資料</summary>{details}</details>'
+            "</article>"
+        )
     return '<div class="mobile-cards">' + "".join(cards) + "</div>" + table
 
 
@@ -2345,7 +2651,7 @@ def _css() -> str:
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
 body{margin:0;background:#080d18;color:#e5e7eb;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif;line-height:1.6}
-.page{width:min(1160px,100%);margin:0 auto;padding:14px}
+.page{width:min(1440px,100%);margin:0 auto;padding:14px}
 .account-header{padding:18px 2px 12px}
 .account-header p{margin:0 0 4px;color:#38bdf8;font-size:13px;font-weight:700}
 .account-header h1{margin:0 0 10px;font-size:26px;letter-spacing:0}
@@ -2391,6 +2697,7 @@ h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
 .holding-metrics span{display:block;color:#94a3b8;font-size:12px}
 .holding-metrics strong{font-size:15px;color:#f8fafc}
 .card-details{margin-top:12px;border-top:1px solid #243244;padding-top:10px}
+.compact-grid{grid-template-columns:120px 1fr}
 .collapse-block{margin-top:12px;border:1px solid #243244;border-radius:10px;background:#0b1220}
 .collapse-block>summary{padding:12px 13px;color:#bfdbfe;font-size:14px;font-weight:800;cursor:pointer;list-style:none}
 .collapse-block>summary::-webkit-details-marker{display:none}
@@ -2401,22 +2708,28 @@ summary{cursor:pointer;color:#bfdbfe;font-size:14px;font-weight:700}
 .detail-grid{display:grid;grid-template-columns:120px 1fr;gap:7px 10px;margin:10px 0 0}
 .detail-grid dt{color:#94a3b8;font-size:12px}.detail-grid dd{margin:0;color:#e5e7eb;font-size:13px}
 .table-wrap{display:none;width:100%;overflow-x:auto;border:1px solid #243244;border-radius:8px;margin-top:12px}
+.table-wrap.always-table{display:block}
 .collapse-block .table-wrap{display:block}
 table{width:100%;border-collapse:collapse;min-width:760px;background:#0f172a}
 th,td{padding:10px 12px;border-bottom:1px solid #243244;text-align:left;vertical-align:top}
 th{color:#bae6fd;background:#172033;font-size:13px;white-space:nowrap}
-td{font-size:13px;color:#e5e7eb}
+td{font-size:13px;color:#e5e7eb;white-space:nowrap}
+.summary-table td:nth-child(3),.summary-table td:nth-child(5),.technical-table td:nth-child(5),.technical-table td:nth-child(6){white-space:normal;min-width:220px}
 tr:last-child td{border-bottom:0}
 .empty,.note{padding:13px;background:#0f172a;border:1px solid #243244;border-radius:10px;color:#cbd5e1}
 .note{border-color:#164e63;background:#082f49;margin-top:10px}
-.top-warning{display:flex;gap:10px;align-items:flex-start;margin:10px 0;padding:12px;background:#7f1d1d;border:1px solid #ef4444;border-radius:10px;color:#fee2e2}
-.top-warning strong{white-space:nowrap}
+.quality-list{margin:0;padding-left:20px;color:#cbd5e1}
+.top-info,.top-notice,.top-warning{display:flex;gap:10px;align-items:flex-start;margin:10px 0;padding:12px;border-radius:10px}
+.top-info strong,.top-notice strong,.top-warning strong{white-space:nowrap}
+.top-info{background:#0c4a6e;border:1px solid #38bdf8;color:#e0f2fe}
+.top-notice{background:#713f12;border:1px solid #f59e0b;color:#fef3c7}
+.top-warning{background:#7f1d1d;border:1px solid #ef4444;color:#fee2e2}
 .health-grid{display:grid;grid-template-columns:1fr;gap:10px}
 .health{padding:12px;background:#0f172a;border:1px solid #243244;border-radius:10px}
 .health strong{display:inline-block;margin-right:8px;padding:2px 8px;border-radius:999px;font-size:12px}
 .health span,.health em{display:block;margin-top:5px;font-style:normal}
 .health.正常 strong{background:#065f46;color:#d1fae5}.health.注意 strong{background:#854d0e;color:#fef3c7}.health.警告 strong{background:#991b1b;color:#fee2e2}
-@media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards,.mobile-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}}
+@media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards,.mobile-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}
 """
 
 

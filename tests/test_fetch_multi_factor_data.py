@@ -112,9 +112,10 @@ def test_provider_failed_keeps_existing_csv(tmp_path: Path, monkeypatch) -> None
 
     row = status[status["source_name"] == "monthly_revenue"].iloc[0]
     after = existing_path.read_text(encoding="utf-8")
-    assert row["status"] == "OK"
+    assert row["status"] == "OK_WITH_FALLBACK"
     assert row["rows"] == 1
     assert "provider failed, kept existing csv" in row["warning"]
+    assert "保留既有 CSV" in row["warning"]
     assert after == before
 
 
@@ -143,10 +144,44 @@ def test_provider_empty_keeps_existing_csv(tmp_path: Path, monkeypatch) -> None:
 
     row = status[status["source_name"] == "material_events"].iloc[0]
     after = existing_path.read_text(encoding="utf-8")
-    assert row["status"] == "OK"
+    assert row["status"] == "OK_WITH_FALLBACK"
     assert row["rows"] == 1
     assert "provider empty, kept existing csv" in row["warning"]
+    assert "保留既有 CSV" in row["warning"]
     assert after == before
+
+
+def test_provider_success_with_new_rows_is_ok(tmp_path: Path, monkeypatch) -> None:
+    class SuccessMOPSProvider(EmptyMOPSProvider):
+        def fetch_monthly_revenue(self, trade_date: str) -> ProviderResult:
+            return ProviderResult(
+                "monthly_revenue",
+                pd.DataFrame(
+                    [
+                        {
+                            "stock_id": "2330",
+                            "stock_name": "TSMC",
+                            "year_month": "202605",
+                            "revenue": 1,
+                            "revenue_yoy": 1,
+                            "revenue_mom": 1,
+                            "accumulated_revenue": 1,
+                            "accumulated_revenue_yoy": 1,
+                        }
+                    ]
+                ),
+                "OK",
+            )
+
+    data_dir, _reports_dir = _patch_dirs_and_providers(tmp_path, monkeypatch, SuccessMOPSProvider)
+
+    status = module.run_fetch_multi_factor_data(as_of="20260515")
+
+    row = status[status["source_name"] == "monthly_revenue"].iloc[0]
+    assert row["status"] == "OK"
+    assert row["fallback_action"] == "wrote_new_data"
+    assert row["rows"] == 1
+    assert len(pd.read_csv(data_dir / "monthly_revenue.csv")) == 1
 
 
 def test_missing_existing_csv_writes_empty_schema_only(tmp_path: Path, monkeypatch) -> None:
@@ -156,7 +191,7 @@ def test_missing_existing_csv_writes_empty_schema_only(tmp_path: Path, monkeypat
 
     row = status[status["source_name"] == "monthly_revenue"].iloc[0]
     output = pd.read_csv(data_dir / "monthly_revenue.csv")
-    assert row["status"] == "MISSING"
+    assert row["status"] == "EMPTY"
     assert row["rows"] == 0
     assert "no existing csv, wrote empty schema" in row["warning"]
     assert output.empty

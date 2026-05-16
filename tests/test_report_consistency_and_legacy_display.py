@@ -48,7 +48,7 @@ def test_fallback_note_only_shows_recent_data_when_dates_differ(tmp_path: Path) 
 def test_key_conclusion_reports_market_intel_warnings_and_fetch_status(tmp_path: Path) -> None:
     _write_reports(tmp_path, summary_overrides={"market_intel_warning_count": 2})
     html = generate_html_report(tmp_path).read_text(encoding="utf-8")
-    assert "有市場情報資料不足警告，未影響流程" in html
+    assert "市場情報資料不足，未影響流程" in html
     assert "無重大錯誤" not in html
 
     cache_dir = tmp_path / "cache_case"
@@ -67,7 +67,92 @@ def test_key_conclusion_reports_market_intel_warnings_and_fetch_status(tmp_path:
         data_fetch_status=_status_frame([("monthly_revenue", "FAILED", 0, "best_effort", "kept_existing_csv")]),
     )
     failed_html = generate_html_report(failed_dir).read_text(encoding="utf-8")
-    assert "部分資料來源失敗，已 fallback" in failed_html
+    assert "月營收資料尚未取得，已保留既有資料，不影響今日流程" in failed_html
+
+
+def test_key_conclusion_uses_recent_trading_day_labels_when_fallback_active(tmp_path: Path) -> None:
+    _write_reports(
+        tmp_path,
+        summary_overrides={
+            "requested_date": "2026-05-16",
+            "trade_date": "2026-05-15",
+            "fallback_date": "2026-05-15",
+            "market_intel_warning_count": 0,
+        },
+    )
+
+    html = generate_html_report(tmp_path).read_text(encoding="utf-8")
+
+    assert "最近有效交易日候選股數量" in html
+    assert "資料交易日" in html
+    assert "最近有效交易日停利筆數" in html
+    assert "今日候選股數量" not in html
+
+
+def test_key_conclusion_uses_today_labels_when_no_fallback(tmp_path: Path) -> None:
+    _write_reports(
+        tmp_path,
+        summary_overrides={
+            "requested_date": "2026-05-15",
+            "trade_date": "2026-05-15",
+            "fallback_date": "2026-05-15",
+            "market_intel_warning_count": 0,
+        },
+    )
+
+    html = generate_html_report(tmp_path).read_text(encoding="utf-8")
+
+    assert "今日候選股數量" in html
+    assert "最近有效交易日候選股數量" not in html
+
+
+def test_data_quality_summary_collects_multiple_issues_without_raw_urls(tmp_path: Path) -> None:
+    _write_reports(
+        tmp_path,
+        summary_overrides={"market_intel_warning_count": 2, "market_intel_status": "CACHE"},
+        data_fetch_status=pd.DataFrame(
+            [
+                {
+                    "source_name": "monthly_revenue",
+                    "provider_maturity": "best_effort",
+                    "status": "OK_WITH_FALLBACK",
+                    "rows": 10,
+                    "warning": "official source returned no data; provider empty, kept existing csv",
+                    "error_message": "HTTPError: 404 Client Error: for url: https://mops.twse.com.tw/nas/t21/sii/t21sc03_115_5_0.html",
+                    "fallback_action": "kept_existing_csv",
+                },
+                {
+                    "source_name": "valuation",
+                    "provider_maturity": "csv_fallback",
+                    "status": "EMPTY",
+                    "rows": 0,
+                    "warning": "empty",
+                    "error_message": "",
+                    "fallback_action": "wrote_empty_schema",
+                },
+            ]
+        ),
+    )
+
+    html = generate_html_report(tmp_path).read_text(encoding="utf-8")
+
+    assert "市場情報資料不足，未影響流程" in html
+    assert "市場情報使用快取資料" in html
+    assert "月營收資料尚未取得，已保留既有資料，不影響今日流程" in html
+    assert "部分資料來源為空，採中性或既有資料" in html
+    assert "https://mops.twse.com.tw" not in html.split("資料品質摘要", 1)[1].split("</section>", 1)[0]
+
+
+def test_data_quality_summary_only_says_no_issue_when_clean(tmp_path: Path) -> None:
+    _write_reports(
+        tmp_path,
+        summary_overrides={"market_intel_warning_count": 0, "market_intel_status": "OK"},
+        data_fetch_status=_status_frame([("institutional", "OK", 10, "best_effort", "wrote_new_data")]),
+    )
+
+    html = generate_html_report(tmp_path).read_text(encoding="utf-8")
+
+    assert "無重大錯誤" in html
 
 
 def test_health_checks_include_data_fetch_status_without_mojibake_status(tmp_path: Path) -> None:
@@ -79,6 +164,7 @@ def test_health_checks_include_data_fetch_status_without_mojibake_status(tmp_pat
                 ("monthly_revenue", "FAILED", 0, "best_effort", "kept_existing_csv"),
                 ("margin_short", "EMPTY", 0, "best_effort", "wrote_empty_schema"),
                 ("institutional", "CACHE", 3, "best_effort", "cache_used"),
+                ("material_events", "OK_WITH_FALLBACK", 5, "placeholder", "kept_existing_csv"),
             ]
         ),
     )
@@ -94,9 +180,37 @@ def test_health_checks_include_data_fetch_status_without_mojibake_status(tmp_pat
     assert "失敗" in html
     assert "無資料" in html
     assert "使用快取資料" in html
+    assert "成功，保留既有資料" in html
     assert "霅血" not in html
     assert "瘜冽" not in html
     assert "甇" not in html
+
+
+def test_monthly_revenue_404_top_warning_is_human_readable(tmp_path: Path) -> None:
+    _write_reports(
+        tmp_path,
+        summary_overrides={"market_intel_warning_count": 0},
+        data_fetch_status=pd.DataFrame(
+            [
+                {
+                    "source_name": "monthly_revenue",
+                    "provider_maturity": "best_effort",
+                    "status": "OK_WITH_FALLBACK",
+                    "rows": 100,
+                    "warning": "official source returned no data; provider empty, kept existing csv",
+                    "error_message": "HTTPError: 404 Client Error: for url: https://mops.twse.com.tw/nas/t21/sii/t21sc03_115_5_0.html",
+                    "fallback_action": "kept_existing_csv",
+                }
+            ]
+        ),
+    )
+
+    html = generate_html_report(tmp_path).read_text(encoding="utf-8")
+    top_warning = html.split('class="top-warning"', 1)[1].split("</div>", 1)[0]
+
+    assert "月營收資料尚未取得，已保留既有資料，不影響今日流程" in top_warning
+    assert "https://mops.twse.com.tw" not in top_warning
+    assert "HTTPError: 404 Client Error" in html
 
 
 def test_market_intel_page_discloses_mock_and_score_usage(tmp_path: Path) -> None:
@@ -144,16 +258,33 @@ def test_legacy_open_position_display_uses_fallback_text(tmp_path: Path) -> None
     assert "出場原因" in html
 
 
+def test_exit_strategy_open_position_table_uses_partial_exit_label(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    html = generate_html_report(tmp_path).read_text(encoding="utf-8")
+    section = html.split("出場策略持倉明細", 1)[1].split("</details>", 1)[0]
+
+    assert "最近部分出場原因" in section
+    assert "<th>出場原因</th>" not in section
+
+
 def test_today_exit_detail_filters_by_trade_date(tmp_path: Path) -> None:
     trades = _paper_trades()
+    closed = trades[trades["status"] == "CLOSED"]
+    open_positions = trades[trades["status"] == "OPEN"]
 
-    today = _today_exit_frame(trades[trades["status"] == "CLOSED"], "2026-05-08")
+    today = _today_exit_frame(closed, open_positions, "2026-05-08")
 
-    assert set(today["stock_id"]) == {"9999"}
+    assert set(today["stock_id"]) == {"2330", "9999"}
+    assert "8888" not in set(today["stock_id"])
+    assert "部分停利 / 部分出場" in set(today["exit_type"])
+    assert "完整出場" in set(today["exit_type"])
     _write_reports(tmp_path)
     html = generate_html_report(tmp_path).read_text(encoding="utf-8")
     assert "今日出場明細" in html
     assert "累計已平倉交易明細" in html
+    assert "部分停利 / 部分出場" in html
+    assert "部分出場紀錄" in html
 
 
 def test_pending_orders_are_split_between_waiting_and_skipped(tmp_path: Path) -> None:
@@ -164,6 +295,41 @@ def test_pending_orders_are_split_between_waiting_and_skipped(tmp_path: Path) ->
     assert "<span>等待進場</span><strong>1</strong>" in html
     assert "<span>已略過</span><strong>1</strong>" in html
     assert "已有持倉，略過重複進場" in html
+
+
+def test_open_position_can_enrich_from_market_intel_when_not_candidate(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+    _candidates().iloc[[1]].to_csv(tmp_path / "candidates_20260508.csv", index=False, encoding="utf-8-sig")
+    _candidates().iloc[[1]].to_csv(tmp_path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "stock_id": "2330",
+                "stock_name": "測試一",
+                "final_market_score": 66.0,
+                "confidence_score": 77.0,
+                "risk_flags": "市場情報補值",
+                "final_comment": "由 market_intel 補上",
+                "market_intel_source": "official",
+            }
+        ]
+    ).to_csv(tmp_path / "market_intel_20260508.csv", index=False, encoding="utf-8-sig")
+
+    html = generate_html_report(tmp_path).read_text(encoding="utf-8")
+
+    assert "66.00" in html
+    assert "77.00" in html
+    assert "由 market_intel 補上" in html
+
+
+def test_open_position_without_any_market_context_shows_missing_message(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+    _candidates().iloc[[1]].to_csv(tmp_path / "candidates_20260508.csv", index=False, encoding="utf-8-sig")
+    _candidates().iloc[[1]].to_csv(tmp_path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8-sig")
+
+    html = generate_html_report(tmp_path).read_text(encoding="utf-8")
+
+    assert "今日未入選候選股，暫無最新多因子資料" in html
 
 
 def test_report_wording_and_css_are_updated(tmp_path: Path) -> None:

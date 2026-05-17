@@ -52,6 +52,20 @@ ATTENTION_DISPOSITION_COLUMNS = [
     "disposition_reason",
 ]
 
+VALUATION_COLUMNS = [
+    "stock_id",
+    "stock_name",
+    "date",
+    "pe_ratio",
+    "pb_ratio",
+    "dividend_yield",
+    "financial_quarter",
+    "valuation_source",
+    "valuation_source_status",
+]
+
+VALUATION_OPENAPI_URL = "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL"
+
 TWSE_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -153,6 +167,49 @@ class TWSEProvider:
         except Exception as exc:  # noqa: BLE001
             return failed_result("attention_disposition", ATTENTION_DISPOSITION_COLUMNS, exc)
 
+    def fetch_valuation(self, as_of: str | date | None = None) -> ProviderResult:
+        date_label = _date_label(as_of)
+        cached = self._read_cached("valuation", date_label, VALUATION_COLUMNS)
+        if cached is not None:
+            frame, warning = cached
+            latest_date = _latest_period(frame, "date")
+            return ProviderResult(
+                "valuation",
+                frame,
+                "CACHE",
+                warning=warning,
+                actual_period=latest_date,
+                latest_available_period=latest_date,
+                source_url_or_name="reports/cache/valuation",
+                is_real_data=True,
+                data_age_days=_date_age_days(latest_date, date_label),
+                coverage_ratio=1.0 if not frame.empty else 0.0,
+                affected_symbols_count=len(frame),
+            )
+        try:
+            response = self.requester(VALUATION_OPENAPI_URL, timeout=self.timeout)
+            if hasattr(response, "raise_for_status"):
+                response.raise_for_status()
+            payload = response.json() if hasattr(response, "json") else []
+            frame = normalize_valuation_openapi(payload)
+            result = self._result_with_cache("valuation", date_label, frame, VALUATION_COLUMNS)
+            latest_date = _latest_period(result.data, "date")
+            return ProviderResult(
+                "valuation",
+                result.data,
+                result.status,
+                warning=result.warning,
+                actual_period=latest_date,
+                latest_available_period=latest_date,
+                source_url_or_name=VALUATION_OPENAPI_URL,
+                is_real_data=True,
+                data_age_days=_date_age_days(latest_date, date_label),
+                coverage_ratio=1.0 if not result.data.empty else 0.0,
+                affected_symbols_count=len(result.data),
+            )
+        except Exception as exc:  # noqa: BLE001
+            return failed_result("valuation", VALUATION_COLUMNS, exc)
+
     def _get_json(self, url: str, params: dict[str, str]) -> dict:
         response = self.requester(url, params=params, timeout=self.timeout)
         if hasattr(response, "raise_for_status"):
@@ -193,6 +250,33 @@ class TWSEProvider:
 
 
 RequiredField = str | list[str] | tuple[str, ...]
+
+
+def normalize_valuation_openapi(payload: object) -> pd.DataFrame:
+    if not isinstance(payload, list):
+        return pd.DataFrame(columns=VALUATION_COLUMNS)
+    rows: list[dict[str, object]] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        stock_id = _dict_value(item, ["Code", "證券代號", "股票代號", "代號"])
+        if _is_blank(stock_id):
+            continue
+        trade_date = _roc_or_date_text(_dict_value(item, ["Date", "日期"]))
+        rows.append(
+            {
+                "stock_id": str(stock_id).strip(),
+                "stock_name": str(_dict_value(item, ["Name", "證券名稱", "股票名稱", "名稱"]) or "").strip(),
+                "date": trade_date,
+                "pe_ratio": _number(_dict_value(item, ["PEratio", "本益比", "PE"])),
+                "pb_ratio": _number(_dict_value(item, ["PBratio", "股價淨值比", "PB"])),
+                "dividend_yield": _number(_dict_value(item, ["DividendYield", "殖利率(%)", "殖利率"])),
+                "financial_quarter": "",
+                "valuation_source": "TWSE OpenAPI BWIBBU_ALL",
+                "valuation_source_status": "OK",
+            }
+        )
+    return pd.DataFrame(rows, columns=VALUATION_COLUMNS)
 
 
 def normalize_table_payload(payload: dict, required_fields: list[RequiredField]) -> pd.DataFrame:
@@ -452,6 +536,46 @@ def _date_text(value: object) -> str:
 
 def _normalize_text(value: str) -> str:
     return re.sub(r"\s+", "", value).lower()
+
+
+def _dict_value(item: dict, keys: list[str]) -> object:
+    normalized = {_normalize_text(str(key)): value for key, value in item.items()}
+    for key in keys:
+        if key in item:
+            return item[key]
+        value = normalized.get(_normalize_text(key))
+        if value is not None:
+            return value
+    return None
+
+
+def _latest_period(frame: pd.DataFrame, column: str) -> str:
+    if frame.empty or column not in frame.columns:
+        return ""
+    values = frame[column].dropna().astype(str)
+    values = values[values.str.strip() != ""]
+    return "" if values.empty else str(values.max())
+
+
+def _date_age_days(period: str, date_label: str) -> int | None:
+    if not period:
+        return None
+    try:
+        actual = pd.to_datetime(period, errors="raise")
+        current = pd.to_datetime(date_label, format="%Y%m%d")
+    except (TypeError, ValueError):
+        return None
+    return int(max(0, (current - actual).days))
+
+
+def _roc_or_date_text(value: object) -> str:
+    if _is_blank(value):
+        return ""
+    text = str(value).strip()
+    digits = re.sub(r"\D", "", text)
+    if len(digits) == 7:
+        return f"{int(digits[:3]) + 1911:04d}-{int(digits[3:5]):02d}-{int(digits[5:7]):02d}"
+    return _date_text(text)
 
 
 def _is_blank(value: object) -> bool:

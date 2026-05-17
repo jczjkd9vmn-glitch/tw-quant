@@ -636,11 +636,32 @@ Market intelligence 預設只影響報表、Discord 摘要與候選股輔助欄�
 ```yaml
 market_intel:
   enabled: true
-  provider: mock
+  provider: real
   cache_enabled: true
   affect_ranking: false
   affect_trading: false
   enable_market_intel_filter: false
+  provider_order: [official_events, material_events, attention_disposition, csv_fallback, mock]
+  allow_mock: true
+  mock_only_when_no_real_data: true
+
+data_sources:
+  monthly_revenue:
+    enabled: true
+    lookback_months: 6
+    allow_existing_csv_fallback: true
+  valuation:
+    enabled: true
+    allow_existing_csv_fallback: true
+  financials:
+    enabled: true
+    allow_existing_csv_fallback: true
+  material_events:
+    enabled: true
+    allow_existing_csv_fallback: true
+  confidence:
+    enabled: true
+    stale_days_threshold: 90
 ```
 
 若未來要讓 market intelligence 影響排序或進場，必須先透過 config 明確開啟，且仍需保留風控檢查與可追蹤理由。
@@ -739,6 +760,34 @@ python scripts/fetch_multi_factor_data.py
 - `final_market_score`：官方資料 / market intelligence 綜合分，用於 HTML 報表、Discord 摘要與觀察排序參考。
 - `multi_factor_score`：原候選股多因子輔助分，目前仍不直接影響交易；只有在 config 明確開啟 `multi_factor.affect_ranking` 或 `multi_factor.affect_risk_pass` 時才會影響排序或風控通過結果。
 - `market_intel.affect_trading` 預設為 `false`，market intelligence 不會直接產生買單。
+
+### 真實市場情報與基本面資料來源
+
+本版將 `market_intel.provider` 預設改為 `real`。系統會優先使用免費公開資料與本地 CSV fallback，只有完全沒有可用事件 / 注意處置資料時才使用 mock。這些資料只用於報表、Discord、`final_market_score`、`multi_factor_score` 與風險提示，不會自動下單，也不會改變既有買賣流程。
+
+- 月營收：優先使用 TWSE OpenAPI `t187ap05_L`，若指定月份尚未發布，會使用最近可用月份並記錄 `latest_available_month`、`revenue_source_status`。MOPS HTML 仍保留為 best-effort fallback。
+- 估值：使用 TWSE OpenAPI `BWIBBU_ALL`，輸出 PE、PB、殖利率、`valuation_source`、`valuation_source_status`。
+- 財報：使用 TWSE OpenAPI `t187ap06_L_ci`，目前可穩定取得 EPS 與損益表衍生毛利率 / 營益率 / 淨利率；ROE、負債比與現金流仍可能缺資料，會以中性分數與 warning 表示。
+- 重大訊息：使用 TWSE OpenAPI `t187ap04_L` 作為 best-effort 官方事件來源，並搭配 `data/material_events.csv` fallback。
+- 注意 / 處置股：沿用 TWSE best-effort provider 與 `data/attention_disposition.csv` fallback；處置股是否阻擋新進場仍由 `event_risk.block_disposition_stock` 控制。
+- market intelligence：`RealMarketIntelProvider` 會使用重大訊息與注意 / 處置股資料產生 `latest_news_titles`、`news_sentiment_score`、`risk_flags`、`final_comment`。報表上會稱為市場事件來源文字，不把它包裝成完整新聞 API。
+
+`confidence_score` 是資料可信度，不是買賣建議。基礎分為 40，會依月營收、估值、財報、籌碼、融資融券、注意處置、事件資料完整度加分；mock、CSV fallback、provider failed、資料過舊或關鍵欄位缺失會扣分，範圍限制在 0 到 100。
+
+`reports/data_fetch_status_YYYYMMDD.csv` 會額外記錄：
+
+- `requested_period`
+- `actual_period`
+- `latest_available_period`
+- `source_url_or_name`
+- `is_real_data`
+- `is_mock`
+- `is_stale`
+- `data_age_days`
+- `coverage_ratio`
+- `affected_symbols_count`
+
+目前限制：財報仍是 best-effort，ROE、負債比、營業現金流不一定能從免費公開端點完整取得；一般新聞來源尚未接入正式新聞 API；sector strength 與 liquidity 仍以 placeholder / CSV fallback 為主。外部來源失敗時，流程會保留既有 CSV 或採中性分數，不會讓每日 pipeline 直接崩潰。
 ## Official Provider Robustness Notes
 
 本專案的官方資料來源仍採分階段接入，資料源失敗時不會中斷每日流程，也不會覆寫既有有效 CSV。

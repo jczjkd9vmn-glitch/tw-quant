@@ -19,6 +19,9 @@ FINANCIAL_COLUMNS = [
     "net_margin",
     "debt_ratio",
     "operating_cash_flow",
+    "financial_source",
+    "financial_source_status",
+    "financial_period",
 ]
 
 NEUTRAL_REASON = "財報資料不足，採中性分數"
@@ -56,6 +59,9 @@ def score_financials(stock_id: str, financials: pd.DataFrame) -> dict[str, objec
     reasons: list[str] = []
     warnings: list[str] = []
 
+    if eps is not None and eps > 0:
+        score += 6
+        reasons.append("EPS 為正")
     if eps_yoy is not None and eps_yoy > 0:
         score += 12
         reasons.append("EPS 成長")
@@ -102,6 +108,9 @@ def score_financials(stock_id: str, financials: pd.DataFrame) -> dict[str, objec
         "gross_margin": gross_margin,
         "operating_margin": operating_margin,
         "debt_ratio": debt_ratio,
+        "financial_source": latest.get("financial_source"),
+        "financial_source_status": latest.get("financial_source_status"),
+        "financial_period": latest.get("financial_period"),
         "financial_reason": "；".join(reasons),
         "financial_warning": "；".join(warnings),
     }
@@ -117,6 +126,7 @@ def load_financials(path: str | Path) -> pd.DataFrame:
             frame[column] = None
     frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
     frame["financial_quarter"] = frame["financial_quarter"].fillna("").astype(str)
+    frame["financial_period"] = frame["financial_period"].fillna(frame["financial_quarter"]).astype(str)
     for column in [
         "eps",
         "eps_yoy",
@@ -140,6 +150,9 @@ def _neutral(stock_id: str) -> dict[str, object]:
         "gross_margin": None,
         "operating_margin": None,
         "debt_ratio": None,
+        "financial_source": "",
+        "financial_source_status": "MISSING",
+        "financial_period": "",
         "financial_reason": NEUTRAL_REASON,
         "financial_warning": "",
     }

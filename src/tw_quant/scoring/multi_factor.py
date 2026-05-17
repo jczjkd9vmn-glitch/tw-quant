@@ -36,6 +36,10 @@ MULTI_FACTOR_COLUMNS = [
     "revenue_yoy",
     "revenue_mom",
     "accumulated_revenue_yoy",
+    "revenue_data_month",
+    "requested_revenue_month",
+    "latest_available_month",
+    "revenue_source_status",
     "revenue_3m_trend",
     "revenue_12m_high",
     "revenue_warning",
@@ -103,11 +107,16 @@ MULTI_FACTOR_COLUMNS = [
     "pe_ratio",
     "pb_ratio",
     "dividend_yield",
+    "valuation_source",
+    "valuation_source_status",
     "eps",
     "roe",
     "gross_margin",
     "operating_margin",
     "debt_ratio",
+    "financial_source",
+    "financial_source_status",
+    "financial_period",
 ]
 
 
@@ -118,6 +127,16 @@ class DataFetchStatus:
     rows: int
     warning: str = ""
     error_message: str = ""
+    requested_period: str = ""
+    actual_period: str = ""
+    latest_available_period: str = ""
+    source_url_or_name: str = ""
+    is_real_data: bool = False
+    is_mock: bool = False
+    is_stale: bool = False
+    data_age_days: int | None = None
+    coverage_ratio: float | None = None
+    affected_symbols_count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -295,14 +314,16 @@ def calculate_final_market_score(row: pd.Series) -> float:
     news_score = _number(row.get("news_sentiment_score"), 0.0)
     news_0_to_100 = max(0.0, min(100.0, (news_score + 100.0) / 2.0))
     score = (
-        _number(row.get("momentum_score"), 50.0) * 0.25
-        + _number(row.get("institutional_score"), _number(row.get("chip_score"), 50.0)) * 0.20
+        _number(row.get("momentum_score"), 50.0) * 0.20
+        + _number(row.get("institutional_score"), _number(row.get("chip_score"), 50.0)) * 0.15
         + _number(row.get("fundamental_score"), 50.0) * 0.15
         + _number(row.get("valuation_score"), 50.0) * 0.10
-        + _number(row.get("sector_strength_score"), 50.0) * 0.10
+        + _number(row.get("credit_score"), 50.0) * 0.10
         + _number(row.get("event_risk_score"), _number(row.get("event_score"), 50.0)) * 0.10
         + _number(row.get("liquidity_score"), 50.0) * 0.05
+        + _number(row.get("sector_strength_score"), 50.0) * 0.05
         + news_0_to_100 * 0.05
+        + _number(row.get("confidence_score"), 50.0) * 0.05
     )
     return round(max(0.0, min(100.0, float(score))), 2)
 
@@ -331,12 +352,15 @@ def _safe_score(
 
 def _calculate_multi_factor_score(row: pd.Series) -> float:
     score = (
-        _number(row.get("original_total_score"), 50.0) * 0.50
-        + _number(row.get("revenue_score"), 50.0) * 0.15
+        _number(row.get("original_total_score"), 50.0) * 0.40
+        + _number(row.get("revenue_score"), 50.0) * 0.12
         + _number(row.get("valuation_score"), 50.0) * 0.10
-        + _number(row.get("financial_score"), 50.0) * 0.15
-        + _number(row.get("event_score"), 50.0) * 0.05
-        + _number(row.get("institutional_score"), 50.0) * 0.05
+        + _number(row.get("financial_score"), 50.0) * 0.12
+        + _number(row.get("institutional_score"), 50.0) * 0.10
+        + _number(row.get("credit_score"), 50.0) * 0.06
+        + _number(row.get("event_risk_score"), _number(row.get("event_score"), 50.0)) * 0.04
+        + _number(row.get("liquidity_score"), 50.0) * 0.03
+        + _number(row.get("sector_strength_score"), 50.0) * 0.03
     )
     return round(max(0.0, min(100.0, float(score))), 2)
 
@@ -353,13 +377,46 @@ def _multi_factor_reason(row: pd.Series) -> str:
         str(row.get("sector_strength_reason", "")),
         str(row.get("liquidity_warning", "")),
     ]
+    flags: list[str] = []
+    if ("資料不足" in str(row.get("fundamental_reason", ""))) or (
+        _number(row.get("revenue_score"), 50.0) == 50.0 and _is_blank(row.get("revenue_yoy"))
+    ):
+        flags.append("基本面資料不足")
+    if ("資料不足" in str(row.get("valuation_reason", ""))) or (
+        _number(row.get("valuation_score"), 50.0) == 50.0 and _is_blank(row.get("pe_ratio")) and _is_blank(row.get("pb_ratio"))
+    ):
+        flags.append("估值資料不足")
+    if ("資料不足" in str(row.get("financial_reason", ""))) or (
+        _number(row.get("financial_score"), 50.0) == 50.0 and _is_blank(row.get("eps")) and _is_blank(row.get("roe"))
+    ):
+        flags.append("財報資料不足")
+    if _to_bool(row.get("is_attention_stock")):
+        flags.append("注意股")
+    if _to_bool(row.get("is_disposition_stock")):
+        flags.append("處置股")
     if _to_bool(row.get("event_blocked")):
         parts.append("高風險事件或處置股，禁止新增進場")
     return "；".join(part for part in parts if part and part != "nan")
 
 
 def _status_frame(statuses: list[DataFetchStatus]) -> pd.DataFrame:
-    columns = ["source_name", "status", "rows", "warning", "error_message"]
+    columns = [
+        "source_name",
+        "status",
+        "rows",
+        "warning",
+        "error_message",
+        "requested_period",
+        "actual_period",
+        "latest_available_period",
+        "source_url_or_name",
+        "is_real_data",
+        "is_mock",
+        "is_stale",
+        "data_age_days",
+        "coverage_ratio",
+        "affected_symbols_count",
+    ]
     return pd.DataFrame([status.__dict__ for status in statuses], columns=columns)
 
 
@@ -437,6 +494,10 @@ def _neutral_revenue(symbols: list[str]) -> pd.DataFrame:
             "revenue_yoy": None,
             "revenue_mom": None,
             "accumulated_revenue_yoy": None,
+            "revenue_data_month": "",
+            "requested_revenue_month": "",
+            "latest_available_month": "",
+            "revenue_source_status": "MISSING",
             "revenue_3m_trend": "neutral",
             "revenue_12m_high": False,
             "revenue_warning": "",
@@ -456,6 +517,8 @@ def _neutral_valuation(symbols: list[str]) -> pd.DataFrame:
             "pe_ratio": None,
             "pb_ratio": None,
             "dividend_yield": None,
+            "valuation_source": "",
+            "valuation_source_status": "MISSING",
             "valuation_reason": "估值資料不足，採中性分數",
             "valuation_warning": "",
         }
@@ -472,6 +535,9 @@ def _neutral_financials(symbols: list[str]) -> pd.DataFrame:
             "gross_margin": None,
             "operating_margin": None,
             "debt_ratio": None,
+            "financial_source": "",
+            "financial_source_status": "MISSING",
+            "financial_period": "",
             "financial_reason": "財報資料不足，採中性分數",
             "financial_warning": "",
         }
@@ -586,6 +652,16 @@ def _neutral_liquidity(symbols: list[str]) -> pd.DataFrame:
 
 def _risk_flags(row: pd.Series) -> str:
     flags: list[str] = []
+    if _number(row.get("revenue_score"), 50.0) == 50.0 and _is_blank(row.get("revenue_yoy")):
+        flags.append("基本面資料不足")
+    if _number(row.get("valuation_score"), 50.0) == 50.0 and _is_blank(row.get("pe_ratio")) and _is_blank(row.get("pb_ratio")):
+        flags.append("估值資料不足")
+    if _number(row.get("financial_score"), 50.0) == 50.0 and _is_blank(row.get("eps")) and _is_blank(row.get("roe")):
+        flags.append("財報資料不足")
+    if _to_bool(row.get("is_attention_stock")):
+        flags.append("注意股")
+    if _to_bool(row.get("is_disposition_stock")):
+        flags.append("處置股")
     for column in [
         "credit_risk_flags",
         "event_risk_flags",

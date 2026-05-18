@@ -614,7 +614,7 @@ src/tw_quant/market_intel/scoring.py
 src/tw_quant/market_intel/report.py
 ```
 
-第一版預設使用 `mock` provider 與既有候選股 / 多因子欄位補足資料，不需要 API key。`yfinance` provider 是可替換設計；若未安裝或外部來源失敗，只會回傳 warning 與中性分數，不會讓 pipeline crash。
+目前預設使用 `real` provider，優先整合公開重大訊息、注意 / 處置股與既有多因子資料；只有完全沒有可用事件或 fallback 資料時，才會退回 `mock`。`yfinance` provider 是可替換設計；若未安裝或外部來源失敗，只會回傳 warning 與中性分數，不會讓 pipeline crash。
 
 Market intelligence 會輸出基本面分數、估值分數、動能分數、新聞情緒分數、綜合市場分數、信心分數、主要風險標籤、系統短評、資料來源與 warning。
 

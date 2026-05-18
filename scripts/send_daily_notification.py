@@ -73,6 +73,7 @@ def build_notification_message(
     pages = pages_url or os.getenv("GITHUB_PAGES_URL") or _infer_pages_url()
     candidates = _load_latest_report(report_dir, "candidates_*.csv")
     paper_trades = _load_report(report_dir / "paper_trades.csv")
+    trading_decisions = _load_latest_report(report_dir, "trading_decisions_*.csv")
 
     lines = [
         "台股紙上交易每日摘要",
@@ -117,13 +118,61 @@ def build_notification_message(
             f"籌碼加分候選股數：{_format_int(summary.get('institutional_positive_candidates'))}",
         ]
     )
+    lines.extend(_decision_digest(summary, trading_decisions))
     lines.extend(_candidate_digest(candidates))
     lines.extend(_official_data_digest(candidates))
     lines.extend(_risk_digest(candidates))
     lines.extend(_position_digest(paper_trades))
     lines.append(f"今日系統健康狀態：{_health_text(summary, candidates)}")
+    lines.append("決策引擎提醒：僅供人工確認，未自動下單")
     lines.append(f"GitHub Pages 報表網址：{pages or '未設定'}")
     return "\n".join(lines)[:1900]
+
+
+def _decision_digest(summary: dict[str, object], decisions: pd.DataFrame) -> list[str]:
+    lines = [
+        f"A 級候選股數：{_format_int(summary.get('grade_a_count'))}",
+        f"B 級候選股數：{_format_int(summary.get('grade_b_count'))}",
+        f"C 級候選股數：{_format_int(summary.get('grade_c_count'))}",
+        f"D 級候選股數：{_format_int(summary.get('grade_d_count'))}",
+        f"買進候選數：{_format_int(summary.get('buy_candidate_count'))}",
+        f"觀察名單數：{_format_int(summary.get('watch_only_count'))}",
+        f"不交易名單數：{_format_int(summary.get('no_trade_count'))}",
+        f"持倉 HOLD 數：{_format_int(summary.get('hold_count'))}",
+        f"REDUCE review 數：{_format_int(summary.get('reduce_count'))}",
+        f"EXIT review 數：{_format_int(summary.get('exit_review_count'))}",
+    ]
+    if decisions.empty or "decision" not in decisions.columns:
+        lines.append("前 5 名 BUY_CANDIDATE：無決策資料")
+        lines.append("前 5 名 HIGH_RISK / NO_TRADE：無決策資料")
+        return lines
+    buy = _decision_top(decisions, {"BUY_CANDIDATE"}, "multi_factor_score")
+    risk = _decision_top(decisions, {"NO_TRADE", "EXIT"}, "liquidity_score", ascending=True)
+    lines.append("前 5 名 BUY_CANDIDATE：" + (buy if buy else "無"))
+    lines.append("前 5 名 HIGH_RISK / NO_TRADE：" + (risk if risk else "無"))
+    return lines
+
+
+def _decision_top(
+    decisions: pd.DataFrame,
+    decision_values: set[str],
+    score_column: str,
+    ascending: bool = False,
+) -> str:
+    frame = decisions[decisions["decision"].fillna("").astype(str).isin(decision_values)].copy()
+    if frame.empty:
+        return ""
+    score_values = frame[score_column] if score_column in frame.columns else pd.Series([-1] * len(frame), index=frame.index)
+    frame["_score"] = pd.to_numeric(score_values, errors="coerce").fillna(-1)
+    if ascending:
+        frame["_score"] = frame["_score"].replace(-1, 10_000)
+    rows = []
+    for _, row in frame.sort_values("_score", ascending=ascending).head(5).iterrows():
+        rows.append(
+            f"{_format_text(row.get('stock_id'))} {_format_text(row.get('stock_name'))} "
+            f"{_format_text(row.get('candidate_grade'))} {_format_text(row.get('decision'))}"
+        )
+    return "、".join(rows)
 
 
 def _send_discord_message(

@@ -72,7 +72,15 @@ def main() -> None:
         f"take_profit_exits={summary.take_profit_exits} "
         f"stop_loss_exits={summary.stop_loss_exits} "
         f"trailing_stop_exits={summary.trailing_stop_exits} "
-        f"trend_exit_exits={summary.trend_exit_exits}"
+        f"trend_exit_exits={summary.trend_exit_exits} "
+        f"strategy_validation_status={summary.strategy_validation_status} "
+        f"trading_decisions_status={summary.trading_decisions_status} "
+        f"buy_candidate_count={summary.buy_candidate_count} "
+        f"watch_only_count={summary.watch_only_count} "
+        f"no_trade_count={summary.no_trade_count} "
+        f"hold_count={summary.hold_count} "
+        f"reduce_count={summary.reduce_count} "
+        f"exit_review_count={summary.exit_review_count}"
     )
 
     if summary.status == "FAILED":

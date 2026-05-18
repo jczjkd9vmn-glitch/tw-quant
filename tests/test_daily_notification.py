@@ -128,6 +128,39 @@ def test_send_daily_notification_uses_latest_daily_summary(tmp_path: Path) -> No
     assert "候選股數：20" in calls[0]
 
 
+def test_build_notification_message_includes_decision_summary(tmp_path: Path) -> None:
+    _write_summary(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "decision": "BUY_CANDIDATE",
+                "candidate_grade": "A",
+                "multi_factor_score": 80,
+            },
+            {
+                "stock_id": "2603",
+                "stock_name": "長榮",
+                "decision": "NO_TRADE",
+                "candidate_grade": "D",
+                "liquidity_score": 20,
+            },
+        ]
+    ).to_csv(tmp_path / "trading_decisions_20260508.csv", index=False, encoding="utf-8-sig")
+
+    message = build_notification_message(
+        {**_summary_row(), "grade_a_count": 1, "buy_candidate_count": 1, "no_trade_count": 1},
+        reports_dir=tmp_path,
+    )
+
+    assert "僅供人工確認" in message
+    assert "買進候選數：1" in message
+    assert "前 5 名 BUY_CANDIDATE：2330 台積電 A BUY_CANDIDATE" in message
+    assert "前 5 名 HIGH_RISK / NO_TRADE：2603 長榮 D NO_TRADE" in message
+    assert "保證獲利" not in message
+
+
 def _write_summary(path: Path, date_label: str = "20260510", candidate_rows: int = 20) -> None:
     pd.DataFrame([{**_summary_row(), "candidate_rows": candidate_rows}]).to_csv(
         path / f"daily_summary_{date_label}.csv",

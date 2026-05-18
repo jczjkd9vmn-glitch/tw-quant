@@ -18,6 +18,13 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert "損益總覽" in html
     assert "系統健康檢查" in html
     assert "市場情報 / 多因子" in html
+    assert "決策引擎" in html
+    assert "BUY_CANDIDATE" in html
+    assert "can_auto_trade=false" in html
+    assert "保證獲利" not in html
+    assert "一定買進" not in html
+    assert "一定賣出" not in html
+    assert "<summary>完整 trading_decisions 原始表格</summary>" in html
     assert "多因子分數摘要" in html or "多因子資料更新狀態" in html
     assert "高風險事件警告數" in html
     assert "估值警告候選股數" in html
@@ -122,6 +129,7 @@ def test_generate_html_report_uses_broker_app_cards_and_profit_classes(tmp_path:
     assert 'data-tab-target="positions"' in html
     assert 'data-tab-target="pending"' in html
     assert 'data-tab-target="closed"' in html
+    assert 'data-tab-target="decision"' in html
     assert 'data-tab-target="fundamental"' in html
     assert 'data-tab-target="health"' in html
     assert 'data-tab-panel="overview"' in html
@@ -485,6 +493,56 @@ def _write_reports(path: Path) -> None:
             }
         ]
     ).to_csv(path / "paper_summary_20260508.csv", index=False, encoding="utf-8-sig")
+
+    pd.DataFrame(
+        [
+            {
+                "decision_date": "2026-05-08",
+                "trade_date": "2026-05-08",
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "source": "candidate",
+                "current_status": "CANDIDATE",
+                "decision": "BUY_CANDIDATE",
+                "decision_level": "WATCH",
+                "action": "review_before_entry",
+                "candidate_grade": "A",
+                "reason": "買進候選，需人工確認；不會自動下單",
+                "risk_flags": "",
+                "confidence_score": 80,
+                "total_score": 88,
+                "multi_factor_score": 84,
+                "final_market_score": 82,
+                "liquidity_score": 70,
+                "sector_strength_score": 60,
+                "event_risk_level": "NONE",
+                "position_size_suggestion": 0.1,
+                "can_auto_trade": False,
+                "requires_manual_review": True,
+                "data_quality_note": "資料品質已檢查；仍需人工確認",
+            }
+        ]
+    ).to_csv(path / "trading_decisions_20260508.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "validation_date": "2026-05-08",
+                "trade_date": "2026-05-08",
+                "model_name": "baseline_total_score",
+                "description": "原始 total_score / risk_pass baseline",
+                "candidate_count": 1,
+                "selected_count": 1,
+                "simulated_trades": 1,
+                "win_rate": 1.0,
+                "avg_return_pct": 0.1,
+                "median_return_pct": 0.1,
+                "total_return_pct": 0.1,
+                "max_drawdown_pct": 0.0,
+                "avg_holding_days": 5,
+                "notes": "",
+            }
+        ]
+    ).to_csv(path / "strategy_validation_20260508.csv", index=False, encoding="utf-8-sig")
 
 
 def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path) -> None:

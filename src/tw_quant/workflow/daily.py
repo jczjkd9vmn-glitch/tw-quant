@@ -13,10 +13,12 @@ from tw_quant.config import load_config
 from tw_quant.data.database import create_db_engine, init_db, load_latest_price_date
 from tw_quant.data.exceptions import TradingHalted
 from tw_quant.data.pipeline import run_daily_pipeline
+from tw_quant.decision.engine import decision_counts, generate_trading_decisions
 from tw_quant.reporting.export import export_latest_candidates
 from tw_quant.trading.paper import run_paper_trade
 from tw_quant.trading.paper_update import update_paper_positions
 from tw_quant.trading.pending import execute_pending_orders
+from tw_quant.validation.strategy_validation import generate_strategy_validation
 
 
 @dataclass(frozen=True)
@@ -60,6 +62,18 @@ class DailyWorkflowSummary:
     status: str = "OK"
     error_step: str = ""
     error_message: str = ""
+    strategy_validation_status: str = ""
+    trading_decisions_status: str = ""
+    buy_candidate_count: int = 0
+    watch_only_count: int = 0
+    no_trade_count: int = 0
+    hold_count: int = 0
+    reduce_count: int = 0
+    exit_review_count: int = 0
+    grade_a_count: int = 0
+    grade_b_count: int = 0
+    grade_c_count: int = 0
+    grade_d_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -72,6 +86,8 @@ class DailyWorkflowResult:
     paper_result: Any | None = None
     execute_result: Any | None = None
     update_result: Any | None = None
+    validation_result: Any | None = None
+    decision_result: Any | None = None
 
 
 def run_all_daily(
@@ -87,12 +103,15 @@ def run_all_daily(
     paper_func: Callable[..., Any] = run_paper_trade,
     execute_func: Callable[..., Any] = execute_pending_orders,
     update_func: Callable[..., Any] = update_paper_positions,
+    validation_func: Callable[..., Any] = generate_strategy_validation,
+    decision_func: Callable[..., Any] = generate_trading_decisions,
 ) -> DailyWorkflowResult:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
     summary_values = _empty_summary(trade_date, capital)
     messages: list[str] = []
     daily_result = export_result = paper_result = execute_result = update_result = None
+    validation_result = decision_result = None
 
     try:
         (
@@ -316,6 +335,65 @@ def run_all_daily(
                 update_result=update_result,
             )
 
+    validation_config = config.get("strategy_validation", {}) if "config" in locals() else {}
+    if validation_config.get("enabled", True):
+        try:
+            try:
+                validation_result = validation_func(
+                    reports_dir=report_dir,
+                    trade_date=summary_values["trade_date"],
+                    min_trades_required=int(validation_config.get("min_trades_required", 10)),
+                )
+            except TypeError:
+                validation_result = validation_func(
+                    reports_dir=report_dir,
+                    trade_date=summary_values["trade_date"],
+                )
+            summary_values["strategy_validation_status"] = (
+                "WARNING" if getattr(validation_result, "warning", "") else "OK"
+            )
+            messages.append(
+                "strategy_validation OK "
+                f"rows={len(getattr(validation_result, 'validation', pd.DataFrame()))}"
+            )
+            if getattr(validation_result, "warning", ""):
+                messages.append(f"strategy_validation warning {validation_result.warning}")
+        except Exception as exc:
+            summary_values["strategy_validation_status"] = "FAILED"
+            messages.append(f"strategy_validation warning {type(exc).__name__}: {exc}")
+
+    decision_config = config.get("decision_engine", {}) if "config" in locals() else {}
+    if decision_config.get("enabled", True):
+        try:
+            try:
+                decision_result = decision_func(
+                    reports_dir=report_dir,
+                    config_path=config_path,
+                    trade_date=summary_values["trade_date"],
+                )
+            except TypeError:
+                decision_result = decision_func(
+                    reports_dir=report_dir,
+                    trade_date=summary_values["trade_date"],
+                )
+            summary_values["trading_decisions_status"] = (
+                "WARNING" if getattr(decision_result, "warning", "") else "OK"
+            )
+            for key, value in decision_counts(getattr(decision_result, "decisions", pd.DataFrame())).items():
+                summary_values[key] = value
+            messages.append(
+                "trading_decisions OK "
+                f"rows={len(getattr(decision_result, 'decisions', pd.DataFrame()))} "
+                f"buy_candidate_count={summary_values['buy_candidate_count']} "
+                f"watch_only_count={summary_values['watch_only_count']} "
+                f"no_trade_count={summary_values['no_trade_count']}"
+            )
+            if getattr(decision_result, "warning", ""):
+                messages.append(f"trading_decisions warning {decision_result.warning}")
+        except Exception as exc:
+            summary_values["trading_decisions_status"] = "FAILED"
+            messages.append(f"trading_decisions warning {type(exc).__name__}: {exc}")
+
     _refresh_fallback_status(summary_values)
     summary = DailyWorkflowSummary(**summary_values)
     summary_path = _write_summary(report_dir, summary)
@@ -329,6 +407,8 @@ def run_all_daily(
         paper_result=paper_result,
         execute_result=execute_result,
         update_result=update_result,
+        validation_result=validation_result,
+        decision_result=decision_result,
     )
 
 
@@ -397,6 +477,18 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "status": "OK",
         "error_step": "",
         "error_message": "",
+        "strategy_validation_status": "",
+        "trading_decisions_status": "",
+        "buy_candidate_count": 0,
+        "watch_only_count": 0,
+        "no_trade_count": 0,
+        "hold_count": 0,
+        "reduce_count": 0,
+        "exit_review_count": 0,
+        "grade_a_count": 0,
+        "grade_b_count": 0,
+        "grade_c_count": 0,
+        "grade_d_count": 0,
     }
 
 

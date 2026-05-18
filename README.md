@@ -809,6 +809,70 @@ HTML 報表的「持倉風險燈號」只作為人工檢查提示，不會自動
 
 「今日操作重點」是報表摘要，不是投資建議；內容會提醒等待進場、出場統計、紅黃燈持倉與資料品質狀態，但不會使用保證獲利或直接買賣建議語氣。
 
+### 策略驗證報表與交易決策引擎
+
+本版新增 advisory-only 的策略驗證與交易決策輸出，預設只用於紙上交易與人工檢查，不接真實券商 API，也不會自動下單。
+
+策略驗證報表輸出：
+
+```text
+reports/strategy_validation_YYYYMMDD.csv
+```
+
+驗證模型包含：
+
+- `baseline_total_score`：原本 `total_score` / `risk_pass` baseline。
+- `multi_factor_rank`：以 `multi_factor_score` 作為排序參考。
+- `confidence_filter`：排除 `confidence_score < 60`。
+- `liquidity_filter`：排除 `liquidity_score < 50` 或 `slippage_risk_score < 50`。
+- `sector_strength_filter`：排除 `sector_strength_score < 45`。
+- `event_risk_filter`：排除 HIGH event、處置股或重大負面事件。
+- `combined_model`：綜合 total / multi-factor / market score、confidence、liquidity、sector、event risk 與 risk flags。
+
+策略驗證只做研究比較，不會修改 `paper_trades.csv`、不會建立 pending order，也不保證未來績效。若歷史樣本不足，報表會在 `notes` 標示 warning。
+
+交易決策引擎輸出：
+
+```text
+reports/trading_decisions_YYYYMMDD.csv
+```
+
+決策值包含：
+
+- `BUY_CANDIDATE`：買進候選，需人工確認。
+- `WATCH_ONLY`：觀察名單。
+- `NO_TRADE`：不交易名單。
+- `HOLD`：持倉檢查。
+- `REDUCE`：降低風險檢查。
+- `EXIT`：出場訊號檢查，需人工確認。
+
+候選股分級：
+
+- A 級：技術、多因子、市場情報、信心與流動性條件同步偏強。
+- B 級：技術條件偏強，但仍有資料或風險需要人工確認。
+- C 級：有明顯警訊或資料不足，適合列入觀察。
+- D 級：未通過風控、處置股、高風險事件或流動性太差。
+
+A 級不是保證買進，D 級也不是保證賣出；分級只是優先順序與風險提示。所有決策都會輸出 `can_auto_trade=false` 與 `requires_manual_review=true`。
+
+安全設定預設：
+
+```yaml
+auto_trading:
+  enabled: false
+  mode: paper_only
+  require_manual_approval: true
+  can_place_real_orders: false
+  kill_switch: true
+
+decision_engine:
+  enabled: true
+  output_advisory_only: true
+  default_can_auto_trade: false
+```
+
+風險聲明：本系統不保證獲利；過去回測不代表未來；外部資料可能錯誤、延遲或缺漏；任何實盤交易都需要人工確認與額外券商 API 風控，本專案目前不提供真實下單能力。
+
 `reports/data_fetch_status_YYYYMMDD.csv` 會額外記錄：
 
 - `requested_period`

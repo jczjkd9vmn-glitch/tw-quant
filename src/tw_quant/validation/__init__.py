@@ -1,0 +1,2 @@
+"""Strategy validation report helpers."""
+

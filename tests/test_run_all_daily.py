@@ -259,6 +259,37 @@ def test_run_all_daily_passes_exit_strategy_config_to_update(tmp_path) -> None:
     assert captured["exit_strategy"]["take_profit_2_pct"] == 0.15
 
 
+def test_run_all_daily_integrates_validation_and_decision_summary(tmp_path) -> None:
+    result = run_all_daily(
+        config_path=_config(tmp_path),
+        trade_date="20260508",
+        capital=1_000_000,
+        reports_dir=tmp_path / "reports",
+        run_daily_func=_fake_run_daily,
+        export_func=_fake_export,
+        paper_func=_fake_paper,
+        execute_func=_fake_execute,
+        update_func=_fake_update,
+        validation_func=_fake_validation,
+        decision_func=_fake_decisions,
+    )
+
+    exported = pd.read_csv(result.summary_path)
+    row = exported.iloc[0]
+
+    assert result.summary.strategy_validation_status == "OK"
+    assert result.summary.trading_decisions_status == "OK"
+    assert result.summary.buy_candidate_count == 1
+    assert result.summary.watch_only_count == 1
+    assert result.summary.no_trade_count == 1
+    assert result.summary.hold_count == 1
+    assert result.summary.reduce_count == 1
+    assert result.summary.exit_review_count == 1
+    assert row["grade_a_count"] == 1
+    assert any("strategy_validation OK" in message for message in result.messages)
+    assert any("trading_decisions OK" in message for message in result.messages)
+
+
 def _config(tmp_path, database_url: str = "sqlite:///:memory:", extra: str = "") -> str:
     path = tmp_path / "config.yaml"
     path.write_text(f"database:\n  url: {database_url}\n{extra}", encoding="utf-8")
@@ -362,6 +393,27 @@ def _fake_update(*_args, **_kwargs):
                 }
             ]
         ),
+        warning="",
+    )
+
+
+def _fake_validation(*_args, **_kwargs):
+    return SimpleNamespace(
+        validation=pd.DataFrame({"model_name": ["baseline_total_score"]}),
+        output_path="reports/strategy_validation_20260508.csv",
+        warning="",
+    )
+
+
+def _fake_decisions(*_args, **_kwargs):
+    return SimpleNamespace(
+        decisions=pd.DataFrame(
+            {
+                "decision": ["BUY_CANDIDATE", "WATCH_ONLY", "NO_TRADE", "HOLD", "REDUCE", "EXIT"],
+                "candidate_grade": ["A", "B", "C", "D", "", ""],
+            }
+        ),
+        output_path="reports/trading_decisions_20260508.csv",
         warning="",
     )
 

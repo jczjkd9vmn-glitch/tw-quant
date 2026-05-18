@@ -242,7 +242,47 @@ COLUMN_LABELS.update(
         "slippage_risk_score": "滑價風險分數",
         "risk_light": "持倉風險燈號",
         "holding_action_hint": "持倉提示",
-        "holding_risk_reason": "燈號原因",
+    "holding_risk_reason": "燈號原因",
+    "strategy_validation_status": "策略驗證狀態",
+    "trading_decisions_status": "決策引擎狀態",
+    "buy_candidate_count": "買進候選數",
+    "watch_only_count": "觀察名單數",
+    "no_trade_count": "不交易名單數",
+    "hold_count": "持倉 HOLD 數",
+    "reduce_count": "REDUCE review 數",
+    "exit_review_count": "EXIT review 數",
+    "grade_a_count": "A 級候選股數",
+    "grade_b_count": "B 級候選股數",
+    "grade_c_count": "C 級候選股數",
+    "grade_d_count": "D 級候選股數",
+    "decision_date": "決策日期",
+    "source": "來源",
+    "current_status": "目前狀態",
+    "decision": "決策",
+    "decision_level": "決策層級",
+    "action": "動作",
+    "candidate_grade": "候選分級",
+    "grade_reason": "分級理由",
+    "grade_risk_flags": "分級風險標籤",
+    "requires_manual_review": "需要人工確認",
+    "position_size_suggestion": "部位提示",
+    "can_auto_trade": "可否自動交易",
+    "data_quality_note": "資料品質註記",
+    "validation_date": "驗證日期",
+    "model_name": "模型名稱",
+    "description": "說明",
+    "selected_count": "選取數",
+    "simulated_trades": "模擬交易數",
+    "win_rate": "勝率",
+    "avg_return_pct": "平均報酬",
+    "median_return_pct": "中位報酬",
+    "total_return_pct": "總報酬",
+    "max_drawdown_pct": "最大回撤",
+    "avg_holding_days": "平均持有天數",
+    "profit_factor": "獲利因子",
+    "expectancy": "期望值",
+    "consecutive_loss_count": "連續虧損數",
+    "notes": "備註",
     }
 )
 
@@ -315,6 +355,24 @@ STATUS_LABELS = {
     "false": "否",
     "1": "是",
     "0": "否",
+    "BUY_CANDIDATE": "買進候選，需人工確認",
+    "HOLD": "持倉檢查",
+    "REDUCE": "降低風險檢查",
+    "EXIT": "出場訊號檢查",
+    "NO_TRADE": "不交易",
+    "WATCH_ONLY": "觀察名單",
+    "INFO": "資訊",
+    "WATCH": "觀察",
+    "CAUTION": "注意",
+    "HIGH_RISK": "高風險",
+    "observe_only": "僅觀察",
+    "review_before_entry": "進場前人工確認",
+    "review_holding": "持倉檢查",
+    "reduce_risk": "降低風險檢查",
+    "exit_signal_review": "出場訊號檢查",
+    "no_action": "不動作",
+    "True": "是",
+    "False": "否",
 }
 
 STATUS_LABELS.update({"MOCK": "mock / 中性資料"})
@@ -436,6 +494,13 @@ STATUS_COLUMNS = {
     "market_intel_status",
     "summary_status",
     "summary_data_status",
+    "strategy_validation_status",
+    "trading_decisions_status",
+    "decision",
+    "decision_level",
+    "action",
+    "can_auto_trade",
+    "requires_manual_review",
 }
 DATE_COLUMNS = {
     "trade_date",
@@ -447,6 +512,8 @@ DATE_COLUMNS = {
     "actual_entry_date",
     "summary_requested_date",
     "summary_trade_date",
+    "decision_date",
+    "validation_date",
 }
 AMOUNT_COLUMNS.add("summary_total_equity_after_cost")
 SCORE_COLUMNS.update(
@@ -457,6 +524,13 @@ SCORE_COLUMNS.update(
         "liquidity_score",
         "sector_strength_score",
         "slippage_risk_score",
+        "win_rate",
+        "avg_return_pct",
+        "median_return_pct",
+        "total_return_pct",
+        "max_drawdown_pct",
+        "profit_factor",
+        "expectancy",
     }
 )
 PERCENT_COLUMNS.update(
@@ -471,6 +545,11 @@ PERCENT_COLUMNS.update(
         "relative_strength_5d",
         "relative_strength_20d",
         "turnover_ratio_20d",
+        "win_rate",
+        "avg_return_pct",
+        "median_return_pct",
+        "total_return_pct",
+        "max_drawdown_pct",
     }
 )
 AMOUNT_COLUMNS.update({"monthly_revenue", "avg_turnover_20d", "latest_turnover"})
@@ -486,6 +565,25 @@ INTEGER_COLUMNS.update(
         "securities_lending_sell_volume",
         "securities_lending_balance",
         "avg_volume_20d",
+        "buy_candidate_count",
+        "watch_only_count",
+        "no_trade_count",
+        "hold_count",
+        "reduce_count",
+        "exit_review_count",
+        "grade_a_count",
+        "grade_b_count",
+        "grade_c_count",
+        "grade_d_count",
+        "candidate_count",
+        "selected_count",
+        "simulated_trades",
+        "stop_loss_count",
+        "take_profit_count",
+        "trailing_stop_count",
+        "ma_exit_count",
+        "max_holding_exit_count",
+        "consecutive_loss_count",
     }
 )
 STATUS_COLUMNS.update({"is_attention_stock", "is_disposition_stock", "revenue_12m_high"})
@@ -507,6 +605,8 @@ def generate_html_report(
     paper_summary = _read_latest_csv(report_dir, "paper_summary_*.csv")
     pending_orders = _read_all_csv(report_dir, "pending_orders_*.csv")
     market_intel = _read_latest_csv(report_dir, "market_intel_*.csv")
+    strategy_validation = _read_latest_csv(report_dir, "strategy_validation_*.csv")
+    trading_decisions = _read_latest_csv(report_dir, "trading_decisions_*.csv")
     active_config = load_config(ROOT / "config.yaml")
     trading_cost = active_config.get("trading_cost", {})
 
@@ -520,6 +620,8 @@ def generate_html_report(
         paper_summary=paper_summary,
         pending_orders=pending_orders,
         market_intel=market_intel,
+        strategy_validation=strategy_validation,
+        trading_decisions=trading_decisions,
         trading_cost=trading_cost,
         config=active_config,
     )
@@ -543,6 +645,8 @@ def _render_page(
     paper_summary: pd.DataFrame,
     pending_orders: pd.DataFrame,
     market_intel: pd.DataFrame,
+    strategy_validation: pd.DataFrame,
+    trading_decisions: pd.DataFrame,
     trading_cost: dict[str, object],
     config: dict[str, object] | None = None,
 ) -> str:
@@ -704,7 +808,8 @@ def _render_page(
     overview_content = "".join(
         [
             _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
-            _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status), class_name="today-action-section"),
+            _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status, trading_decisions), class_name="today-action-section"),
+            _decision_overview(latest_summary, trading_decisions),
             _data_quality_detail_block(latest_summary, data_fetch_status),
             _pnl_overview(latest_summary, latest_paper_summary, open_positions),
             _details_block("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary, trading_cost)),
@@ -733,6 +838,7 @@ def _render_page(
             _details_block("完整每日 summary 原始資料", recent_summary_full),
         ]
     )
+    decision_content = _decision_engine_content(trading_decisions, strategy_validation)
 
     return "\n".join(
         [
@@ -754,6 +860,7 @@ def _render_page(
             _tab_panel("pending", "待進場", _pending_cards(pending_orders)),
             _tab_panel("closed", "今日 / 最近已出場", _closed_cards(closed_trades)),
             _tab_panel("fundamental", "市場情報 / 多因子", fundamental_content),
+            _tab_panel("decision", "決策引擎", decision_content),
             _tab_panel("health", "健康檢查", health_content),
             "</main>",
             f"<script>{_javascript()}</script>",
@@ -779,7 +886,7 @@ def _account_header(summary: dict[str, object], updated_at: str) -> str:
         "<p>台股量化系統</p>"
         "<h1>台股紙上交易帳務</h1>"
         f"<div class=\"header-meta\">{chips}</div>"
-        "<small>所有內容僅供紙上模擬交易與策略檢查使用，不代表投資建議，也不保證獲利。</small>"
+        "<small>所有內容僅供紙上模擬交易與策略檢查使用，不代表投資建議，也不承諾投資結果。</small>"
         "</header>"
     )
 
@@ -791,6 +898,7 @@ def _nav_tabs() -> str:
         ("pending", "待進場"),
         ("closed", "已出場"),
         ("fundamental", "市場情報 / 多因子"),
+        ("decision", "決策引擎"),
         ("health", "健康檢查"),
     ]
     buttons = []
@@ -820,7 +928,7 @@ def _account_header_v2(summary: dict[str, object], updated_at: str) -> str:
         "<p>台股自動化系統</p>"
         "<h1>台股紙上交易帳務</h1>"
         f'<div class="header-meta">{chips}</div>'
-        "<small>本頁為紙上交易帳務與風控檢查報表，不代表投資建議，不保證獲利。</small>"
+        "<small>本頁為紙上交易帳務與風控檢查報表，不代表投資建議，也不承諾投資結果。</small>"
         "</header>"
     )
 
@@ -853,6 +961,7 @@ def _tab_panel(panel_id: str, title: str, content: str, active: bool = False) ->
         "pending": "待進場",
         "closed": "今日 / 最近已出場",
         "fundamental": "市場情報 / 多因子",
+        "decision": "決策引擎",
         "health": "系統健康檢查",
     }.get(panel_id, title)
     return (
@@ -1113,6 +1222,7 @@ def _today_action_summary(
     pending_orders: pd.DataFrame,
     open_positions: pd.DataFrame,
     data_fetch_status: pd.DataFrame,
+    trading_decisions: pd.DataFrame | None = None,
 ) -> str:
     items: list[str] = []
     if _uses_recent_data(summary):
@@ -1141,6 +1251,14 @@ def _today_action_summary(
             items.append("流動性與相對強弱已由本地價量資料衍生，不依賴外部 API。")
         elif not local_status.empty:
             items.append("流動性或相對強弱資料不足，請以技術面與風控結果交叉確認。")
+    if trading_decisions is not None and not trading_decisions.empty and "decision" in trading_decisions.columns:
+        decisions = trading_decisions["decision"].fillna("").astype(str)
+        buy_count = int((decisions == "BUY_CANDIDATE").sum())
+        high_count = int(decisions.isin(["NO_TRADE", "EXIT"]).sum())
+        if buy_count:
+            items.append(f"決策引擎列出 {buy_count} 檔買進候選，僅供人工確認。")
+        if high_count:
+            items.append(f"決策引擎列出 {high_count} 檔高風險或出場檢查標的，需人工確認。")
     if not items:
         items.append("今日流程無重大異常，仍需人工檢查候選股理由與風控狀態。")
     safe_items = [
@@ -1148,6 +1266,106 @@ def _today_action_summary(
         for item in items[:5]
     ]
     return '<ul class="action-list">' + "".join(f"<li>{escape(item)}</li>" for item in safe_items) + "</ul>"
+
+
+def _decision_overview(summary: dict[str, object], decisions: pd.DataFrame) -> str:
+    cards = [
+        ("A 級候選股數", _format_cell("grade_a_count", summary.get("grade_a_count"))),
+        ("B 級候選股數", _format_cell("grade_b_count", summary.get("grade_b_count"))),
+        ("C 級候選股數", _format_cell("grade_c_count", summary.get("grade_c_count"))),
+        ("D 級候選股數", _format_cell("grade_d_count", summary.get("grade_d_count"))),
+        ("買進候選數", _format_cell("buy_candidate_count", summary.get("buy_candidate_count"))),
+        ("觀察名單數", _format_cell("watch_only_count", summary.get("watch_only_count"))),
+        ("不交易名單數", _format_cell("no_trade_count", summary.get("no_trade_count"))),
+        ("HOLD 數", _format_cell("hold_count", summary.get("hold_count"))),
+        ("REDUCE review 數", _format_cell("reduce_count", summary.get("reduce_count"))),
+        ("EXIT review 數", _format_cell("exit_review_count", summary.get("exit_review_count"))),
+    ]
+    if not summary and not decisions.empty:
+        counts = decisions["decision"].fillna("").astype(str).value_counts().to_dict()
+        cards = [
+            ("買進候選數", str(counts.get("BUY_CANDIDATE", 0))),
+            ("觀察名單數", str(counts.get("WATCH_ONLY", 0))),
+            ("不交易名單數", str(counts.get("NO_TRADE", 0))),
+        ]
+    note = '<p class="note">決策引擎僅供人工確認，未自動下單。</p>'
+    return _section("決策引擎摘要", '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + note)
+
+
+def _decision_engine_content(decisions: pd.DataFrame, validation: pd.DataFrame) -> str:
+    if decisions.empty:
+        decision_summary = _empty("目前尚無交易決策資料")
+    else:
+        decision_summary = '<div class="cards">' + "".join(
+            _card(label, value)
+            for label, value in [
+                ("A 級", f"{_decision_count(decisions, 'candidate_grade', 'A'):,.0f}"),
+                ("B 級", f"{_decision_count(decisions, 'candidate_grade', 'B'):,.0f}"),
+                ("C 級", f"{_decision_count(decisions, 'candidate_grade', 'C'):,.0f}"),
+                ("D 級", f"{_decision_count(decisions, 'candidate_grade', 'D'):,.0f}"),
+                ("BUY_CANDIDATE", f"{_decision_count(decisions, 'decision', 'BUY_CANDIDATE'):,.0f}"),
+                ("WATCH_ONLY", f"{_decision_count(decisions, 'decision', 'WATCH_ONLY'):,.0f}"),
+                ("NO_TRADE", f"{_decision_count(decisions, 'decision', 'NO_TRADE'):,.0f}"),
+                ("HOLD", f"{_decision_count(decisions, 'decision', 'HOLD'):,.0f}"),
+                ("REDUCE", f"{_decision_count(decisions, 'decision', 'REDUCE'):,.0f}"),
+                ("EXIT review", f"{_decision_count(decisions, 'decision', 'EXIT'):,.0f}"),
+            ]
+        ) + "</div>"
+    summary_columns = [
+        "stock_id",
+        "stock_name",
+        "decision",
+        "candidate_grade",
+        "decision_level",
+        "action",
+        "confidence_score",
+        "liquidity_score",
+        "sector_strength_score",
+        "can_auto_trade",
+        "requires_manual_review",
+    ]
+    detail_columns = [
+        "trade_date",
+        "source",
+        "current_status",
+        "reason",
+        "risk_flags",
+        "total_score",
+        "multi_factor_score",
+        "final_market_score",
+        "event_risk_level",
+        "position_size_suggestion",
+        "data_quality_note",
+    ]
+    sections = [
+        _section("今日決策摘要", decision_summary + '<p class="note">所有決策皆為 advisory / paper-only，不會建立真實委託；can_auto_trade=false。</p>'),
+        _section("A/B/C/D 分級統計", decision_summary),
+        _section("BUY_CANDIDATE 清單", _responsive_compact_records(_decision_filter(decisions, "BUY_CANDIDATE"), summary_columns, detail_columns, "目前無買進候選", 10)),
+        _section("WATCH_ONLY 清單", _responsive_compact_records(_decision_filter(decisions, "WATCH_ONLY"), summary_columns, detail_columns, "目前無觀察名單", 10)),
+        _section("NO_TRADE 清單", _responsive_compact_records(_decision_filter(decisions, "NO_TRADE"), summary_columns, detail_columns, "目前無不交易名單", 10)),
+        _section("持倉 HOLD / REDUCE / EXIT review 清單", _responsive_compact_records(_decision_filter_any(decisions, ["HOLD", "REDUCE", "EXIT"]), summary_columns, detail_columns, "目前無持倉決策", 20)),
+        _details_block("完整 trading_decisions 原始表格", _table(decisions, [column for column in decisions.columns if column in COLUMN_LABELS], "目前無交易決策原始資料", 100)),
+        _details_block("策略驗證報表", _table(validation, [column for column in validation.columns if column in COLUMN_LABELS], "目前尚無策略驗證資料", 20)),
+    ]
+    return "".join(sections)
+
+
+def _decision_filter(decisions: pd.DataFrame, decision: str) -> pd.DataFrame:
+    if decisions.empty or "decision" not in decisions.columns:
+        return pd.DataFrame(columns=decisions.columns)
+    return decisions[decisions["decision"].fillna("").astype(str) == decision].copy()
+
+
+def _decision_filter_any(decisions: pd.DataFrame, values: list[str]) -> pd.DataFrame:
+    if decisions.empty or "decision" not in decisions.columns:
+        return pd.DataFrame(columns=decisions.columns)
+    return decisions[decisions["decision"].fillna("").astype(str).isin(values)].copy()
+
+
+def _decision_count(decisions: pd.DataFrame, column: str, value: str) -> int:
+    if decisions.empty or column not in decisions.columns:
+        return 0
+    return int((decisions[column].fillna("").astype(str) == value).sum())
 
 
 def _pending_cards(frame: pd.DataFrame) -> str:

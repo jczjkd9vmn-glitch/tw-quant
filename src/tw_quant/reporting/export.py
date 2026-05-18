@@ -10,6 +10,7 @@ from sqlalchemy import Engine
 
 from tw_quant.config import load_config
 from tw_quant.data.database import load_candidate_scores
+from tw_quant.decision.grading import apply_candidate_grades
 from tw_quant.fundamental.revenue import score_revenue_for_symbols
 from tw_quant.market_intel.report import MARKET_INTEL_COLUMNS, build_market_intel_report
 from tw_quant.scoring.multi_factor import apply_multi_factor_scores, write_data_fetch_status
@@ -118,6 +119,10 @@ EXPORT_COLUMNS = [
     "liquidity_warning",
     "slippage_risk_score",
     "risk_flags",
+    "candidate_grade",
+    "grade_reason",
+    "grade_risk_flags",
+    "requires_manual_review",
     "data_source_warning",
     "system_comment",
     *MARKET_INTEL_COLUMNS,
@@ -284,6 +289,7 @@ def _format_candidates(
         liquidity_path=liquidity_path,
     )
     frame = multi_factor.candidates
+    frame = apply_candidate_grades(frame)
     for column in EXPORT_COLUMNS:
         if column not in frame.columns:
             frame[column] = None

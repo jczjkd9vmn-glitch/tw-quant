@@ -100,6 +100,33 @@ event_risk:
   block_disposition_stock: true
   block_attention_stock: false
 
+auto_trading:
+  enabled: false
+  mode: paper_only
+  require_manual_approval: true
+  can_place_real_orders: false
+  max_position_pct: 0.10
+  max_daily_new_positions: 3
+  max_daily_loss_pct: 0.03
+  max_open_positions: 10
+  kill_switch: true
+
+decision_engine:
+  enabled: true
+  output_advisory_only: true
+  default_can_auto_trade: false
+  min_confidence_for_buy_candidate: 60
+  min_liquidity_for_buy_candidate: 50
+  min_grade_for_buy_candidate: B
+  block_high_event_risk: true
+  block_disposition_stock: true
+
+strategy_validation:
+  enabled: true
+  lookback_trading_days: 120
+  min_trades_required: 10
+  benchmark_model: baseline_total_score
+
 backtest:
   initial_cash: 1000000
   top_n: 10

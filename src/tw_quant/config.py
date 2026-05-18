@@ -88,6 +88,23 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "material_events": {"enabled": True, "allow_existing_csv_fallback": True},
         "confidence": {"enabled": True, "stale_days_threshold": 90},
     },
+    "local_factors": {
+        "liquidity": {
+            "enabled": True,
+            "window": 20,
+            "low_turnover_threshold": 5_000_000,
+        },
+        "sector_strength": {
+            "enabled": True,
+            "short_window": 5,
+            "long_window": 20,
+            "fallback_to_market_relative": True,
+        },
+        "holding_risk_light": {
+            "enabled": True,
+            "near_stop_loss_pct": 0.03,
+        },
+    },
     "event_risk": {
         "block_disposition_stock": True,
         "block_attention_stock": False,

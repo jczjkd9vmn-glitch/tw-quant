@@ -231,11 +231,18 @@ COLUMN_LABELS.update(
         "relative_strength_20d": "20 日相對強弱",
         "sector_strength_rank": "產業強度排名",
         "sector_strength_reason": "產業強弱理由",
+        "sector_strength_warning": "產業強弱警告",
         "avg_volume_20d": "20 日均量",
         "avg_turnover_20d": "20 日均成交金額",
+        "latest_volume": "最新成交量",
+        "latest_turnover": "最新成交金額",
+        "turnover_ratio_20d": "量能 / 20 日均量比",
         "intraday_trading_ratio": "當日量能倍數",
         "liquidity_warning": "流動性警告",
         "slippage_risk_score": "滑價風險分數",
+        "risk_light": "持倉風險燈號",
+        "holding_action_hint": "持倉提示",
+        "holding_risk_reason": "燈號原因",
     }
 )
 
@@ -463,11 +470,13 @@ PERCENT_COLUMNS.update(
         "sector_return_20d",
         "relative_strength_5d",
         "relative_strength_20d",
+        "turnover_ratio_20d",
     }
 )
-AMOUNT_COLUMNS.update({"monthly_revenue", "avg_turnover_20d"})
+AMOUNT_COLUMNS.update({"monthly_revenue", "avg_turnover_20d", "latest_turnover"})
 INTEGER_COLUMNS.update(
     {
+        "latest_volume",
         "foreign_buy_days",
         "investment_trust_buy_days",
         "margin_balance",
@@ -498,7 +507,8 @@ def generate_html_report(
     paper_summary = _read_latest_csv(report_dir, "paper_summary_*.csv")
     pending_orders = _read_all_csv(report_dir, "pending_orders_*.csv")
     market_intel = _read_latest_csv(report_dir, "market_intel_*.csv")
-    trading_cost = load_config(ROOT / "config.yaml").get("trading_cost", {})
+    active_config = load_config(ROOT / "config.yaml")
+    trading_cost = active_config.get("trading_cost", {})
 
     html = _render_page(
         report_dir=report_dir,
@@ -511,6 +521,7 @@ def generate_html_report(
         pending_orders=pending_orders,
         market_intel=market_intel,
         trading_cost=trading_cost,
+        config=active_config,
     )
 
     output_path = report_dir / "index.html"
@@ -533,6 +544,7 @@ def _render_page(
     pending_orders: pd.DataFrame,
     market_intel: pd.DataFrame,
     trading_cost: dict[str, object],
+    config: dict[str, object] | None = None,
 ) -> str:
     latest_summary = _first_row(daily_summary)
     data_fetch_status = _read_latest_csv(report_dir, "data_fetch_status_*.csv")
@@ -544,6 +556,8 @@ def _render_page(
     closed_trades = _filter_status(paper_trades, "CLOSED")
     latest_paper_summary = _first_row(paper_summary)
     open_positions = _mark_missing_market_context(_enrich_with_fundamentals(open_positions, enrichment_source), enrichment_source)
+    open_positions = _enrich_with_local_factor_csv(open_positions)
+    open_positions = _apply_holding_risk_lights(open_positions, config or {})
     pending_orders = _enrich_with_fundamentals(pending_orders, enrichment_source)
     closed_trades = _enrich_with_fundamentals(closed_trades, enrichment_source)
     health_items = _health_checks(
@@ -605,7 +619,12 @@ def _render_page(
         "credit_score",
         "event_risk_score",
         "liquidity_score",
+        "avg_turnover_20d",
+        "slippage_risk_score",
         "sector_strength_score",
+        "relative_strength_5d",
+        "relative_strength_20d",
+        "sector_strength_warning",
         "data_source_warning",
         "market_intel_warning",
         "system_comment",
@@ -634,7 +653,12 @@ def _render_page(
             "credit_score",
             "event_risk_score",
             "liquidity_score",
+            "avg_turnover_20d",
+            "slippage_risk_score",
             "sector_strength_score",
+            "relative_strength_5d",
+            "relative_strength_20d",
+            "sector_strength_warning",
             "attention_reason",
             "disposition_reason",
             "event_reason",
@@ -680,6 +704,7 @@ def _render_page(
     overview_content = "".join(
         [
             _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
+            _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status), class_name="today-action-section"),
             _data_quality_detail_block(latest_summary, data_fetch_status),
             _pnl_overview(latest_summary, latest_paper_summary, open_positions),
             _details_block("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary, trading_cost)),
@@ -877,6 +902,15 @@ def _pnl_overview(
         ("累計交易成本", _format_number_or_dash(total_cost), None),
         ("扣成本後總資產", _format_number_or_dash(total_equity_after_cost), None),
     ]
+    if not open_positions.empty and "risk_light" in open_positions.columns:
+        lights = open_positions["risk_light"].fillna("").astype(str)
+        secondary.extend(
+            [
+                ("持倉紅燈數", f"{(lights == '紅燈').sum():,.0f}", None),
+                ("持倉黃燈數", f"{(lights == '黃燈').sum():,.0f}", None),
+                ("持倉綠燈數", f"{(lights == '綠燈').sum():,.0f}", None),
+            ]
+        )
     primary_cards = "".join(_overview_metric(label, value, raw, class_name) for label, value, raw, class_name in primary)
     secondary_cards = "".join(_overview_metric(label, value, raw, "") for label, value, raw in secondary)
     return f'<div class="pnl-card"><h3>損益總覽</h3><div class="pnl-primary">{primary_cards}</div><div class="pnl-secondary">{secondary_cards}</div></div>'
@@ -903,11 +937,19 @@ def _position_cards(frame: pd.DataFrame) -> str:
         pnl = _to_float(row.get("unrealized_pnl"))
         details = _position_detail_grid(row)
         metrics = [
+            ("持倉風險燈號", _format_cell("risk_light", row.get("risk_light"))),
+            ("持倉提示", _format_cell("holding_action_hint", row.get("holding_action_hint"))),
             ("剩餘股數", _format_cell("remaining_shares", row.get("remaining_shares") if not _is_blank(row.get("remaining_shares")) else row.get("shares"))),
             ("成交均價", _format_cell("entry_price", row.get("entry_price"))),
             ("最新價格", _format_cell("current_price", row.get("current_price"))),
             ("目前市值", _format_cell("market_value", row.get("market_value"))),
         ]
+        metrics.extend(
+            [
+                ("流動性分數", _format_cell("liquidity_score", row.get("liquidity_score"))),
+                ("產業相對強弱分數", _format_cell("sector_strength_score", row.get("sector_strength_score"))),
+            ]
+        )
         metric_html = "".join(f"<div><span>{label}</span><strong>{value}</strong></div>" for label, value in metrics)
         pnl_html = (
             f'<div class="position-pnl pnl-highlight {_profit_class(pnl)}">'
@@ -930,6 +972,9 @@ def _position_cards(frame: pd.DataFrame) -> str:
             "stock_id",
             "stock_name",
             "status",
+            "risk_light",
+            "holding_action_hint",
+            "holding_risk_reason",
             "remaining_shares",
             "entry_price",
             "current_price",
@@ -937,6 +982,8 @@ def _position_cards(frame: pd.DataFrame) -> str:
             "unrealized_pnl",
             "unrealized_pnl_pct",
             "stop_loss_price",
+            "liquidity_score",
+            "sector_strength_score",
         ],
         "目前尚無持倉",
         max_rows=50,
@@ -945,6 +992,162 @@ def _position_cards(frame: pd.DataFrame) -> str:
         '<div class="broker-cards">' + "".join(cards) + "</div>"
         + _details_block("原始持倉資料表格", table, class_name="raw-table-details")
     )
+
+
+def _enrich_with_local_factor_csv(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty or "stock_id" not in frame.columns:
+        return frame
+    output = frame.copy()
+    local_sources = [
+        (
+            ROOT / "data" / "liquidity.csv",
+            [
+                "liquidity_score",
+                "avg_turnover_20d",
+                "latest_volume",
+                "latest_turnover",
+                "turnover_ratio_20d",
+                "slippage_risk_score",
+                "liquidity_warning",
+            ],
+        ),
+        (
+            ROOT / "data" / "sector_strength.csv",
+            [
+                "sector_strength_score",
+                "relative_strength_5d",
+                "relative_strength_20d",
+                "sector_strength_rank",
+                "sector_strength_warning",
+            ],
+        ),
+    ]
+    output["stock_id"] = output["stock_id"].astype(str).str.strip()
+    for path, columns in local_sources:
+        if not path.exists():
+            continue
+        source = _read_csv(path)
+        if source.empty or "stock_id" not in source.columns:
+            continue
+        source = source.copy()
+        source["stock_id"] = source["stock_id"].astype(str).str.strip()
+        if "trade_date" in source.columns:
+            source = source.sort_values("trade_date")
+        lookup = source.drop_duplicates("stock_id", keep="last").set_index("stock_id")
+        for column in columns:
+            if column not in lookup.columns:
+                continue
+            mapped = output["stock_id"].map(lookup[column])
+            if column in output.columns:
+                output[column] = output[column].where(~output[column].apply(_is_blank), mapped)
+            else:
+                output[column] = mapped
+    return output
+
+
+def _apply_holding_risk_lights(frame: pd.DataFrame, config: dict[str, object]) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    output = frame.copy()
+    local_config = config.get("local_factors", {}) if isinstance(config, dict) else {}
+    light_config = local_config.get("holding_risk_light", {}) if isinstance(local_config, dict) else {}
+    near_stop_loss_pct = _to_float(light_config.get("near_stop_loss_pct")) or 0.03
+    if light_config and not bool(light_config.get("enabled", True)):
+        output["risk_light"] = "綠燈"
+        output["holding_action_hint"] = "正常續抱"
+        output["holding_risk_reason"] = "持倉風險燈號已停用"
+        return output
+
+    results = output.apply(lambda row: _holding_risk_light(row, near_stop_loss_pct), axis=1, result_type="expand")
+    output[["risk_light", "holding_action_hint", "holding_risk_reason"]] = results
+    return output
+
+
+def _holding_risk_light(row: pd.Series, near_stop_loss_pct: float) -> tuple[str, str, str]:
+    red_reasons: list[str] = []
+    yellow_reasons: list[str] = []
+    current_price = _to_float(row.get("current_price"))
+    stop_loss = _to_float(row.get("stop_loss_price"))
+    if current_price and stop_loss and current_price > 0:
+        distance = (current_price - stop_loss) / current_price
+        if distance <= near_stop_loss_pct:
+            red_reasons.append("接近停損")
+        elif distance <= 0.05:
+            yellow_reasons.append("距停損 5% 內")
+    if _truthy(row.get("is_disposition_stock")):
+        red_reasons.append("處置股")
+    if str(row.get("event_risk_level", "")).strip().upper() == "HIGH":
+        red_reasons.append("高風險事件")
+    risk_flags = str(row.get("risk_flags", "") or "")
+    if "重大負面" in risk_flags:
+        red_reasons.append("重大負面事件")
+    liquidity_score = _to_float(row.get("liquidity_score"))
+    if liquidity_score is not None and liquidity_score < 40:
+        red_reasons.append("流動性偏低")
+    if red_reasons:
+        return "紅燈", "高風險 / 接近出場", "，".join(dict.fromkeys(red_reasons))
+
+    confidence = _to_float(row.get("confidence_score"))
+    sector_score = _to_float(row.get("sector_strength_score"))
+    if confidence is not None and confidence < 60:
+        yellow_reasons.append("市場情報資料可信度偏低")
+    if liquidity_score is not None and 40 <= liquidity_score < 60:
+        yellow_reasons.append("流動性普通")
+    if sector_score is not None and sector_score < 45:
+        yellow_reasons.append("產業 / 相對強弱偏弱")
+    if _truthy(row.get("is_attention_stock")):
+        yellow_reasons.append("注意股")
+    for column in ["market_intel_warning", "financial_warning", "valuation_warning", "liquidity_warning", "sector_strength_warning"]:
+        text = str(row.get(column, "") or "").strip()
+        if text and text != "nan":
+            yellow_reasons.append(text)
+    if str(row.get("partial_exit_1_done", "")).strip().lower() in {"true", "1", "yes", "是"}:
+        yellow_reasons.append("已部分停利，剩餘部位需觀察")
+    if yellow_reasons:
+        return "黃燈", "需人工留意", "，".join(dict.fromkeys(yellow_reasons))
+    return "綠燈", "正常續抱", "未觸發出場，資料品質正常"
+
+
+def _today_action_summary(
+    summary: dict[str, object],
+    pending_orders: pd.DataFrame,
+    open_positions: pd.DataFrame,
+    data_fetch_status: pd.DataFrame,
+) -> str:
+    items: list[str] = []
+    if _uses_recent_data(summary):
+        items.append("目前使用最近有效交易日資料，非即時交易日。")
+    pending_count = 0
+    if not pending_orders.empty and "status" in pending_orders.columns:
+        pending_count = int((pending_orders["status"].fillna("").astype(str).str.upper() == "PENDING").sum())
+    elif not pending_orders.empty:
+        pending_count = len(pending_orders)
+    if pending_count:
+        items.append(f"有 {pending_count} 筆等待進場，請人工確認流動性與事件風險。")
+    take_profit = int(_to_float(summary.get("take_profit_exits")) or 0)
+    stop_loss = int(_to_float(summary.get("stop_loss_exits")) or 0)
+    if take_profit or stop_loss:
+        label = "最近有效交易日" if _uses_recent_data(summary) else "今日"
+        items.append(f"{label}有 {take_profit} 筆停利、{stop_loss} 筆停損。")
+    if not open_positions.empty and "risk_light" in open_positions.columns:
+        lights = open_positions["risk_light"].fillna("").astype(str)
+        red_count = int((lights == "紅燈").sum())
+        yellow_count = int((lights == "黃燈").sum())
+        if red_count or yellow_count:
+            items.append(f"有 {red_count} 檔紅燈、{yellow_count} 檔黃燈持倉，需人工檢查。")
+    if not data_fetch_status.empty and "source_name" in data_fetch_status.columns:
+        local_status = data_fetch_status[data_fetch_status["source_name"].isin(["liquidity", "sector_strength"])]
+        if not local_status.empty and local_status["status"].fillna("").astype(str).str.upper().isin(["OK", "OK_WITH_FALLBACK"]).all():
+            items.append("流動性與相對強弱已由本地價量資料衍生，不依賴外部 API。")
+        elif not local_status.empty:
+            items.append("流動性或相對強弱資料不足，請以技術面與風控結果交叉確認。")
+    if not items:
+        items.append("今日流程無重大異常，仍需人工檢查候選股理由與風控狀態。")
+    safe_items = [
+        item.replace("建議買進", "等待人工確認").replace("建議賣出", "等待人工確認")
+        for item in items[:5]
+    ]
+    return '<ul class="action-list">' + "".join(f"<li>{escape(item)}</li>" for item in safe_items) + "</ul>"
 
 
 def _pending_cards(frame: pd.DataFrame) -> str:
@@ -1098,6 +1301,12 @@ def _position_detail_grid(row: pd.Series) -> str:
         "event_risk_level",
         "event_reason",
         "event_blocked",
+        "risk_light",
+        "holding_action_hint",
+        "holding_risk_reason",
+        "avg_turnover_20d",
+        "relative_strength_5d",
+        "relative_strength_20d",
     ]:
         if column in row.index:
             fields.append((COLUMN_LABELS.get(column, column), _format_cell(column, row.get(column))))
@@ -1683,6 +1892,19 @@ def _plain_table(headers: list[str], rows: list[list[str]], class_name: str = ""
 
 def _source_display_name(value: object) -> str:
     source = _safe_text(value)
+    overrides = {
+        "monthly_revenue": "月營收",
+        "institutional": "三大法人",
+        "margin_short": "融資融券",
+        "valuation": "估值",
+        "financials": "財報",
+        "attention_disposition": "注意 / 處置股",
+        "material_events": "重大訊息",
+        "sector_strength": "產業 / 相對強弱",
+        "liquidity": "流動性",
+    }
+    if source in overrides:
+        return overrides[source]
     return {
         "monthly_revenue": "月營收",
         "institutional": "三大法人",
@@ -1703,6 +1925,8 @@ def _data_source_plain_description(row: pd.Series) -> str:
     maturity = str(row.get("provider_maturity", "")).strip().lower()
     fallback_action = str(row.get("fallback_action", "")).strip()
     error_message = str(row.get("error_message", "")).strip()
+    if maturity == "local_derived" and status in {"OK", "OK_WITH_FALLBACK"}:
+        return "本地價量衍生資料，不依賴外部 API"
     if source == "monthly_revenue" and ("HTTPError: 404" in error_message or "404 Client Error" in error_message):
         return "尚未取得新資料，已保留既有資料"
     if fallback_action == "kept_existing_csv" or status == "OK_WITH_FALLBACK":
@@ -2795,6 +3019,12 @@ tr:last-child td{border-bottom:0}
 .empty,.note{padding:13px;background:#0f172a;border:1px solid #243244;border-radius:10px;color:#cbd5e1}
 .note{border-color:#164e63;background:#082f49;margin-top:10px}
 .quality-list{margin:0;padding-left:20px;color:#cbd5e1}
+.action-list{margin:0;padding-left:20px;color:#e5e7eb}
+.action-list li{margin:7px 0;line-height:1.55}
+.risk-light-badge{border-radius:999px;padding:5px 9px;background:#334155;color:#e5e7eb}
+.risk-light-badge.綠燈{background:#065f46;color:#d1fae5}
+.risk-light-badge.黃燈{background:#854d0e;color:#fef3c7}
+.risk-light-badge.紅燈{background:#991b1b;color:#fee2e2}
 .top-info,.top-notice,.top-warning{display:flex;gap:10px;align-items:flex-start;margin:10px 0;padding:12px;border-radius:10px}
 .top-info strong,.top-notice strong,.top-warning strong{white-space:nowrap}
 .top-info{background:#0c4a6e;border:1px solid #38bdf8;color:#e0f2fe}

@@ -95,8 +95,12 @@ MULTI_FACTOR_COLUMNS = [
     "sector_strength_rank",
     "sector_strength_score",
     "sector_strength_reason",
+    "sector_strength_warning",
     "avg_volume_20d",
     "avg_turnover_20d",
+    "latest_volume",
+    "latest_turnover",
+    "turnover_ratio_20d",
     "intraday_trading_ratio",
     "liquidity_score",
     "liquidity_warning",
@@ -352,7 +356,7 @@ def _safe_score(
 
 def _calculate_multi_factor_score(row: pd.Series) -> float:
     score = (
-        _number(row.get("original_total_score"), 50.0) * 0.40
+        _number(row.get("original_total_score"), 50.0) * 0.38
         + _number(row.get("revenue_score"), 50.0) * 0.12
         + _number(row.get("valuation_score"), 50.0) * 0.10
         + _number(row.get("financial_score"), 50.0) * 0.12
@@ -361,8 +365,17 @@ def _calculate_multi_factor_score(row: pd.Series) -> float:
         + _number(row.get("event_risk_score"), _number(row.get("event_score"), 50.0)) * 0.04
         + _number(row.get("liquidity_score"), 50.0) * 0.03
         + _number(row.get("sector_strength_score"), 50.0) * 0.03
+        + _number(row.get("slippage_risk_score"), 50.0) * 0.01
+        + _relative_strength_score(row) * 0.01
     )
     return round(max(0.0, min(100.0, float(score))), 2)
+
+
+def _relative_strength_score(row: pd.Series) -> float:
+    rs5 = _number(row.get("relative_strength_5d"), 0.0)
+    rs20 = _number(row.get("relative_strength_20d"), 0.0)
+    score = 50.0 + rs20 * 300.0 + rs5 * 150.0
+    return max(0.0, min(100.0, score))
 
 
 def _multi_factor_reason(row: pd.Series) -> str:
@@ -476,8 +489,12 @@ def _multi_factor_defaults() -> dict[str, object]:
         "credit_score": 50.0,
         "credit_reason": "信用交易與借券資料不足，採中性分數",
         "sector_strength_score": 50.0,
+        "sector_strength_warning": "",
         "sector_strength_reason": "產業相對強弱資料不足，採中性分數",
         "liquidity_score": 50.0,
+        "latest_volume": None,
+        "latest_turnover": None,
+        "turnover_ratio_20d": None,
         "liquidity_warning": "流動性資料不足，採中性分數",
         "slippage_risk_score": 50.0,
         "risk_flags": "",
@@ -631,6 +648,7 @@ def _neutral_sector(symbols: list[str]) -> pd.DataFrame:
             "sector_strength_rank": None,
             "sector_strength_score": 50.0,
             "sector_strength_reason": "產業相對強弱資料不足，採中性分數",
+            "sector_strength_warning": "產業相對強弱資料不足，採中性分數",
         }
     )
 
@@ -641,6 +659,9 @@ def _neutral_liquidity(symbols: list[str]) -> pd.DataFrame:
             "stock_id": symbols,
             "avg_volume_20d": None,
             "avg_turnover_20d": None,
+            "latest_volume": None,
+            "latest_turnover": None,
+            "turnover_ratio_20d": None,
             "intraday_trading_ratio": None,
             "liquidity_score": 50.0,
             "liquidity_warning": "流動性資料不足，採中性分數",
@@ -658,6 +679,20 @@ def _risk_flags(row: pd.Series) -> str:
         flags.append("估值資料不足")
     if _number(row.get("financial_score"), 50.0) == 50.0 and _is_blank(row.get("eps")) and _is_blank(row.get("roe")):
         flags.append("財報資料不足")
+    if _number(row.get("liquidity_score"), 50.0) == 50.0 and _is_blank(row.get("avg_turnover_20d")):
+        flags.append("流動性資料不足")
+    if _number(row.get("sector_strength_score"), 50.0) == 50.0 and _is_blank(row.get("relative_strength_20d")):
+        flags.append("產業強弱資料不足")
+    if _number(row.get("liquidity_score"), 50.0) < 40.0:
+        flags.append("流動性偏低")
+    if _number(row.get("slippage_risk_score"), 50.0) < 50.0:
+        flags.append("滑價風險偏高")
+    if _number(row.get("sector_strength_score"), 50.0) < 45.0:
+        flags.append("產業弱勢")
+    if _number(row.get("relative_strength_20d"), 0.0) > 0.0:
+        flags.append("相對強勢")
+    if "缺少產業分類" in str(row.get("sector_strength_warning", "") or ""):
+        flags.append("產業資料不足")
     if _to_bool(row.get("is_attention_stock")):
         flags.append("注意股")
     if _to_bool(row.get("is_disposition_stock")):
@@ -666,6 +701,7 @@ def _risk_flags(row: pd.Series) -> str:
         "credit_risk_flags",
         "event_risk_flags",
         "liquidity_risk_flags",
+        "sector_strength_warning",
         "valuation_warning",
         "financial_warning",
         "institutional_warning",

@@ -38,6 +38,7 @@ ATTENTION_DISPOSITION_COLUMNS = [
 SECTOR_STRENGTH_COLUMNS = [
     "trade_date",
     "stock_id",
+    "stock_name",
     "industry",
     "stock_return_5d",
     "stock_return_20d",
@@ -47,14 +48,23 @@ SECTOR_STRENGTH_COLUMNS = [
     "sector_return_20d",
     "relative_strength_5d",
     "relative_strength_20d",
+    "sector_strength_score",
     "sector_strength_rank",
+    "sector_strength_warning",
 ]
 
 LIQUIDITY_COLUMNS = [
     "trade_date",
     "stock_id",
+    "stock_name",
     "avg_volume_20d",
     "avg_turnover_20d",
+    "latest_volume",
+    "latest_turnover",
+    "turnover_ratio_20d",
+    "liquidity_score",
+    "slippage_risk_score",
+    "liquidity_warning",
     "intraday_trading_ratio",
 ]
 
@@ -196,24 +206,36 @@ def score_sector_strength(stock_id: str, sector: pd.DataFrame) -> dict[str, obje
     rank = _number(latest.get("sector_strength_rank"))
     sector20 = _number(latest.get("sector_return_20d"))
     stock20 = _number(latest.get("stock_return_20d"))
+    provider_score = _number(latest.get("sector_strength_score"))
+    provider_warning = str(latest.get("sector_strength_warning", "") or "")
 
-    score = 50.0
+    score = provider_score if provider_score is not None else 50.0
     reasons: list[str] = []
-    if rs20 is not None and rs20 > 0:
+    if provider_score is None and rs20 is not None and rs20 > 0:
         score += 15
         reasons.append("個股 20 日強於大盤")
-    if rs5 is not None and rs5 > 0:
+    elif rs20 is not None and rs20 > 0:
+        reasons.append("個股 20 日強於大盤")
+    if provider_score is None and rs5 is not None and rs5 > 0:
         score += 5
         reasons.append("短線相對強勢")
-    if rank is not None and (rank <= 20 or rank <= 0.2):
+    elif rs5 is not None and rs5 > 0:
+        reasons.append("短線相對強勢")
+    if provider_score is None and rank is not None and (rank <= 20 or rank <= 0.2):
         score += 10
+        reasons.append("所屬產業排名前 20%")
+    elif rank is not None and (rank <= 20 or rank <= 0.2):
         reasons.append("所屬產業排名前 20%")
     if sector20 is not None and stock20 is not None:
         if sector20 > 0 and stock20 < sector20:
             reasons.append("產業強但個股較弱，列入觀察")
-        if sector20 < 0 and stock20 > 0:
+        if provider_score is None and sector20 < 0 and stock20 > 0:
             score -= 5
             reasons.append("個股強但產業偏弱，降低信心")
+        elif sector20 < 0 and stock20 > 0:
+            reasons.append("個股強但產業偏弱，降低信心")
+    if provider_warning:
+        reasons.append(provider_warning)
     return {
         "stock_id": symbol,
         "industry": str(latest.get("industry", "") or ""),
@@ -228,6 +250,7 @@ def score_sector_strength(stock_id: str, sector: pd.DataFrame) -> dict[str, obje
         "sector_strength_rank": rank,
         "sector_strength_score": _bounded(score),
         "sector_strength_reason": "；".join(reasons) or "產業相對強弱中性",
+        "sector_strength_warning": provider_warning,
     }
 
 
@@ -250,31 +273,43 @@ def score_liquidity(stock_id: str, liquidity: pd.DataFrame) -> dict[str, object]
     avg_volume = _number(latest.get("avg_volume_20d"))
     avg_turnover = _number(latest.get("avg_turnover_20d"))
     intraday_ratio = _number(latest.get("intraday_trading_ratio"))
-    score = 50.0
-    warning = ""
+    latest_volume = _number(latest.get("latest_volume"))
+    latest_turnover = _number(latest.get("latest_turnover"))
+    turnover_ratio = _number(latest.get("turnover_ratio_20d"))
+    provider_score = _number(latest.get("liquidity_score"))
+    provider_slippage = _number(latest.get("slippage_risk_score"))
+    score = provider_score if provider_score is not None else 50.0
+    warning = str(latest.get("liquidity_warning", "") or "")
     flags: list[str] = []
-    if avg_turnover is not None:
+    if avg_turnover is not None and provider_score is None:
         if avg_turnover < 20_000_000:
             score = 20.0
             warning = "20 日均成交金額低於 2000 萬，不建議進場"
-            flags.append("流動性不足")
+            flags.append("流動性偏低")
         elif avg_turnover < 50_000_000:
             score = 40.0
             warning = "20 日均成交金額低於 5000 萬，降低優先度"
             flags.append("流動性偏低")
         else:
             score += 12
+    elif avg_turnover is not None and avg_turnover < 20_000_000:
+        flags.append("流動性偏低")
     if intraday_ratio is not None and intraday_ratio > 2.5:
         score -= 8
         flags.append("成交量異常放大")
+    if provider_slippage is not None and provider_slippage < 50:
+        flags.append("滑價風險偏高")
     return {
         "stock_id": symbol,
         "avg_volume_20d": avg_volume,
         "avg_turnover_20d": avg_turnover,
+        "latest_volume": latest_volume,
+        "latest_turnover": latest_turnover,
+        "turnover_ratio_20d": turnover_ratio,
         "intraday_trading_ratio": intraday_ratio,
         "liquidity_score": _bounded(score),
         "liquidity_warning": warning,
-        "slippage_risk_score": _bounded(score),
+        "slippage_risk_score": _bounded(provider_slippage if provider_slippage is not None else score),
         "liquidity_risk_flags": "；".join(flags),
     }
 
@@ -309,7 +344,20 @@ def _load_csv(path: str | Path, columns: list[str]) -> pd.DataFrame:
     if "stock_id" in frame.columns:
         frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
     for column in frame.columns:
-        if column not in {"stock_id", "stock_name", "industry", "attention_reason", "disposition_reason"}:
+        text_columns = {
+            "stock_id",
+            "stock_name",
+            "industry",
+            "attention_reason",
+            "disposition_reason",
+            "liquidity_warning",
+            "sector_strength_warning",
+            "sector_strength_reason",
+            "liquidity_risk_flags",
+            "credit_risk_flags",
+            "event_risk_flags",
+        }
+        if column not in text_columns:
             if "date" in column:
                 frame[column] = frame[column]
             elif column.startswith("is_"):
@@ -356,6 +404,7 @@ def _neutral_attention(stock_id: str) -> dict[str, object]:
 def _neutral_sector(stock_id: str, reason: str) -> dict[str, object]:
     return {
         "stock_id": str(stock_id).strip(),
+        "stock_name": "",
         "industry": "",
         "stock_return_5d": None,
         "stock_return_20d": None,
@@ -368,14 +417,19 @@ def _neutral_sector(stock_id: str, reason: str) -> dict[str, object]:
         "sector_strength_rank": None,
         "sector_strength_score": 50.0,
         "sector_strength_reason": reason,
+        "sector_strength_warning": reason,
     }
 
 
 def _neutral_liquidity(stock_id: str, reason: str) -> dict[str, object]:
     return {
         "stock_id": str(stock_id).strip(),
+        "stock_name": "",
         "avg_volume_20d": None,
         "avg_turnover_20d": None,
+        "latest_volume": None,
+        "latest_turnover": None,
+        "turnover_ratio_20d": None,
         "intraday_trading_ratio": None,
         "liquidity_score": 50.0,
         "liquidity_warning": reason,

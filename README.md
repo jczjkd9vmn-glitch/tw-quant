@@ -822,7 +822,7 @@ HTML 報表的「持倉風險燈號」只作為人工檢查提示，不會自動
 - `coverage_ratio`
 - `affected_symbols_count`
 
-目前限制：財報仍是 best-effort，ROE、負債比、營業現金流不一定能從免費公開端點完整取得；一般新聞來源尚未接入正式新聞 API；sector strength 與 liquidity 仍以 placeholder / CSV fallback 為主。外部來源失敗時，流程會保留既有 CSV 或採中性分數，不會讓每日 pipeline 直接崩潰。
+目前限制：財報仍是 best_effort，ROE、負債比、營業現金流不一定能從免費公開端點完整取得；一般新聞來源尚未接入正式新聞 API；sector strength 目前因 SQLite 缺少 industry 欄位，使用全市場相對強弱 fallback；liquidity 已改由本地價量資料衍生，但仍受 SQLite 價量資料完整度影響。外部來源失敗時，流程會保留既有 CSV 或採中性分數，不會讓每日 pipeline 直接崩潰。
 ## Official Provider Robustness Notes
 
 本專案的官方資料來源仍採分階段接入，資料源失敗時不會中斷每日流程，也不會覆寫既有有效 CSV。

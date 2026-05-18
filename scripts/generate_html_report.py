@@ -239,6 +239,30 @@ COLUMN_LABELS.update(
     }
 )
 
+COLUMN_LABELS.update(
+    {
+        "revenue_data_month": "月營收資料月份",
+        "requested_revenue_month": "原始月營收月份",
+        "latest_available_month": "最近可用月營收月份",
+        "revenue_source_status": "月營收來源狀態",
+        "valuation_source": "估值資料來源",
+        "valuation_source_status": "估值來源狀態",
+        "financial_source": "財報資料來源",
+        "financial_source_status": "財報來源狀態",
+        "financial_period": "財報期間",
+        "requested_period": "要求期間",
+        "actual_period": "實際期間",
+        "latest_available_period": "最近可用期間",
+        "source_url_or_name": "來源名稱",
+        "is_real_data": "是否真實資料",
+        "is_mock": "是否 mock",
+        "is_stale": "是否過舊",
+        "data_age_days": "資料年齡天數",
+        "coverage_ratio": "覆蓋率",
+        "affected_symbols_count": "影響股票數",
+    }
+)
+
 STATUS_LABELS = {
     "OK": "成功",
     "OK_WITH_FALLBACK": "成功，使用最近有效交易日",
@@ -285,6 +309,8 @@ STATUS_LABELS = {
     "1": "是",
     "0": "否",
 }
+
+STATUS_LABELS.update({"MOCK": "mock / 中性資料"})
 
 ENTRY_PRICE_SOURCE_LABELS = {
     "OPEN": "開盤價",
@@ -1906,6 +1932,14 @@ def _data_confidence_summary(
         ("融資融券資料狀態", _source_status_summary(data_fetch_status, "margin_short")),
         ("注意 / 處置股資料狀態", _source_status_summary(data_fetch_status, "attention_disposition")),
     ]
+    cards.extend(
+        [
+            ("正式資料覆蓋率", _coverage_summary(data_fetch_status)),
+            ("真實資料來源數", f"{_real_source_count(data_fetch_status):,.0f}"),
+            ("mock 資料股票數", f"{_mock_symbol_count(frame):,.0f}"),
+            ("使用最近可用月營收資料月份", _source_latest_period(data_fetch_status, "monthly_revenue")),
+        ]
+    )
     notes = []
     if is_mock:
         notes.append("目前為 mock / 中性資料，尚未接入正式新聞來源，不應視為完整新聞 / 財報分析。")
@@ -1951,6 +1985,48 @@ def _source_status_summary(data_fetch_status: pd.DataFrame, source_name: str) ->
     if fallback:
         parts.append(fallback)
     return " / ".join(parts)
+
+
+def _coverage_summary(data_fetch_status: pd.DataFrame) -> str:
+    if data_fetch_status.empty or "is_real_data" not in data_fetch_status.columns:
+        return "尚無資料"
+    real = data_fetch_status["is_real_data"].apply(_truthy).sum()
+    total = len(data_fetch_status)
+    if total == 0:
+        return "尚無資料"
+    return f"{real / total:.0%}（{real}/{total}）"
+
+
+def _real_source_count(data_fetch_status: pd.DataFrame) -> int:
+    if data_fetch_status.empty or "is_real_data" not in data_fetch_status.columns:
+        return 0
+    return int(data_fetch_status["is_real_data"].apply(_truthy).sum())
+
+
+def _mock_symbol_count(frame: pd.DataFrame) -> int:
+    if frame.empty or "market_intel_source" not in frame.columns:
+        return 0
+    return int(frame["market_intel_source"].fillna("").astype(str).str.lower().eq("mock").sum())
+
+
+def _source_latest_period(data_fetch_status: pd.DataFrame, source_name: str) -> str:
+    if data_fetch_status.empty or "source_name" not in data_fetch_status.columns:
+        return "-"
+    matches = data_fetch_status[data_fetch_status["source_name"].fillna("").astype(str) == source_name]
+    if matches.empty:
+        return "-"
+    row = matches.iloc[0]
+    for column in ["latest_available_period", "actual_period", "requested_period"]:
+        value = row.get(column)
+        if not _is_blank(value):
+            return str(value)
+    return "-"
+
+
+def _truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"true", "1", "yes", "y", "是"}
 
 
 def _fundamental_missing_count(candidates: pd.DataFrame) -> int:

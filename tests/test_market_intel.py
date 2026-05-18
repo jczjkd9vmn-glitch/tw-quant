@@ -49,7 +49,12 @@ def test_market_intel_final_score_uses_weights() -> None:
         roe=15,
         close=100,
         momentum_score_hint=80,
+        chip_score=60,
+        credit_score=60,
+        event_risk_score=70,
+        liquidity_score=70,
         latest_news_titles=["營收創高"],
+        data_source="best_effort",
     )
 
     assert context.final_market_score > 60

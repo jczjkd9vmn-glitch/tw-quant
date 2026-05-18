@@ -10,10 +10,13 @@ import pandas as pd
 VALUATION_COLUMNS = [
     "stock_id",
     "stock_name",
+    "date",
     "financial_quarter",
     "pe_ratio",
     "pb_ratio",
     "dividend_yield",
+    "valuation_source",
+    "valuation_source_status",
 ]
 
 NEUTRAL_REASON = "估值資料不足，採中性分數"
@@ -84,6 +87,8 @@ def score_valuation(
         "pe_ratio": pe_ratio,
         "pb_ratio": pb_ratio,
         "dividend_yield": dividend_yield,
+        "valuation_source": latest.get("valuation_source"),
+        "valuation_source_status": latest.get("valuation_source_status"),
         "valuation_reason": "；".join(reasons),
         "valuation_warning": "；".join(warnings),
     }
@@ -98,6 +103,7 @@ def load_valuation(path: str | Path) -> pd.DataFrame:
         if column not in frame.columns:
             frame[column] = None
     frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
+    frame["date"] = frame["date"].fillna("").astype(str)
     frame["financial_quarter"] = frame["financial_quarter"].fillna("").astype(str)
     for column in ["pe_ratio", "pb_ratio", "dividend_yield"]:
         frame[column] = pd.to_numeric(frame[column], errors="coerce")
@@ -111,6 +117,8 @@ def _neutral(stock_id: str) -> dict[str, object]:
         "pe_ratio": None,
         "pb_ratio": None,
         "dividend_yield": None,
+        "valuation_source": "",
+        "valuation_source_status": "MISSING",
         "valuation_reason": NEUTRAL_REASON,
         "valuation_warning": "",
     }

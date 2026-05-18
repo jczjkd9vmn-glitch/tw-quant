@@ -55,11 +55,32 @@ multi_factor:
 
 market_intel:
   enabled: true
-  provider: mock
+  provider: real
   cache_enabled: true
   affect_ranking: false
   affect_trading: false
   enable_market_intel_filter: false
+  provider_order: [official_events, material_events, attention_disposition, csv_fallback, mock]
+  allow_mock: true
+  mock_only_when_no_real_data: true
+
+data_sources:
+  monthly_revenue:
+    enabled: true
+    lookback_months: 6
+    allow_existing_csv_fallback: true
+  valuation:
+    enabled: true
+    allow_existing_csv_fallback: true
+  financials:
+    enabled: true
+    allow_existing_csv_fallback: true
+  material_events:
+    enabled: true
+    allow_existing_csv_fallback: true
+  confidence:
+    enabled: true
+    stale_days_threshold: 90
 
 event_risk:
   block_disposition_stock: true

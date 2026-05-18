@@ -192,7 +192,7 @@ def test_final_market_score_uses_official_factor_weights() -> None:
         }
     )
 
-    assert calculate_final_market_score(row) == 65.0
+    assert calculate_final_market_score(row) == 62.0
 
 
 def test_confidence_drops_when_sources_missing(tmp_path: Path) -> None:

@@ -17,6 +17,7 @@ class MockMarketIntelProvider:
                 symbol=symbol,
                 date=date_text,
                 data_source=self.source_name,
+                confidence_score=30.0,
                 warning_message="未設定市場資料來源，使用中性 mock 資料",
             )
             for symbol in symbols

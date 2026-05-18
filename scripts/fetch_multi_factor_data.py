@@ -14,12 +14,13 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from tw_quant.data_sources.base import ProviderResult
-from tw_quant.data_sources.mops_provider import MATERIAL_EVENT_COLUMNS, MONTHLY_REVENUE_COLUMNS, MOPSProvider
+from tw_quant.data_sources.mops_provider import FINANCIAL_COLUMNS, MATERIAL_EVENT_COLUMNS, MONTHLY_REVENUE_COLUMNS, MOPSProvider
 from tw_quant.data_sources.twse_provider import (
     ATTENTION_DISPOSITION_COLUMNS,
     INSTITUTIONAL_COLUMNS,
     MARGIN_SHORT_COLUMNS,
     TWSEProvider,
+    VALUATION_COLUMNS,
 )
 
 
@@ -61,6 +62,16 @@ def _coerce_result(name: str, value: ProviderResult | pd.DataFrame, columns: lis
             status=value.status,
             warning=value.warning,
             error_message=value.error_message,
+            requested_period=value.requested_period,
+            actual_period=value.actual_period,
+            latest_available_period=value.latest_available_period,
+            source_url_or_name=value.source_url_or_name,
+            is_real_data=value.is_real_data,
+            is_mock=value.is_mock,
+            is_stale=value.is_stale,
+            data_age_days=value.data_age_days,
+            coverage_ratio=value.coverage_ratio,
+            affected_symbols_count=value.affected_symbols_count,
         )
     return ProviderResult(name, _ensure_schema(value, columns), "OK")
 
@@ -97,6 +108,25 @@ def _truncate(value: object, limit: int = 300) -> str:
     return f"{text[: limit - 3]}..."
 
 
+def _is_stale(data_age_days: int | None, threshold: int = 90) -> bool:
+    if data_age_days is None:
+        return False
+    return int(data_age_days) > threshold
+
+
+def _sanitize_source_name(value: object) -> str:
+    text = _truncate(value, 180)
+    if not text:
+        return ""
+    # Public TWSE/MOPS URLs have no secrets. Keep this conservative in case
+    # a future provider accidentally includes query credentials.
+    lowered = text.lower()
+    for token_key in ["token=", "api_key=", "apikey=", "access_key=", "secret="]:
+        if token_key in lowered:
+            return text[: lowered.index(token_key)] + token_key + "[redacted]"
+    return text
+
+
 def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -116,34 +146,22 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
         SourceSpec(
             name="valuation",
             output_path=DATA_DIR / "valuation.csv",
-            columns=["stock_id", "stock_name", "date", "pe_ratio", "pb_ratio", "dividend_yield", "financial_quarter"],
-            provider_maturity="csv_fallback",
-            fetcher=lambda: ProviderResult("valuation", pd.DataFrame(), "EMPTY", "official valuation source not configured"),
+            columns=VALUATION_COLUMNS,
+            provider_maturity="best_effort",
+            fetcher=lambda: twse.fetch_valuation(trade_date),
         ),
         SourceSpec(
             name="financials",
             output_path=DATA_DIR / "financials.csv",
-            columns=[
-                "stock_id",
-                "stock_name",
-                "financial_quarter",
-                "eps",
-                "eps_yoy",
-                "roe",
-                "gross_margin",
-                "operating_margin",
-                "net_margin",
-                "debt_ratio",
-                "operating_cash_flow",
-            ],
-            provider_maturity="csv_fallback",
-            fetcher=lambda: ProviderResult("financials", pd.DataFrame(), "EMPTY", "official financial source not configured"),
+            columns=FINANCIAL_COLUMNS,
+            provider_maturity="best_effort",
+            fetcher=lambda: mops.fetch_financials(trade_date),
         ),
         SourceSpec(
             name="material_events",
             output_path=DATA_DIR / "material_events.csv",
             columns=MATERIAL_EVENT_COLUMNS,
-            provider_maturity="placeholder",
+            provider_maturity="best_effort",
             fetcher=lambda: mops.fetch_material_events(trade_date),
         ),
         SourceSpec(
@@ -221,7 +239,7 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
         status = fetched.status
         warning = fetched.warning
         error_message = fetched.error_message
-        should_write = status.upper() in {"OK", "CACHE"} and rows > 0
+        should_write = status.upper() in {"OK", "OK_WITH_FALLBACK", "CACHE"} and rows > 0
         fallback_action = "cache_used" if status.upper() == "CACHE" and rows > 0 else "wrote_new_data"
 
         if should_write:
@@ -254,6 +272,16 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
                 "warning": _truncate(warning, 500),
                 "error_message": _truncate(error_message),
                 "fallback_action": fallback_action,
+                "requested_period": fetched.requested_period,
+                "actual_period": fetched.actual_period,
+                "latest_available_period": fetched.latest_available_period,
+                "source_url_or_name": _sanitize_source_name(fetched.source_url_or_name),
+                "is_real_data": bool(fetched.is_real_data and status.upper() != "MOCK"),
+                "is_mock": bool(fetched.is_mock or status.upper() == "MOCK"),
+                "is_stale": bool(fetched.is_stale or _is_stale(fetched.data_age_days)),
+                "data_age_days": fetched.data_age_days,
+                "coverage_ratio": fetched.coverage_ratio,
+                "affected_symbols_count": fetched.affected_symbols_count,
             }
         )
 

@@ -44,6 +44,37 @@ NEGATIVE_NEWS_KEYWORDS = [
     "訂單減少",
 ]
 
+POSITIVE_NEWS_KEYWORDS.extend(
+    [
+        "營收成長",
+        "獲利成長",
+        "接單",
+        "擴產",
+        "股利",
+        "合作",
+        "得標",
+        "新產品",
+        "法人買超",
+    ]
+)
+NEGATIVE_NEWS_KEYWORDS.extend(
+    [
+        "處分",
+        "裁罰",
+        "調查",
+        "停工",
+        "停業",
+        "虧損",
+        "下修",
+        "警示",
+        "注意股",
+        "處置股",
+        "違約",
+        "訴訟",
+        "重訊負面",
+    ]
+)
+
 
 def build_market_context(
     *,
@@ -120,7 +151,22 @@ def build_market_context(
         if item
     ]
     missing_count = len(warnings)
-    confidence_score = max(20.0, 100.0 - missing_count * 12.0)
+    confidence_score = _confidence_score(
+        data_source=data_source,
+        warning_count=missing_count,
+        revenue_growth_yoy=revenue_growth_yoy,
+        pe_ratio=pe_ratio,
+        pb_ratio=pb_ratio,
+        eps_growth_yoy=eps_growth_yoy,
+        roe=roe,
+        chip_score=chip_score,
+        credit_score=credit_score,
+        event_risk_score=event_risk_score,
+        liquidity_score=liquidity_score,
+        latest_news_titles=titles,
+    )
+    row["confidence_score"] = confidence_score
+    final_score = calculate_final_market_score(row)
     flags = _risk_flags_from_input(risk_flags) + fundamental_flags + valuation_flags + momentum_flags
     if news_score <= -40:
         flags.append("新聞明顯偏負面")
@@ -180,6 +226,49 @@ def score_news_sentiment(titles: Iterable[str]) -> tuple[int, list[str]]:
     negative = [keyword for keyword in NEGATIVE_NEWS_KEYWORDS if keyword in text]
     score = min(len(positive) * 20, 100) - min(len(negative) * 25, 100)
     return max(min(score, 100), -100), positive + negative
+
+
+def _confidence_score(
+    *,
+    data_source: str,
+    warning_count: int,
+    revenue_growth_yoy: object = None,
+    pe_ratio: object = None,
+    pb_ratio: object = None,
+    eps_growth_yoy: object = None,
+    roe: object = None,
+    chip_score: object = None,
+    credit_score: object = None,
+    event_risk_score: object = None,
+    liquidity_score: object = None,
+    latest_news_titles: list[str] | None = None,
+) -> float:
+    score = 40.0
+    if _to_float(revenue_growth_yoy) is not None:
+        score += 10
+    if _to_float(pe_ratio) is not None or _to_float(pb_ratio) is not None:
+        score += 10
+    if _to_float(eps_growth_yoy) is not None or _to_float(roe) is not None:
+        score += 10
+    if _to_float(chip_score) is not None:
+        score += 10
+    if _to_float(credit_score) is not None:
+        score += 10
+    if _to_float(event_risk_score) is not None:
+        score += 10
+    if _to_float(liquidity_score) is not None:
+        score += 5
+    if latest_news_titles:
+        score += 5
+    source = str(data_source or "").lower()
+    if source == "mock":
+        score -= 20
+    if "csv_fallback" in source:
+        score -= 8
+    if "fallback" in source and "csv_fallback" not in source:
+        score -= 5
+    score -= min(max(warning_count, 0) * 10, 30)
+    return round(max(0.0, min(100.0, score)), 2)
 
 
 def score_fundamental(

@@ -9,6 +9,7 @@ import pandas as pd
 
 from tw_quant.market_intel.providers.base import MarketContext
 from tw_quant.market_intel.providers.mock_provider import MockMarketIntelProvider
+from tw_quant.market_intel.providers.real_provider import RealMarketIntelProvider
 from tw_quant.market_intel.providers.yfinance_provider import YFinanceMarketIntelProvider
 from tw_quant.market_intel.scoring import build_market_context
 
@@ -66,11 +67,23 @@ def build_market_intel_report(
     cache_enabled = bool(active_config.get("cache_enabled", True))
     if cache_enabled and cache_path.exists():
         frame = _read_cache(cache_path)
-        if not frame.empty:
+        provider_name = str(active_config.get("provider", "real")).strip().lower()
+        cache_is_mock = "market_intel_source" in frame.columns and frame["market_intel_source"].astype(str).str.lower().eq("mock").all()
+        if not frame.empty and not (provider_name in {"real", "best_effort"} and cache_is_mock):
             return frame, _status("market_intel", "CACHE", len(frame), warning=_warning_text(frame))
 
-    provider_name = str(active_config.get("provider", "mock")).strip().lower()
-    provider = YFinanceMarketIntelProvider() if provider_name == "yfinance" else MockMarketIntelProvider()
+    provider_name = str(active_config.get("provider", "real")).strip().lower()
+    if provider_name == "yfinance":
+        provider = YFinanceMarketIntelProvider()
+    elif provider_name in {"real", "best_effort", "official"}:
+        provider = RealMarketIntelProvider(
+            data_dir=active_config.get("data_dir", "data"),
+            allow_mock=bool(active_config.get("allow_mock", True)),
+            block_disposition_stock=bool(active_config.get("block_disposition_stock", True)),
+            block_attention_stock=bool(active_config.get("block_attention_stock", False)),
+        )
+    else:
+        provider = MockMarketIntelProvider()
     symbols = candidates["stock_id"].astype(str).tolist()
     provider_contexts = {context.symbol: context for context in provider.fetch(symbols, as_of=_date_text(date_label))}
     rows = []
@@ -85,7 +98,11 @@ def build_market_intel_report(
     report_dir.mkdir(parents=True, exist_ok=True)
     frame.to_csv(csv_path, index=False, encoding="utf-8-sig")
     warning = _warning_text(frame)
-    return frame, _status("market_intel", "OK_WITH_WARNING" if warning else "OK", len(frame), warning=warning)
+    if "market_intel_source" in frame.columns and frame["market_intel_source"].astype(str).str.lower().eq("mock").all():
+        status_value = "MOCK"
+    else:
+        status_value = "OK_WITH_WARNING" if warning else "OK"
+    return frame, _status("market_intel", status_value, len(frame), warning=warning)
 
 
 def _context_from_candidate(row: pd.Series, provider_context: MarketContext | None, date_label: str) -> MarketContext:
@@ -212,6 +229,16 @@ def _status(
                 "rows": rows,
                 "warning": warning,
                 "error_message": error_message,
+                "requested_period": "",
+                "actual_period": "",
+                "latest_available_period": "",
+                "source_url_or_name": "market_intel provider",
+                "is_real_data": status not in {"MOCK", "DISABLED", "EMPTY"},
+                "is_mock": status == "MOCK",
+                "is_stale": False,
+                "data_age_days": None,
+                "coverage_ratio": None,
+                "affected_symbols_count": rows,
             }
         ]
     )

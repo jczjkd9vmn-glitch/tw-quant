@@ -68,11 +68,25 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     "market_intel": {
         "enabled": True,
-        "provider": "mock",
+        "provider": "real",
         "cache_enabled": True,
         "affect_ranking": False,
         "affect_trading": False,
         "enable_market_intel_filter": False,
+        "provider_order": ["official_events", "material_events", "attention_disposition", "csv_fallback", "mock"],
+        "allow_mock": True,
+        "mock_only_when_no_real_data": True,
+    },
+    "data_sources": {
+        "monthly_revenue": {
+            "enabled": True,
+            "lookback_months": 6,
+            "allow_existing_csv_fallback": True,
+        },
+        "valuation": {"enabled": True, "allow_existing_csv_fallback": True},
+        "financials": {"enabled": True, "allow_existing_csv_fallback": True},
+        "material_events": {"enabled": True, "allow_existing_csv_fallback": True},
+        "confidence": {"enabled": True, "stale_days_threshold": 90},
     },
     "event_risk": {
         "block_disposition_stock": True,
@@ -153,6 +167,11 @@ def _parse_scalar(value: str) -> Any:
         return value[1:-1]
 
     lowered = value.lower()
+    if value.startswith("[") and value.endswith("]"):
+        inner = value[1:-1].strip()
+        if not inner:
+            return []
+        return [_parse_scalar(part.strip()) for part in inner.split(",")]
     if lowered == "true":
         return True
     if lowered == "false":

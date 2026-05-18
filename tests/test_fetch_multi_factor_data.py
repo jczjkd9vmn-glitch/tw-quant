@@ -215,4 +215,4 @@ def test_status_contains_expected_states(tmp_path: Path, monkeypatch) -> None:
 
     status = module.run_fetch_multi_factor_data(as_of="20260515")
 
-    assert set(status["status"]).issubset({"OK", "EMPTY", "MISSING", "FAILED"})
+    assert set(status["status"]).issubset({"OK", "OK_WITH_FALLBACK", "EMPTY", "MISSING", "FAILED"})

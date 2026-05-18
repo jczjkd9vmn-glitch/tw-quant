@@ -774,6 +774,41 @@ python scripts/fetch_multi_factor_data.py
 
 `confidence_score` 是資料可信度，不是買賣建議。基礎分為 40，會依月營收、估值、財報、籌碼、融資融券、注意處置、事件資料完整度加分；mock、CSV fallback、provider failed、資料過舊或關鍵欄位缺失會扣分，範圍限制在 0 到 100。
 
+### 本地衍生流動性與相對強弱
+
+`scripts/fetch_multi_factor_data.py` 會從 SQLite 既有每日價量資料衍生兩個本地資料源，不依賴外部 API：
+
+- `data/liquidity.csv`：輸出 `avg_volume_20d`、`avg_turnover_20d`、`latest_turnover`、`turnover_ratio_20d`、`liquidity_score`、`slippage_risk_score` 與 `liquidity_warning`。若資料沒有成交金額，會用 `close * volume` 估算。
+- `data/sector_strength.csv`：輸出 `stock_return_5d`、`stock_return_20d`、`market_return_5d`、`market_return_20d`、`relative_strength_5d`、`relative_strength_20d`、`sector_strength_score` 與 `sector_strength_rank`。目前 SQLite 價格表若沒有 `industry` 欄位，會使用全市場相對強弱 fallback，並在 warning 標示「缺少產業分類，使用全市場相對強弱」。
+
+這兩個分數會納入 `multi_factor_score` 與 `final_market_score` 的觀察用分數，也會顯示在 HTML 報表與 data fetch status。預設仍不改候選股排序、不改 `risk_pass`、不產生買單，也不改 pending order 隔日進場邏輯。
+
+`config.yaml` 可調整本地衍生參數：
+
+```yaml
+local_factors:
+  liquidity:
+    enabled: true
+    window: 20
+    low_turnover_threshold: 5000000
+  sector_strength:
+    enabled: true
+    short_window: 5
+    long_window: 20
+    fallback_to_market_relative: true
+  holding_risk_light:
+    enabled: true
+    near_stop_loss_pct: 0.03
+```
+
+HTML 報表的「持倉風險燈號」只作為人工檢查提示，不會自動賣出：
+
+- 綠燈：正常續抱，未觸發明顯風險。
+- 黃燈：需人工留意，例如資料可信度偏低、注意股、流動性普通、產業相對弱勢或已部分停利。
+- 紅燈：高風險 / 接近出場，例如接近停損、處置股、高風險事件或流動性偏低。
+
+「今日操作重點」是報表摘要，不是投資建議；內容會提醒等待進場、出場統計、紅黃燈持倉與資料品質狀態，但不會使用保證獲利或直接買賣建議語氣。
+
 `reports/data_fetch_status_YYYYMMDD.csv` 會額外記錄：
 
 - `requested_period`

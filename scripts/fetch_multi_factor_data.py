@@ -14,6 +14,11 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from tw_quant.data_sources.base import ProviderResult
+from tw_quant.data_sources.local_derived_provider import (
+    LIQUIDITY_DERIVED_COLUMNS,
+    SECTOR_STRENGTH_DERIVED_COLUMNS,
+    LocalDerivedProvider,
+)
 from tw_quant.data_sources.mops_provider import FINANCIAL_COLUMNS, MATERIAL_EVENT_COLUMNS, MONTHLY_REVENUE_COLUMNS, MOPSProvider
 from tw_quant.data_sources.twse_provider import (
     ATTENTION_DISPOSITION_COLUMNS,
@@ -134,6 +139,7 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
     trade_date = as_of or date.today().strftime("%Y%m%d")
     twse = TWSEProvider(cache_dir=cache_dir)
     mops = MOPSProvider(cache_dir=cache_dir)
+    local = LocalDerivedProvider(config_path=ROOT / "config.yaml")
 
     specs = [
         SourceSpec(
@@ -194,29 +200,16 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
         SourceSpec(
             name="sector_strength",
             output_path=DATA_DIR / "sector_strength.csv",
-            columns=[
-                "trade_date",
-                "stock_id",
-                "industry",
-                "stock_return_5d",
-                "stock_return_20d",
-                "market_return_5d",
-                "market_return_20d",
-                "sector_return_5d",
-                "sector_return_20d",
-                "relative_strength_5d",
-                "relative_strength_20d",
-                "sector_strength_rank",
-            ],
-            provider_maturity="placeholder",
-            fetcher=lambda: ProviderResult("sector_strength", pd.DataFrame(), "EMPTY", "sector strength is derived from local data in a later version"),
+            columns=SECTOR_STRENGTH_DERIVED_COLUMNS,
+            provider_maturity="local_derived",
+            fetcher=lambda: local.fetch_sector_strength(trade_date),
         ),
         SourceSpec(
             name="liquidity",
             output_path=DATA_DIR / "liquidity.csv",
-            columns=["trade_date", "stock_id", "avg_volume_20d", "avg_turnover_20d", "intraday_trading_ratio"],
-            provider_maturity="placeholder",
-            fetcher=lambda: ProviderResult("liquidity", pd.DataFrame(), "EMPTY", "liquidity source not configured"),
+            columns=LIQUIDITY_DERIVED_COLUMNS,
+            provider_maturity="local_derived",
+            fetcher=lambda: local.fetch_liquidity(trade_date),
         ),
     ]
 
@@ -240,7 +233,12 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
         warning = fetched.warning
         error_message = fetched.error_message
         should_write = status.upper() in {"OK", "OK_WITH_FALLBACK", "CACHE"} and rows > 0
-        fallback_action = "cache_used" if status.upper() == "CACHE" and rows > 0 else "wrote_new_data"
+        if status.upper() == "CACHE" and rows > 0:
+            fallback_action = "cache_used"
+        elif status.upper() == "OK_WITH_FALLBACK" and spec.provider_maturity == "local_derived":
+            fallback_action = "used_local_fallback"
+        else:
+            fallback_action = "wrote_new_data"
 
         if should_write:
             output = _ensure_schema(output, spec.columns)

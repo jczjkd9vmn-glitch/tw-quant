@@ -82,6 +82,20 @@ data_sources:
     enabled: true
     stale_days_threshold: 90
 
+local_factors:
+  liquidity:
+    enabled: true
+    window: 20
+    low_turnover_threshold: 5000000
+  sector_strength:
+    enabled: true
+    short_window: 5
+    long_window: 20
+    fallback_to_market_relative: true
+  holding_risk_light:
+    enabled: true
+    near_stop_loss_pct: 0.03
+
 event_risk:
   block_disposition_stock: true
   block_attention_stock: false

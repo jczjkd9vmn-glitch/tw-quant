@@ -1,10 +1,11 @@
-﻿source_name,provider_maturity,status,rows,warning,error_message,fallback_action,requested_period,actual_period,latest_available_period,source_url_or_name,is_real_data,is_mock,is_stale,data_age_days,coverage_ratio,affected_symbols_count
-monthly_revenue,best_effort,OK_WITH_FALLBACK,1078,requested month 202605 unavailable; used latest available month 202604,,wrote_new_data,202605,202604,202604,https://openapi.twse.com.tw/v1/opendata/t187ap05_L,True,False,False,47.0,1.0,1078.0
-valuation,best_effort,OK,1074,,,wrote_new_data,,2026-05-15,2026-05-15,https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL,True,False,False,3.0,1.0,1074.0
-financials,best_effort,OK,1039,,,wrote_new_data,,115Q1,115Q1,https://openapi.twse.com.tw/v1/opendata/t187ap06_L_ci,True,False,False,,1.0,1039.0
-material_events,best_effort,OK,3,,,wrote_new_data,,,,https://openapi.twse.com.tw/v1/opendata/t187ap04_L,True,False,False,,1.0,3.0
-institutional,best_effort,OK_WITH_FALLBACK,1311,"official source returned no data; provider empty, kept existing csv; 官方來源本次無法提供新資料，保留既有 CSV，rows 為既有資料筆數。",,kept_existing_csv,,,,,False,False,False,,,
-margin_short,best_effort,OK_WITH_FALLBACK,1269,"official source returned no data; provider empty, kept existing csv; 官方來源本次無法提供新資料，保留既有 CSV，rows 為既有資料筆數。",,kept_existing_csv,,,,,False,False,False,,,
-attention_disposition,best_effort,OK,25,,,wrote_new_data,,,,,False,False,False,,,
-sector_strength,local_derived,OK_WITH_FALLBACK,1429,缺少產業分類，使用全市場相對強弱,,used_local_fallback,20260518,2026-05-15,2026-05-15,SQLite local OHLCV data,True,False,False,3.0,1.0,1429.0
-liquidity,local_derived,OK,1429,部分股票流動性偏低或價量資料不足,,wrote_new_data,20260518,2026-05-15,2026-05-15,SQLite local OHLCV data,True,False,False,3.0,1.0,1429.0
+﻿source_name,status,rows,warning,error_message,requested_period,actual_period,latest_available_period,source_url_or_name,is_real_data,is_mock,is_stale,data_age_days,coverage_ratio,affected_symbols_count
+monthly_revenue,OK,1078,,,,,,,False,False,False,,,
+valuation,OK,1074,,,,,,,False,False,False,,,
+financials,OK,1039,,,,,,,False,False,False,,,
+material_events,OK,3,,,,,,,False,False,False,,,
+institutional,OK,1318,,,,,,,False,False,False,,,
+margin_short,OK,1269,,,,,,,False,False,False,,,
+attention_disposition,OK,52,,,,,,,False,False,False,,,
+sector_strength,OK,1430,,,,,,,False,False,False,,,
+liquidity,OK,1430,,,,,,,False,False,False,,,
+market_intel,OK_WITH_WARNING,20,市場事件資料不足，採中性處理；基本面資料不足，採中性分數；估值資料不足，採中性分數；價格資料不足，動能採中性分數,,,,,market_intel provider,True,False,False,,,20

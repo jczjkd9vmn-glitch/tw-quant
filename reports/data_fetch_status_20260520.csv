@@ -1,0 +1,11 @@
+﻿source_name,status,rows,warning,error_message,requested_period,actual_period,latest_available_period,source_url_or_name,is_real_data,is_mock,is_stale,data_age_days,coverage_ratio,affected_symbols_count
+monthly_revenue,OK,1078,,,,,,,False,False,False,,,
+valuation,OK,1075,,,,,,,False,False,False,,,
+financials,OK,1040,,,,,,,False,False,False,,,
+material_events,OK,126,,,,,,,False,False,False,,,
+institutional,OK,1319,,,,,,,False,False,False,,,
+margin_short,OK,1269,,,,,,,False,False,False,,,
+attention_disposition,OK,49,,,,,,,False,False,False,,,
+sector_strength,OK,1431,,,,,,,False,False,False,,,
+liquidity,OK,1431,,,,,,,False,False,False,,,
+market_intel,OK_WITH_WARNING,20,基本面資料不足，採中性分數；估值資料不足，採中性分數；價格資料不足，動能採中性分數；市場事件資料不足，採中性處理；基本面資料不足，採中性分數；估值資料不足，採中性分數；價格資料不足，動能採中性分數,,,,,market_intel provider,True,False,False,,,20

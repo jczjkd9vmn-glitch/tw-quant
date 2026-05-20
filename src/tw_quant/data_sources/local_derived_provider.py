@@ -35,6 +35,9 @@ SECTOR_STRENGTH_DERIVED_COLUMNS = [
     "stock_id",
     "stock_name",
     "industry",
+    "sub_industry",
+    "industry_source",
+    "sector_strength_mode",
     "stock_return_5d",
     "stock_return_20d",
     "market_return_5d",
@@ -74,6 +77,7 @@ class LocalDerivedProvider:
         config_path: str | Path = "config.yaml",
     ) -> None:
         self.config = config or load_config(config_path)
+        self.config_path = Path(config_path)
         self.factor_config = self._parse_factor_config(self.config)
         db_url = database_url or self.config.get("database", {}).get("url", "sqlite:///data/tw_quant.sqlite")
         self.engine = engine or create_db_engine(db_url)
@@ -157,6 +161,8 @@ class LocalDerivedProvider:
         has_industry = "industry" in history.columns and history["industry"].fillna("").astype(str).str.strip().ne("").any()
         if not has_industry:
             history["industry"] = "全市場"
+            history["sub_industry"] = ""
+            history["industry_source"] = ""
 
         rows: list[dict[str, Any]] = []
         for stock_id, group in history.groupby("stock_id", sort=False):
@@ -170,6 +176,9 @@ class LocalDerivedProvider:
                     "stock_id": str(stock_id),
                     "stock_name": latest.get("stock_name", ""),
                     "industry": latest.get("industry", "全市場") or "全市場",
+                    "sub_industry": latest.get("sub_industry", ""),
+                    "industry_source": latest.get("industry_source", ""),
+                    "sector_strength_mode": "industry_relative" if has_industry else "market_relative_fallback",
                     "stock_return_5d": stock_return_5d,
                     "stock_return_20d": stock_return_20d,
                 }
@@ -223,7 +232,41 @@ class LocalDerivedProvider:
             history["turnover_value"] = np.nan
         estimated = pd.to_numeric(history["close"], errors="coerce") * pd.to_numeric(history["volume"], errors="coerce")
         history["turnover_value"] = history["turnover_value"].where(history["turnover_value"].notna(), estimated)
+        history = self._merge_industry_map(history)
         return history.sort_values(["stock_id", "trade_date"])
+
+    def _merge_industry_map(self, history: pd.DataFrame) -> pd.DataFrame:
+        industry_config = self.config.get("industry_enrichment", {})
+        path_text = str(industry_config.get("industry_map_path", "data/industry_map.csv"))
+        path = Path(path_text)
+        if not path.is_absolute():
+            root = self.config_path.parent if self.config_path.parent != Path(".") else Path(".")
+            path = root / path
+        if not path.exists():
+            return history
+        try:
+            industry_map = pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8-sig")
+        except Exception:
+            return history
+        if industry_map.empty or "stock_id" not in industry_map.columns or "industry" not in industry_map.columns:
+            return history
+        lookup = industry_map.drop_duplicates("stock_id", keep="last").set_index("stock_id")
+        result = history.copy()
+        result["stock_id"] = result["stock_id"].astype(str).str.strip()
+        for column, source_column in [
+            ("industry", "industry"),
+            ("sub_industry", "sub_industry"),
+            ("industry_source", "source"),
+        ]:
+            if source_column not in lookup.columns:
+                continue
+            mapped = result["stock_id"].map(lookup[source_column])
+            if column not in result.columns:
+                result[column] = mapped
+            else:
+                current = result[column].fillna("").astype(str).str.strip()
+                result[column] = result[column].where(current != "", mapped)
+        return result
 
     @staticmethod
     def _liquidity_score(avg_turnover: float | None) -> float:

@@ -177,6 +177,19 @@ COLUMN_LABELS = {
     "guardrail_status": "Guardrail 狀態",
     "pause_new_entries_reason": "暫停新倉原因",
     "rejected_orders": "被擋下交易數",
+    "pending_orders_active_count": "Active pending 數",
+    "pending_orders_executed_count": "Executed pending 數",
+    "pending_orders_expired_count": "Expired pending 數",
+    "pending_orders_cancelled_count": "Cancelled pending 數",
+    "rejected_orders_signal_count": "訊號建立被擋數",
+    "rejected_orders_execution_count": "執行前被擋數",
+    "rejected_orders_total_count": "被擋總數",
+    "guardrail_blocked_execution_count": "Guardrail 執行擋單數",
+    "expired_pending_orders_count": "過期待進場數",
+    "cancelled_by_market_regime_count": "市場環境取消數",
+    "cancelled_by_low_grade_count": "分級不足取消數",
+    "cancelled_by_event_risk_count": "事件風險取消數",
+    "cancelled_by_max_position_count": "持倉上限取消數",
     "loss_attribution_status": "虧損歸因狀態",
     "loss_attribution_loss_count": "虧損交易數",
     "loss_attribution_top_reason": "主要虧損原因",
@@ -186,6 +199,40 @@ COLUMN_LABELS = {
     "loss_bucket": "虧損分類",
     "likely_loss_reason": "可能虧損原因",
     "rejected_reason": "拒絕建立原因",
+    "rejection_stage": "拒絕階段",
+    "rejection_reason": "拒絕 / 取消原因",
+    "rejected_status": "拒絕狀態",
+    "original_order_status": "原始訂單狀態",
+    "final_order_status": "最終訂單狀態",
+    "attempted_execution_date": "嘗試執行日",
+    "order_age_trading_days": "訂單年齡（交易日）",
+    "expires_after_trading_days": "有效期限（交易日）",
+    "expired_at": "過期日",
+    "expiry_reason": "過期原因",
+    "ai_enrichment_status": "AI / Enrichment 狀態",
+    "ai_used_count": "AI 使用筆數",
+    "rule_based_enrichment_count": "Rule-based fallback 筆數",
+    "enrichment_insufficient_data_count": "資料不足筆數",
+    "industry_map_status": "產業分類補強狀態",
+    "enrichment_status": "資料補強狀態",
+    "enrichment_provider": "資料補強 provider",
+    "ai_used": "是否使用外部 AI",
+    "source_evidence_count": "資料來源依據數",
+    "missing_data_flags": "缺失資料旗標",
+    "enriched_industry": "補強產業",
+    "enriched_industry_source": "產業資料來源",
+    "valuation_context": "估值脈絡",
+    "valuation_risk_level": "估值風險等級",
+    "margin_credit_context": "融資籌碼脈絡",
+    "margin_risk_level": "融資風險等級",
+    "sector_context": "產業脈絡",
+    "risk_explanation": "風險解釋",
+    "opportunity_explanation": "觀察重點",
+    "data_quality_explanation": "資料品質說明",
+    "manual_review_focus": "人工檢查重點",
+    "ai_summary": "AI / Enrichment 摘要",
+    "ai_warning": "AI / Enrichment 警示",
+    "source_evidence_json": "資料來源依據",
 }
 
 
@@ -356,6 +403,12 @@ STATUS_LABELS = {
     "no_signal": "無訊號",
     "PENDING": "等待進場",
     "EXECUTED": "已成交",
+    "EXPIRED": "已過期",
+    "CANCELLED_BY_GUARDRAIL": "Guardrail 取消",
+    "CANCELLED_BY_MARKET_REGIME": "市場環境取消",
+    "CANCELLED_BY_MAX_POSITION": "持倉上限取消",
+    "CANCELLED_BY_LOW_GRADE": "分級不足取消",
+    "CANCELLED_BY_EVENT_RISK": "事件風險取消",
     "SKIPPED_EXISTING_POSITION": "已有持倉，略過重複進場",
     "OPEN": "持有中",
     "no trading data": "無交易資料",
@@ -646,6 +699,7 @@ def generate_html_report(
     loss_attribution = _read_latest_csv(report_dir, "loss_attribution_*.csv")
     market_regime = _read_latest_csv(report_dir, "market_regime_*.csv")
     rejected_orders = _read_latest_csv(report_dir, "rejected_paper_orders_*.csv")
+    ai_enrichment = _read_latest_csv(report_dir, "ai_enrichment_*.csv")
     active_config = load_config(ROOT / "config.yaml")
     trading_cost = active_config.get("trading_cost", {})
 
@@ -664,6 +718,7 @@ def generate_html_report(
         loss_attribution=loss_attribution,
         market_regime=market_regime,
         rejected_orders=rejected_orders,
+        ai_enrichment=ai_enrichment,
         trading_cost=trading_cost,
         config=active_config,
     )
@@ -692,6 +747,7 @@ def _render_page(
     loss_attribution: pd.DataFrame,
     market_regime: pd.DataFrame,
     rejected_orders: pd.DataFrame,
+    ai_enrichment: pd.DataFrame,
     trading_cost: dict[str, object],
     config: dict[str, object] | None = None,
 ) -> str:
@@ -700,7 +756,7 @@ def _render_page(
     candidates = _normalize_attention_disposition_display(candidates)
     risk_pass = _normalize_attention_disposition_display(_enrich_with_fundamentals(risk_pass, candidates))
     market_intel = _normalize_attention_disposition_display(market_intel)
-    enrichment_source = _combined_enrichment_sources(candidates, risk_pass, market_intel)
+    enrichment_source = _combined_enrichment_sources(ai_enrichment, candidates, risk_pass, market_intel)
     open_positions = _filter_status(paper_trades, "OPEN")
     closed_trades = _filter_status(paper_trades, "CLOSED")
     latest_paper_summary = _first_row(paper_summary)
@@ -708,6 +764,7 @@ def _render_page(
     open_positions = _enrich_with_local_factor_csv(open_positions)
     open_positions = _apply_holding_risk_lights(open_positions, config or {})
     pending_orders = _enrich_with_fundamentals(pending_orders, enrichment_source)
+    trading_decisions = _enrich_with_fundamentals(trading_decisions, enrichment_source)
     closed_trades = _enrich_with_fundamentals(closed_trades, enrichment_source)
     health_items = _health_checks(
         report_dir,
@@ -777,6 +834,18 @@ def _render_page(
         "data_source_warning",
         "market_intel_warning",
         "system_comment",
+        "ai_summary",
+        "manual_review_focus",
+        "risk_explanation",
+        "data_quality_explanation",
+        "valuation_context",
+        "valuation_risk_level",
+        "margin_credit_context",
+        "margin_risk_level",
+        "sector_context",
+        "enrichment_provider",
+        "ai_used",
+        "source_evidence_count",
         "market_fundamental_score",
         "market_valuation_score",
         "market_momentum_score",
@@ -819,6 +888,10 @@ def _render_page(
             "data_source_warning",
             "market_intel_warning",
             "system_comment",
+            "ai_summary",
+            "manual_review_focus",
+            "valuation_context",
+            "margin_credit_context",
             "multi_factor_reason",
             "reason",
         ],
@@ -856,6 +929,7 @@ def _render_page(
             _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status, trading_decisions), class_name="today-action-section"),
             _guardrail_overview(latest_summary, market_regime, rejected_orders),
             _loss_attribution_overview(loss_attribution),
+            _enrichment_overview(latest_summary, ai_enrichment),
             _decision_overview(latest_summary, trading_decisions),
             _data_quality_detail_block(latest_summary, data_fetch_status),
             _pnl_overview(latest_summary, latest_paper_summary, open_positions),
@@ -868,6 +942,7 @@ def _render_page(
     fundamental_content = "".join(
         [
             _data_confidence_summary(candidates, market_intel, latest_summary, data_fetch_status),
+            _enrichment_overview(latest_summary, ai_enrichment),
             _market_intel_summary(candidates, market_intel, latest_summary),
             _multi_factor_summary(candidates, latest_summary),
             _fundamental_summary(candidates),
@@ -1363,7 +1438,13 @@ def _guardrail_overview(
         ("是否允許新增持倉", _format_cell("new_entries_allowed", allow_entries)),
         ("Guardrail 狀態", _format_cell("guardrail_status", summary.get("guardrail_status"))),
         ("暫停新倉原因", reason),
-        ("被擋下交易數", _format_cell("rejected_orders", summary.get("rejected_orders"))),
+        ("Active pending", _format_cell("pending_orders_active_count", summary.get("pending_orders_active_count"))),
+        ("Executed pending", _format_cell("pending_orders_executed_count", summary.get("pending_orders_executed_count"))),
+        ("Expired pending", _format_cell("pending_orders_expired_count", summary.get("pending_orders_expired_count"))),
+        ("Cancelled pending", _format_cell("pending_orders_cancelled_count", summary.get("pending_orders_cancelled_count"))),
+        ("訊號建立被擋", _format_cell("rejected_orders_signal_count", summary.get("rejected_orders_signal_count"))),
+        ("執行前被擋", _format_cell("rejected_orders_execution_count", summary.get("rejected_orders_execution_count"))),
+        ("被擋總數", _format_cell("rejected_orders_total_count", summary.get("rejected_orders_total_count") or summary.get("rejected_orders"))),
     ]
     rejected_table = _table(
         rejected_orders,
@@ -1373,19 +1454,54 @@ def _guardrail_overview(
             "candidate_grade",
             "signal_date",
             "status",
+            "rejection_stage",
+            "final_order_status",
+            "attempted_execution_date",
+            "order_age_trading_days",
             "market_regime_score",
+            "rejection_reason",
             "rejected_reason",
         ],
         "目前尚無 guardrail 擋下的交易",
         max_rows=20,
     )
-    note = '<p class="note">Guardrails 只影響紙上交易 pending order；不影響既有持倉出場，也不會真實下單。</p>'
+    expiry = load_config(ROOT / "config.yaml").get("pending_order", {}).get("expire_after_trading_days", 1)
+    note = (
+        '<p class="note">Guardrails 只影響紙上交易 pending order；不影響既有持倉出場，也不會真實下單。'
+        f" Pending order 有效期限：{escape(str(expiry))} 個交易日。</p>"
+    )
     return _section(
         "Paper trading guardrails",
         '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
         + note
         + _details_block("被擋下交易明細", rejected_table),
     )
+
+
+def _enrichment_overview(summary: dict[str, object], enrichment: pd.DataFrame) -> str:
+    ai_used = _count_true(enrichment, "ai_used")
+    rule_based = _count_equal(enrichment, "enrichment_provider", "rule_based")
+    insufficient = _count_in_set(enrichment, "enrichment_status", {"PARTIAL", "INSUFFICIENT_DATA"})
+    if summary:
+        ai_used = int(_to_float(summary.get("ai_used_count")) or ai_used)
+        rule_based = int(_to_float(summary.get("rule_based_enrichment_count")) or rule_based)
+        insufficient = int(_to_float(summary.get("enrichment_insufficient_data_count")) or insufficient)
+    cards = [
+        ("AI / Enrichment 狀態", _format_cell("ai_enrichment_status", summary.get("ai_enrichment_status"))),
+        ("AI 使用筆數", f"{ai_used:,.0f}"),
+        ("Rule-based fallback 筆數", f"{rule_based:,.0f}"),
+        ("資料不足筆數", f"{insufficient:,.0f}"),
+        ("產業分類補強狀態", _format_cell("industry_map_status", summary.get("industry_map_status"))),
+    ]
+    detail = _responsive_compact_records(
+        enrichment,
+        ["stock_id", "stock_name", "ai_summary", "manual_review_focus", "enrichment_status", "ai_used", "source_evidence_count"],
+        ["risk_explanation", "opportunity_explanation", "data_quality_explanation", "valuation_context", "margin_credit_context", "sector_context", "source_evidence_json"],
+        "目前尚無 AI / enrichment 資料",
+        20,
+    )
+    note = '<p class="note">AI / enrichment 預設使用 rule-based，僅解釋既有資料；不會下單，也不承諾獲利。</p>'
+    return _section("AI / Enrichment 摘要", '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + note + _details_block("AI / Enrichment 明細", detail))
 
 
 def _loss_attribution_overview(loss_attribution: pd.DataFrame) -> str:
@@ -1470,6 +1586,8 @@ def _decision_engine_content(decisions: pd.DataFrame, validation: pd.DataFrame) 
         "sector_strength_score",
         "can_auto_trade",
         "requires_manual_review",
+        "ai_summary",
+        "manual_review_focus",
     ]
     detail_columns = [
         "trade_date",
@@ -1483,6 +1601,12 @@ def _decision_engine_content(decisions: pd.DataFrame, validation: pd.DataFrame) 
         "event_risk_level",
         "position_size_suggestion",
         "data_quality_note",
+        "risk_explanation",
+        "data_quality_explanation",
+        "valuation_context",
+        "margin_credit_context",
+        "source_evidence_count",
+        "source_evidence_json",
     ]
     sections = [
         _section("今日決策摘要", decision_summary + '<p class="note">所有決策皆為 advisory / paper-only，不會建立真實委託；can_auto_trade=false。</p>'),
@@ -1515,19 +1639,50 @@ def _decision_count(decisions: pd.DataFrame, column: str, value: str) -> int:
     return int((decisions[column].fillna("").astype(str) == value).sum())
 
 
+def _count_true(frame: pd.DataFrame, column: str) -> int:
+    if frame.empty or column not in frame.columns:
+        return 0
+    return int(frame[column].apply(_to_bool).sum())
+
+
+def _count_equal(frame: pd.DataFrame, column: str, value: str) -> int:
+    if frame.empty or column not in frame.columns:
+        return 0
+    return int((frame[column].fillna("").astype(str) == value).sum())
+
+
+def _count_in_set(frame: pd.DataFrame, column: str, values: set[str]) -> int:
+    if frame.empty or column not in frame.columns:
+        return 0
+    return int(frame[column].fillna("").astype(str).str.upper().isin(values).sum())
+
+
 def _pending_cards(frame: pd.DataFrame) -> str:
     if frame.empty:
         return _empty("目前尚無待進場資料")
-    waiting = frame[frame["status"].fillna("").astype(str).str.upper() == "PENDING"].copy() if "status" in frame.columns else frame.copy()
-    skipped = frame[
-        frame["status"].fillna("").astype(str).str.upper().str.contains("SKIPPED|SKIP", regex=True)
-    ].copy() if "status" in frame.columns else pd.DataFrame()
-    summary = '<div class="cards">' + _card("等待進場", f"{len(waiting):,.0f}") + _card("已略過", f"{len(skipped):,.0f}") + "</div>"
+    statuses = frame["status"].fillna("").astype(str).str.upper() if "status" in frame.columns else pd.Series(["PENDING"] * len(frame))
+    waiting = frame[statuses == "PENDING"].copy()
+    expired = frame[statuses == "EXPIRED"].copy()
+    cancelled = frame[statuses.str.startswith("CANCELLED_")].copy()
+    skipped = frame[statuses.str.contains("SKIPPED|SKIP", regex=True)].copy()
+    executed = frame[statuses == "EXECUTED"].copy()
+    summary = (
+        '<div class="cards">'
+        + _card("等待進場", f"{len(waiting):,.0f}")
+        + _card("Active pending", f"{len(waiting):,.0f}")
+        + _card("Executed pending", f"{len(executed):,.0f}")
+        + _card("Expired pending", f"{len(expired):,.0f}")
+        + _card("Cancelled pending", f"{len(cancelled):,.0f}")
+        + _card("已略過", f"{len(skipped):,.0f}")
+        + "</div>"
+    )
     waiting_cards = _pending_card_list(waiting, "目前尚無等待進場資料")
+    expired_cards = _pending_card_list(expired, "目前尚無已過期待進場資料")
+    cancelled_cards = _pending_card_list(cancelled, "目前尚無已取消待進場資料")
     skipped_cards = _pending_card_list(skipped, "目前尚無已略過進場資料")
     table = _table(
         frame,
-        ["signal_date", "planned_entry_date", "actual_entry_date", "stock_id", "stock_name", "signal_close", "entry_price", "status", "fundamental_score", "fundamental_reason", "skipped_reason"],
+        ["signal_date", "planned_entry_date", "actual_entry_date", "attempted_execution_date", "stock_id", "stock_name", "signal_close", "entry_price", "status", "order_age_trading_days", "expires_after_trading_days", "fundamental_score", "fundamental_reason", "skipped_reason", "rejection_reason"],
         "目前尚無待進場資料",
         max_rows=50,
     )
@@ -1535,6 +1690,10 @@ def _pending_cards(frame: pd.DataFrame) -> str:
         summary
         + "<h3>等待進場</h3>"
         + waiting_cards
+        + "<h3>已過期</h3>"
+        + expired_cards
+        + "<h3>已取消</h3>"
+        + cancelled_cards
         + "<h3>已略過</h3>"
         + skipped_cards
         + _details_block("原始待進場資料表格", table, class_name="raw-table-details")
@@ -1761,6 +1920,25 @@ def _enrich_with_fundamentals(frame: pd.DataFrame, candidates: pd.DataFrame) -> 
         "data_source_warning",
         "market_intel_warning",
         "market_intel_source",
+        "enrichment_status",
+        "enrichment_provider",
+        "ai_used",
+        "source_evidence_count",
+        "missing_data_flags",
+        "enriched_industry",
+        "enriched_industry_source",
+        "valuation_context",
+        "valuation_risk_level",
+        "margin_credit_context",
+        "margin_risk_level",
+        "sector_context",
+        "risk_explanation",
+        "opportunity_explanation",
+        "data_quality_explanation",
+        "manual_review_focus",
+        "ai_summary",
+        "ai_warning",
+        "source_evidence_json",
     ]
     for column in columns:
         if column not in result.columns:

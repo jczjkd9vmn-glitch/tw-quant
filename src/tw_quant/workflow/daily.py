@@ -14,6 +14,8 @@ from tw_quant.data.database import create_db_engine, init_db, load_latest_price_
 from tw_quant.data.exceptions import TradingHalted
 from tw_quant.data.pipeline import run_daily_pipeline
 from tw_quant.decision.engine import decision_counts, generate_trading_decisions
+from tw_quant.enrichment.industry import update_industry_map
+from tw_quant.enrichment.report import generate_ai_enrichment
 from tw_quant.reporting.export import export_latest_candidates
 from tw_quant.trading.paper import run_paper_trade
 from tw_quant.trading.paper_update import update_paper_positions
@@ -56,6 +58,19 @@ class DailyWorkflowSummary:
     pending_orders: int = 0
     executed_orders: int = 0
     skipped_orders: int = 0
+    pending_orders_active_count: int = 0
+    pending_orders_executed_count: int = 0
+    pending_orders_expired_count: int = 0
+    pending_orders_cancelled_count: int = 0
+    rejected_orders_signal_count: int = 0
+    rejected_orders_execution_count: int = 0
+    rejected_orders_total_count: int = 0
+    guardrail_blocked_execution_count: int = 0
+    expired_pending_orders_count: int = 0
+    cancelled_by_market_regime_count: int = 0
+    cancelled_by_low_grade_count: int = 0
+    cancelled_by_event_risk_count: int = 0
+    cancelled_by_max_position_count: int = 0
     entry_price_source_warnings: int = 0
     requested_date: str = ""
     fallback_date: str = ""
@@ -83,6 +98,11 @@ class DailyWorkflowSummary:
     loss_attribution_status: str = ""
     loss_attribution_loss_count: int = 0
     loss_attribution_top_reason: str = ""
+    ai_enrichment_status: str = ""
+    ai_used_count: int = 0
+    rule_based_enrichment_count: int = 0
+    enrichment_insufficient_data_count: int = 0
+    industry_map_status: str = ""
 
 
 @dataclass(frozen=True)
@@ -98,7 +118,7 @@ class DailyWorkflowResult:
     validation_result: Any | None = None
     decision_result: Any | None = None
     loss_attribution_result: Any | None = None
-    loss_attribution_result: Any | None = None
+    enrichment_result: Any | None = None
 
 
 def run_all_daily(
@@ -117,13 +137,15 @@ def run_all_daily(
     validation_func: Callable[..., Any] = generate_strategy_validation,
     decision_func: Callable[..., Any] = generate_trading_decisions,
     loss_attribution_func: Callable[..., Any] = generate_loss_attribution,
+    industry_map_func: Callable[..., Any] = update_industry_map,
+    enrichment_func: Callable[..., Any] = generate_ai_enrichment,
 ) -> DailyWorkflowResult:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
     summary_values = _empty_summary(trade_date, capital)
     messages: list[str] = []
     daily_result = export_result = paper_result = execute_result = update_result = None
-    validation_result = decision_result = loss_attribution_result = None
+    validation_result = decision_result = loss_attribution_result = enrichment_result = None
 
     try:
         (
@@ -256,8 +278,11 @@ def run_all_daily(
                 pending_count = _count_status(getattr(paper_result, "pending_orders", pd.DataFrame()), "PENDING")
                 rejected_count = len(getattr(paper_result, "rejected_orders", pd.DataFrame()))
                 summary_values["pending_orders"] = pending_count
+                summary_values["pending_orders_active_count"] = pending_count
                 summary_values["open_positions"] = len(paper_result.positions)
                 summary_values["rejected_orders"] = rejected_count
+                summary_values["rejected_orders_signal_count"] = rejected_count
+                summary_values["rejected_orders_total_count"] = rejected_count
                 summary_values["market_regime_score"] = float(getattr(paper_result, "market_regime_score", 0.0) or 0.0)
                 summary_values["new_entries_allowed"] = bool(getattr(paper_result, "new_entries_allowed", True))
                 summary_values["guardrail_status"] = str(getattr(paper_result, "guardrail_status", ""))
@@ -289,21 +314,44 @@ def run_all_daily(
                     reports_dir=report_dir,
                     capital=capital,
                     trading_cost=config.get("trading_cost", {}),
+                    config=config,
+                    config_path=config_path,
                 )
             except TypeError:
                 execute_result = execute_func(engine=engine, reports_dir=report_dir, capital=capital)
             pending_count = _count_status(execute_result.pending_orders, "PENDING")
             warning_count = _count_entry_price_warnings(execute_result)
+            pending_counts = _pending_status_counts(execute_result.pending_orders)
+            rejected_counts = _rejected_status_counts(getattr(execute_result, "rejected_orders", pd.DataFrame()))
             summary_values["pending_orders"] = pending_count
+            summary_values["pending_orders_active_count"] = pending_count
             summary_values["executed_orders"] = len(execute_result.executed_orders)
+            summary_values["pending_orders_executed_count"] = pending_counts.get("EXECUTED", len(execute_result.executed_orders))
+            summary_values["pending_orders_expired_count"] = pending_counts.get("EXPIRED", 0)
+            summary_values["expired_pending_orders_count"] = pending_counts.get("EXPIRED", 0)
+            summary_values["pending_orders_cancelled_count"] = _cancelled_pending_count(execute_result.pending_orders)
             summary_values["skipped_orders"] = len(execute_result.skipped_orders)
             summary_values["entry_price_source_warnings"] = warning_count
             summary_values["new_positions"] = len(execute_result.executed_orders)
+            summary_values["rejected_orders_execution_count"] = len(getattr(execute_result, "rejected_orders", pd.DataFrame()))
+            summary_values["rejected_orders_total_count"] = (
+                int(summary_values.get("rejected_orders_signal_count", 0))
+                + int(summary_values["rejected_orders_execution_count"])
+            )
+            summary_values["rejected_orders"] = summary_values["rejected_orders_total_count"]
+            summary_values["guardrail_blocked_execution_count"] = rejected_counts.get("CANCELLED_BY_GUARDRAIL", 0)
+            summary_values["cancelled_by_market_regime_count"] = rejected_counts.get("CANCELLED_BY_MARKET_REGIME", 0)
+            summary_values["cancelled_by_low_grade_count"] = rejected_counts.get("CANCELLED_BY_LOW_GRADE", 0)
+            summary_values["cancelled_by_event_risk_count"] = rejected_counts.get("CANCELLED_BY_EVENT_RISK", 0)
+            summary_values["cancelled_by_max_position_count"] = rejected_counts.get("CANCELLED_BY_MAX_POSITION", 0)
             messages.append(
                 "execute_pending_orders OK "
                 f"pending_orders={pending_count} "
                 f"executed_orders={len(execute_result.executed_orders)} "
                 f"skipped_orders={len(execute_result.skipped_orders)} "
+                f"expired_orders={summary_values['pending_orders_expired_count']} "
+                f"cancelled_orders={summary_values['pending_orders_cancelled_count']} "
+                f"rejected_execution={summary_values['rejected_orders_execution_count']} "
                 f"entry_price_source_warnings={warning_count}"
             )
             for warning in getattr(execute_result, "warnings", []):
@@ -448,6 +496,59 @@ def run_all_daily(
             summary_values["trading_decisions_status"] = "FAILED"
             messages.append(f"trading_decisions warning {type(exc).__name__}: {exc}")
 
+    try:
+        data_dir = Path(config_path).resolve().parent / "data"
+        try:
+            _industry_path, industry_status, industry_rows = industry_map_func(
+                data_dir=data_dir,
+                config_path=config_path,
+            )
+        except TypeError:
+            _industry_path, industry_status, industry_rows = industry_map_func()
+        summary_values["industry_map_status"] = str(industry_status)
+        messages.append(f"industry_map {industry_status} rows={industry_rows}")
+    except Exception as exc:
+        summary_values["industry_map_status"] = "FAILED"
+        messages.append(f"industry_map warning {type(exc).__name__}: {exc}")
+
+    enrichment_config = config.get("ai_enrichment", {}) if "config" in locals() else {}
+    if enrichment_config.get("enabled", True):
+        try:
+            data_dir = Path(config_path).resolve().parent / "data"
+            try:
+                enrichment_result = enrichment_func(
+                    reports_dir=report_dir,
+                    data_dir=data_dir,
+                    config_path=config_path,
+                    trade_date=summary_values["trade_date"],
+                )
+            except TypeError:
+                enrichment_result = enrichment_func(
+                    reports_dir=report_dir,
+                    trade_date=summary_values["trade_date"],
+                )
+            enrichment = getattr(enrichment_result, "enrichment", pd.DataFrame())
+            summary_values["ai_enrichment_status"] = (
+                "WARNING" if getattr(enrichment_result, "warning", "") else "OK"
+            )
+            summary_values["ai_used_count"] = _count_true(enrichment, "ai_used")
+            summary_values["rule_based_enrichment_count"] = _count_provider(enrichment, "rule_based")
+            summary_values["enrichment_insufficient_data_count"] = _count_status_value(
+                enrichment, "enrichment_status", {"PARTIAL", "INSUFFICIENT_DATA"}
+            )
+            messages.append(
+                "ai_enrichment OK "
+                f"rows={len(enrichment)} "
+                f"ai_used={summary_values['ai_used_count']} "
+                f"rule_based={summary_values['rule_based_enrichment_count']} "
+                f"insufficient_data={summary_values['enrichment_insufficient_data_count']}"
+            )
+            if getattr(enrichment_result, "warning", ""):
+                messages.append(f"ai_enrichment warning {enrichment_result.warning}")
+        except Exception as exc:
+            summary_values["ai_enrichment_status"] = "FAILED"
+            messages.append(f"ai_enrichment warning {type(exc).__name__}: {exc}")
+
     _refresh_fallback_status(summary_values)
     summary = DailyWorkflowSummary(**summary_values)
     summary_path = _write_summary(report_dir, summary)
@@ -464,6 +565,7 @@ def run_all_daily(
         validation_result=validation_result,
         decision_result=decision_result,
         loss_attribution_result=loss_attribution_result,
+        enrichment_result=enrichment_result,
     )
 
 
@@ -525,6 +627,19 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "pending_orders": 0,
         "executed_orders": 0,
         "skipped_orders": 0,
+        "pending_orders_active_count": 0,
+        "pending_orders_executed_count": 0,
+        "pending_orders_expired_count": 0,
+        "pending_orders_cancelled_count": 0,
+        "rejected_orders_signal_count": 0,
+        "rejected_orders_execution_count": 0,
+        "rejected_orders_total_count": 0,
+        "guardrail_blocked_execution_count": 0,
+        "expired_pending_orders_count": 0,
+        "cancelled_by_market_regime_count": 0,
+        "cancelled_by_low_grade_count": 0,
+        "cancelled_by_event_risk_count": 0,
+        "cancelled_by_max_position_count": 0,
         "entry_price_source_warnings": 0,
         "requested_date": requested_date,
         "fallback_date": "",
@@ -552,6 +667,11 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "loss_attribution_status": "",
         "loss_attribution_loss_count": 0,
         "loss_attribution_top_reason": "",
+        "ai_enrichment_status": "",
+        "ai_used_count": 0,
+        "rule_based_enrichment_count": 0,
+        "enrichment_insufficient_data_count": 0,
+        "industry_map_status": "",
     }
 
 
@@ -647,6 +767,46 @@ def _count_status(frame: pd.DataFrame, status: str) -> int:
     if frame.empty or "status" not in frame.columns:
         return 0
     return int((frame["status"].fillna("").astype(str) == status).sum())
+
+
+def _pending_status_counts(frame: pd.DataFrame) -> dict[str, int]:
+    if frame.empty or "status" not in frame.columns:
+        return {}
+    return frame["status"].fillna("").astype(str).str.upper().value_counts().to_dict()
+
+
+def _rejected_status_counts(frame: pd.DataFrame) -> dict[str, int]:
+    if frame.empty:
+        return {}
+    column = "final_order_status" if "final_order_status" in frame.columns else "rejected_status"
+    if column not in frame.columns:
+        return {}
+    return frame[column].fillna("").astype(str).str.upper().value_counts().to_dict()
+
+
+def _cancelled_pending_count(frame: pd.DataFrame) -> int:
+    if frame.empty or "status" not in frame.columns:
+        return 0
+    statuses = frame["status"].fillna("").astype(str).str.upper()
+    return int(statuses.str.startswith("CANCELLED_").sum() + (statuses == "SKIPPED_EXISTING_POSITION").sum())
+
+
+def _count_true(frame: pd.DataFrame, column: str) -> int:
+    if frame.empty or column not in frame.columns:
+        return 0
+    return int(frame[column].apply(_to_bool).sum())
+
+
+def _count_provider(frame: pd.DataFrame, provider: str) -> int:
+    if frame.empty or "enrichment_provider" not in frame.columns:
+        return 0
+    return int((frame["enrichment_provider"].fillna("").astype(str) == provider).sum())
+
+
+def _count_status_value(frame: pd.DataFrame, column: str, values: set[str]) -> int:
+    if frame.empty or column not in frame.columns:
+        return 0
+    return int(frame[column].fillna("").astype(str).str.upper().isin(values).sum())
 
 
 def _count_entry_price_warnings(execute_result: Any) -> int:

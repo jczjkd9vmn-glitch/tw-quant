@@ -74,6 +74,7 @@ def build_notification_message(
     candidates = _load_latest_report(report_dir, "candidates_*.csv")
     paper_trades = _load_report(report_dir / "paper_trades.csv")
     trading_decisions = _load_latest_report(report_dir, "trading_decisions_*.csv")
+    ai_enrichment = _load_latest_report(report_dir, "ai_enrichment_*.csv")
 
     lines = [
         "台股紙上交易每日摘要",
@@ -96,6 +97,15 @@ def build_notification_message(
             f"待進場筆數：{_format_int(summary.get('pending_orders'))}",
             f"今日成交筆數：{_format_int(summary.get('executed_orders'))}",
             f"跳過進場筆數：{_format_int(summary.get('skipped_orders'))}",
+            f"Active pending orders：{_format_int(summary.get('pending_orders_active_count'))}",
+            f"Executed pending orders：{_format_int(summary.get('pending_orders_executed_count'))}",
+            f"Expired pending orders：{_format_int(summary.get('pending_orders_expired_count'))}",
+            f"Cancelled pending orders：{_format_int(summary.get('pending_orders_cancelled_count'))}",
+            f"Signal rejected：{_format_int(summary.get('rejected_orders_signal_count'))}",
+            f"Execution rejected：{_format_int(summary.get('rejected_orders_execution_count'))}",
+            f"Market regime score：{_format_amount(summary.get('market_regime_score'))}",
+            f"Guardrail 狀態：{_format_text(summary.get('guardrail_status'))}",
+            f"暫停新倉說明：{_format_text(summary.get('pause_new_entries_reason'))}",
             f"目前持倉數：{_format_int(summary.get('open_positions'))}",
             f"未實現損益：{_format_signed(summary.get('unrealized_pnl'))}",
             f"累計已實現損益：{_format_signed(summary.get('realized_pnl'))}",
@@ -119,14 +129,21 @@ def build_notification_message(
         ]
     )
     lines.extend(_decision_digest(summary, trading_decisions))
+    lines.extend(_enrichment_digest(summary, ai_enrichment, trading_decisions))
     lines.extend(_candidate_digest(candidates))
     lines.extend(_official_data_digest(candidates))
     lines.extend(_risk_digest(candidates))
     lines.extend(_position_digest(paper_trades))
     lines.append(f"今日系統健康狀態：{_health_text(summary, candidates)}")
     lines.append("決策引擎提醒：僅供人工確認，未自動下單")
-    lines.append(f"GitHub Pages 報表網址：{pages or '未設定'}")
-    return "\n".join(lines)[:1900]
+    lines.append("Pending order 提醒：僅為紙上交易，不是真實下單")
+    footer = f"GitHub Pages 報表網址：{pages or '未設定'}"
+    lines.append(footer)
+    message = "\n".join(lines)
+    if len(message) <= 1900:
+        return message
+    prefix = message[: max(0, 1850 - len(footer))].rstrip()
+    return f"{prefix}\n{footer}"
 
 
 def _decision_digest(summary: dict[str, object], decisions: pd.DataFrame) -> list[str]:
@@ -151,6 +168,48 @@ def _decision_digest(summary: dict[str, object], decisions: pd.DataFrame) -> lis
     lines.append("前 5 名 BUY_CANDIDATE：" + (buy if buy else "無"))
     lines.append("前 5 名 HIGH_RISK / NO_TRADE：" + (risk if risk else "無"))
     return lines
+
+
+def _enrichment_digest(
+    summary: dict[str, object],
+    enrichment: pd.DataFrame,
+    decisions: pd.DataFrame,
+) -> list[str]:
+    lines = [
+        f"AI / Enrichment 狀態：{_format_text(summary.get('ai_enrichment_status'))}",
+        f"AI 使用筆數：{_format_int(summary.get('ai_used_count'))}",
+        f"Rule-based fallback 筆數：{_format_int(summary.get('rule_based_enrichment_count'))}",
+        f"資料不足筆數：{_format_int(summary.get('enrichment_insufficient_data_count'))}",
+    ]
+    if enrichment.empty:
+        lines.append("AI 摘要：無 enrichment 資料，資料不足時不做強結論")
+        return lines
+    merged = enrichment.copy()
+    if not decisions.empty and "stock_id" in decisions.columns:
+        decision_lookup = decisions.drop_duplicates("stock_id").set_index("stock_id")
+        merged["stock_id"] = merged["stock_id"].astype(str).str.strip()
+        for column in ["decision", "candidate_grade", "decision_level"]:
+            if column in decision_lookup.columns and column not in merged.columns:
+                merged[column] = merged["stock_id"].map(decision_lookup[column])
+    buy_rows = _enrichment_top(merged, {"BUY_CANDIDATE"})
+    risk_rows = _enrichment_top(merged, {"NO_TRADE", "EXIT"})
+    lines.append("前 5 名 BUY_CANDIDATE AI 摘要：" + (buy_rows if buy_rows else "無"))
+    lines.append("前 5 名高風險 / NO_TRADE 風險解釋：" + (risk_rows if risk_rows else "無"))
+    lines.append("Enrichment 提醒：僅供人工確認，未自動下單；資料不足時不做強結論")
+    return lines
+
+
+def _enrichment_top(enrichment: pd.DataFrame, decisions: set[str]) -> str:
+    frame = enrichment.copy()
+    if "decision" in frame.columns:
+        frame = frame[frame["decision"].fillna("").astype(str).isin(decisions)]
+    if frame.empty:
+        return ""
+    rows = []
+    for _, row in frame.head(5).iterrows():
+        summary = _format_text(row.get("ai_summary") or row.get("risk_explanation"))
+        rows.append(f"{_format_text(row.get('stock_id'))} {_format_text(row.get('stock_name'))}：{summary[:80]}")
+    return "；".join(rows)
 
 
 def _decision_top(

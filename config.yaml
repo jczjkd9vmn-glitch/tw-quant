@@ -131,10 +131,44 @@ paper_trading_guardrails:
   max_open_positions: 8
   max_daily_new_positions: 2
 
+pending_order:
+  expire_after_trading_days: 1
+  cancel_if_guardrail_blocked: true
+  cancel_if_market_regime_below_threshold: true
+  keep_rejected_history: true
+
 market_regime:
   enabled: true
   min_score_for_new_entries: 60
   fallback_to_equal_weight_market: true
+
+ai_enrichment:
+  enabled: true
+  provider: rule_based
+  allow_external_ai: false
+  api_key_env: OPENAI_API_KEY
+  cache_enabled: true
+  max_symbols_per_run: 30
+  timeout_seconds: 30
+  fallback_to_rule_based: true
+  output_language: zh-TW
+  advisory_only: true
+
+industry_enrichment:
+  enabled: true
+  allow_public_source_fetch: true
+  fallback_to_local_csv: true
+  industry_map_path: data/industry_map.csv
+
+valuation_context:
+  enabled: true
+  use_industry_median: true
+  fallback_to_market_median: true
+
+margin_context:
+  enabled: true
+  short_window: 5
+  long_window: 20
 
 strategy_validation:
   enabled: true

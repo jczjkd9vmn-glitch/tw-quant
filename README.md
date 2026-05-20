@@ -880,13 +880,72 @@ Paper trading guardrails 預設啟用：
 - `max_open_positions` 預設 8。
 - `max_daily_new_positions` 預設 2。
 
+Pending order 目前有兩層安全檢查：
+
+- 訊號建立階段：`paper_trade.py` 建立 pending order 前會檢查 guardrails。
+- 執行階段：`execute_pending_orders.py` 在 `PENDING` 轉成 `OPEN` 前會再次檢查 guardrails、market regime、持倉上限、當日新增上限、候選分級、事件風險、重複持倉與有效期限。
+
+如果 `guardrail_status=BLOCKED`，舊 pending order 也不會成交；既有 `OPEN` / `CLOSED` 交易不會被刪除，也不會改變出場策略。
+
+Pending order 有效期限預設為 1 個交易日：
+
+```yaml
+pending_order:
+  expire_after_trading_days: 1
+  cancel_if_guardrail_blocked: true
+  cancel_if_market_regime_below_threshold: true
+  keep_rejected_history: true
+```
+
+超過期限仍未成交的 pending order 會改為 `EXPIRED`，不再成交。執行前被擋下的狀態包含 `CANCELLED_BY_GUARDRAIL`、`CANCELLED_BY_MARKET_REGIME`、`CANCELLED_BY_MAX_POSITION`、`CANCELLED_BY_LOW_GRADE`、`CANCELLED_BY_EVENT_RISK` 與 `SKIPPED_EXISTING_POSITION`。
+
 所有被擋下的候選都會寫入：
 
 ```text
 reports/rejected_paper_orders_YYYYMMDD.csv
 ```
 
-因此不會靜默消失。HTML 總覽會顯示 `market_regime_score`、是否允許新增持倉、guardrail 狀態、暫停新倉原因、被擋下交易數與 loss attribution 摘要。
+因此不會靜默消失。此報表同時記錄 `signal_creation` 與 `execution` 階段，並保留 `rejection_reason`、`final_order_status`、`attempted_execution_date`、`order_age_trading_days`、`market_regime_score` 與 guardrail 狀態。HTML 總覽會顯示 `market_regime_score`、是否允許新增持倉、guardrail 狀態、暫停新倉原因、active / expired / cancelled pending order 數、被擋下交易數與 loss attribution 摘要。
+
+### AI / Rule-based 風險補強
+
+本版新增 `ai_enrichment` 報表，用來補強風險旗標的人話解釋與人工檢查重點：
+
+```text
+reports/ai_enrichment_YYYYMMDD.csv
+reports/cache/ai_enrichment_YYYYMMDD.json
+```
+
+預設使用 `rule_based` provider，不呼叫外部 AI API；若未來要啟用外部 AI，必須明確設定 `allow_external_ai=true` 並使用環境變數提供 key。AI / enrichment 只解釋既有資料與 evidence，不會建立 pending order、不會改出場策略、不會真實下單。
+
+```yaml
+ai_enrichment:
+  enabled: true
+  provider: rule_based
+  allow_external_ai: false
+  api_key_env: OPENAI_API_KEY
+  cache_enabled: true
+  max_symbols_per_run: 30
+  timeout_seconds: 30
+  fallback_to_rule_based: true
+  output_language: zh-TW
+  advisory_only: true
+```
+
+每筆 enrichment 都會輸出 `source_evidence_json`，記錄來源名稱、資料型態、日期、欄位、欄位值、信心與 warning。資料不足時會標示 `PARTIAL` 或 `INSUFFICIENT_DATA`，不會包裝成完整分析。
+
+產業分類補強使用：
+
+```text
+data/industry_map.csv
+scripts/update_industry_map.py
+```
+
+系統會優先使用既有 SQLite / CSV 內的 `industry` 欄位，其次使用本地 `industry_map.csv`。若沒有產業分類，sector strength 仍會 fallback 成全市場相對強弱，並在報表揭露。
+
+估值脈絡會補充 PE、PB、殖利率、同產業或全市場中位數比較，並輸出 `valuation_context` 與 `valuation_risk_level`。PE 偏高只是風險脈絡，不等同交易指令。
+
+融資 / 籌碼脈絡會補充融資變化、股價同期報酬、法人買賣超與注意 / 處置股狀態，輸出 `margin_credit_context` 與 `margin_risk_level`。融資連增但股價不漲只是人工檢查提示，不代表一定下跌。
 
 安全設定預設：
 
@@ -920,7 +979,7 @@ market_regime:
   fallback_to_equal_weight_market: true
 ```
 
-風險聲明：本系統不保證獲利；過去回測不代表未來；外部資料可能錯誤、延遲或缺漏；任何實盤交易都需要人工確認與額外券商 API 風控，本專案目前不提供真實下單能力。
+風險聲明：本系統不保證獲利；過去回測不代表未來；外部資料可能錯誤、延遲或缺漏；AI / enrichment 不是投資顧問，只是資料解釋層；任何實盤交易都需要人工確認與額外券商 API 風控，本專案目前不提供真實下單能力。
 
 `reports/data_fetch_status_YYYYMMDD.csv` 會額外記錄：
 

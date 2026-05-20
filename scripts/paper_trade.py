@@ -33,6 +33,8 @@ def main() -> None:
             reports_dir=args.reports_dir,
             capital=args.capital,
             trading_cost=config.get("trading_cost", {}),
+            config=config,
+            config_path=args.config,
         )
         for warning in result.warnings:
             print(f"warning: {warning}")
@@ -40,7 +42,8 @@ def main() -> None:
             "summary "
             f"pending_orders={len(result.pending_orders[result.pending_orders['status'] == 'PENDING'])} "
             f"executed_orders={len(result.executed_orders)} "
-            f"skipped_orders={len(result.skipped_orders)}"
+            f"skipped_orders={len(result.skipped_orders)} "
+            f"rejected_orders={len(result.rejected_orders)}"
         )
         print(f"paper_trades_csv={result.trades_path}")
         return

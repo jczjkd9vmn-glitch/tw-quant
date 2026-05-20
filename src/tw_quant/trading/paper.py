@@ -60,6 +60,10 @@ PENDING_ORDER_COLUMNS = [
     "signal_date",
     "planned_entry_date",
     "actual_entry_date",
+    "created_at",
+    "expires_after_trading_days",
+    "expired_at",
+    "expiry_reason",
     "stock_id",
     "stock_name",
     "signal_close",
@@ -96,9 +100,53 @@ PENDING_ORDER_COLUMNS = [
     "market_regime_score",
     "guardrail_status",
     "new_entries_allowed",
+    "rejection_stage",
+    "rejection_reason",
+    "original_order_status",
+    "final_order_status",
+    "source_report",
+    "attempted_execution_date",
+    "order_age_trading_days",
 ]
 
-REJECTED_ORDER_COLUMNS = PENDING_ORDER_COLUMNS + ["rejected_reason"]
+REJECTED_ORDER_COLUMNS = [
+    "report_date",
+    "trade_date",
+    "stock_id",
+    "stock_name",
+    "source_report",
+    "rejection_stage",
+    "rejected_status",
+    "rejection_reason",
+    "rejected_reason",
+    "original_order_status",
+    "final_order_status",
+    "signal_date",
+    "planned_entry_date",
+    "attempted_execution_date",
+    "order_age_trading_days",
+    "candidate_grade",
+    "decision",
+    "total_score",
+    "multi_factor_score",
+    "final_market_score",
+    "confidence_score",
+    "liquidity_score",
+    "sector_strength_score",
+    "event_risk_level",
+    "market_regime_score",
+    "guardrail_status",
+    "new_entries_allowed",
+    "expires_after_trading_days",
+    "expired_at",
+    "expiry_reason",
+    "status",
+    "skipped_reason",
+    "warning",
+    "reason",
+    "risk_reason",
+    "event_blocked",
+]
 
 
 @dataclass(frozen=True)
@@ -173,6 +221,7 @@ def run_paper_trade(
     trade_date = pd.to_datetime(candidates["trade_date"].iloc[0])
     pending_path = report_dir / f"pending_orders_{trade_date.strftime('%Y%m%d')}.csv"
     rejected_path = report_dir / f"rejected_paper_orders_{trade_date.strftime('%Y%m%d')}.csv"
+    pending_config = active_config.get("pending_order", {}) if isinstance(active_config, dict) else {}
     existing_pending = _load_pending_orders(pending_path)
     existing_order_ids = set(existing_pending["stock_id"]) if not existing_pending.empty else set()
     open_position_ids = set(open_positions["stock_id"]) if not open_positions.empty else set()
@@ -205,14 +254,24 @@ def run_paper_trade(
             duplicate_reason=duplicate_reason,
         )
         if not decision.allowed:
-            rejected_rows.append(_build_rejected_order(row, decision.reason, guardrails))
+            rejected_rows.append(
+                _build_rejected_order(
+                    row,
+                    decision.reason,
+                    guardrails,
+                    source_report=source_report.name,
+                    report_date=trade_date,
+                    final_status="REJECTED_GUARDRAIL",
+                    pending_config=pending_config,
+                )
+            )
             continue
-        pending_rows.append(_build_pending_order(row, guardrails))
+        pending_rows.append(_build_pending_order(row, guardrails, pending_config=pending_config))
 
     new_pending = pd.DataFrame(pending_rows, columns=PENDING_ORDER_COLUMNS)
     all_pending = _merge_pending_orders(existing_pending, new_pending)
     all_pending.to_csv(pending_path, index=False, encoding="utf-8-sig")
-    rejected = pd.DataFrame(rejected_rows, columns=REJECTED_ORDER_COLUMNS)
+    rejected = _merge_rejected_orders(_load_rejected_orders(rejected_path), pd.DataFrame(rejected_rows))
     rejected.to_csv(rejected_path, index=False, encoding="utf-8-sig")
 
     return PaperTradeResult(
@@ -246,11 +305,16 @@ def find_latest_risk_pass_report(reports_dir: str | Path) -> Path | None:
     return sorted(candidates, key=lambda item: item[0])[-1][1]
 
 
-def _build_pending_order(row: pd.Series, guardrails=None) -> dict:
+def _build_pending_order(row: pd.Series, guardrails=None, pending_config: dict | None = None) -> dict:
+    expires_after = int((pending_config or {}).get("expire_after_trading_days", 1))
     return {
         "signal_date": str(row["trade_date"]),
         "planned_entry_date": PENDING_ENTRY_MARKER,
         "actual_entry_date": "",
+        "created_at": str(row["trade_date"]),
+        "expires_after_trading_days": expires_after,
+        "expired_at": "",
+        "expiry_reason": "",
         "stock_id": str(row["stock_id"]).strip(),
         "stock_name": str(row["stock_name"]),
         "signal_close": float(row["close"]),
@@ -287,16 +351,93 @@ def _build_pending_order(row: pd.Series, guardrails=None) -> dict:
         "market_regime_score": getattr(guardrails, "market_regime_score", ""),
         "guardrail_status": getattr(guardrails, "guardrail_status", ""),
         "new_entries_allowed": getattr(guardrails, "new_entries_allowed", ""),
+        "rejection_stage": "",
+        "rejection_reason": "",
+        "original_order_status": "",
+        "final_order_status": "PENDING",
+        "source_report": "",
+        "attempted_execution_date": "",
+        "order_age_trading_days": "",
     }
 
 
-def _build_rejected_order(row: pd.Series, reason: str, guardrails) -> dict:
-    order = _build_pending_order(row, guardrails)
-    order["status"] = "REJECTED_GUARDRAIL"
+def _build_rejected_order(
+    row: pd.Series,
+    reason: str,
+    guardrails,
+    source_report: str,
+    report_date: pd.Timestamp,
+    final_status: str,
+    pending_config: dict | None = None,
+) -> dict:
+    order = _build_pending_order(row, guardrails, pending_config=pending_config)
+    order["status"] = final_status
     order["skipped_reason"] = reason
     order["warning"] = reason
-    order["rejected_reason"] = reason
-    return order
+    order["rejection_stage"] = "signal_creation"
+    order["rejection_reason"] = reason
+    order["original_order_status"] = "NEW_SIGNAL"
+    order["final_order_status"] = final_status
+    order["source_report"] = source_report
+    return _rejected_report_row(
+        order,
+        report_date=report_date,
+        trade_date=report_date,
+        stage="signal_creation",
+        final_status=final_status,
+        reason=reason,
+        source_report=source_report,
+    )
+
+
+def _rejected_report_row(
+    order: dict | pd.Series,
+    report_date: pd.Timestamp,
+    trade_date: pd.Timestamp,
+    stage: str,
+    final_status: str,
+    reason: str,
+    source_report: str = "",
+) -> dict:
+    getter = order.get if isinstance(order, dict) else order.get
+    return {
+        "report_date": pd.to_datetime(report_date).strftime("%Y-%m-%d"),
+        "trade_date": pd.to_datetime(trade_date).strftime("%Y-%m-%d"),
+        "stock_id": str(getter("stock_id", "")).strip(),
+        "stock_name": str(getter("stock_name", "")),
+        "source_report": source_report or str(getter("source_report", "")),
+        "rejection_stage": stage,
+        "rejected_status": final_status,
+        "rejection_reason": reason,
+        "rejected_reason": reason,
+        "original_order_status": str(getter("original_order_status", getter("status", ""))),
+        "final_order_status": final_status,
+        "signal_date": str(getter("signal_date", "")),
+        "planned_entry_date": str(getter("planned_entry_date", "")),
+        "attempted_execution_date": str(getter("attempted_execution_date", "")),
+        "order_age_trading_days": getter("order_age_trading_days", ""),
+        "candidate_grade": str(getter("candidate_grade", "")),
+        "decision": str(getter("decision", "")),
+        "total_score": getter("total_score", ""),
+        "multi_factor_score": getter("multi_factor_score", ""),
+        "final_market_score": getter("final_market_score", ""),
+        "confidence_score": getter("confidence_score", ""),
+        "liquidity_score": getter("liquidity_score", ""),
+        "sector_strength_score": getter("sector_strength_score", ""),
+        "event_risk_level": str(getter("event_risk_level", "")),
+        "market_regime_score": getter("market_regime_score", ""),
+        "guardrail_status": str(getter("guardrail_status", "")),
+        "new_entries_allowed": getter("new_entries_allowed", ""),
+        "expires_after_trading_days": getter("expires_after_trading_days", ""),
+        "expired_at": str(getter("expired_at", "")),
+        "expiry_reason": str(getter("expiry_reason", "")),
+        "status": final_status,
+        "skipped_reason": reason,
+        "warning": reason,
+        "reason": str(getter("reason", "")),
+        "risk_reason": str(getter("risk_reason", "")),
+        "event_blocked": getter("event_blocked", ""),
+    }
 
 
 def _safe_market_regime(
@@ -351,6 +492,41 @@ def _load_pending_orders(path: Path) -> pd.DataFrame:
     frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
     frame["status"] = frame["status"].fillna("").astype(str)
     return frame[PENDING_ORDER_COLUMNS].copy()
+
+
+def _load_rejected_orders(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        return pd.DataFrame(columns=REJECTED_ORDER_COLUMNS)
+    frame = pd.read_csv(path, dtype={"stock_id": str})
+    for column in REJECTED_ORDER_COLUMNS:
+        if column not in frame.columns:
+            frame[column] = ""
+        frame[column] = frame[column].fillna("").astype(object)
+    frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
+    return frame[REJECTED_ORDER_COLUMNS].copy()
+
+
+def _merge_rejected_orders(existing: pd.DataFrame, new_orders: pd.DataFrame) -> pd.DataFrame:
+    if new_orders.empty:
+        merged = existing.copy()
+    else:
+        for column in REJECTED_ORDER_COLUMNS:
+            if column not in new_orders.columns:
+                new_orders[column] = ""
+        merged = pd.concat([existing, new_orders[REJECTED_ORDER_COLUMNS]], ignore_index=True)
+    if merged.empty:
+        return pd.DataFrame(columns=REJECTED_ORDER_COLUMNS)
+    for column in REJECTED_ORDER_COLUMNS:
+        if column not in merged.columns:
+            merged[column] = ""
+    key_columns = [
+        "stock_id",
+        "signal_date",
+        "rejection_stage",
+        "final_order_status",
+        "attempted_execution_date",
+    ]
+    return merged[REJECTED_ORDER_COLUMNS].drop_duplicates(subset=key_columns, keep="last").reset_index(drop=True)
 
 
 def _merge_pending_orders(existing: pd.DataFrame, new_orders: pd.DataFrame) -> pd.DataFrame:

@@ -172,6 +172,20 @@ COLUMN_LABELS = {
     "final_comment": "系統短評",
     "error_step": "失敗步驟",
     "error_message": "錯誤訊息",
+    "market_regime_score": "市場環境分數",
+    "new_entries_allowed": "是否允許新增持倉",
+    "guardrail_status": "Guardrail 狀態",
+    "pause_new_entries_reason": "暫停新倉原因",
+    "rejected_orders": "被擋下交易數",
+    "loss_attribution_status": "虧損歸因狀態",
+    "loss_attribution_loss_count": "虧損交易數",
+    "loss_attribution_top_reason": "主要虧損原因",
+    "gap_pct": "跳空 / 進場落差",
+    "max_favorable_excursion": "最大有利波動",
+    "max_adverse_excursion": "最大不利波動",
+    "loss_bucket": "虧損分類",
+    "likely_loss_reason": "可能虧損原因",
+    "rejected_reason": "拒絕建立原因",
 }
 
 
@@ -373,6 +387,12 @@ STATUS_LABELS = {
     "no_action": "不動作",
     "True": "是",
     "False": "否",
+    "BLOCKED": "暫停新增持倉",
+    "REJECTED_GUARDRAIL": "Guardrail 擋下",
+    "profitable_or_flat": "獲利或持平",
+    "large_loss": "大額虧損",
+    "small_loss": "小額虧損",
+    "unrealized_loss": "未實現虧損",
 }
 
 STATUS_LABELS.update({"MOCK": "mock / 中性資料"})
@@ -531,6 +551,7 @@ SCORE_COLUMNS.update(
         "max_drawdown_pct",
         "profit_factor",
         "expectancy",
+        "market_regime_score",
     }
 )
 PERCENT_COLUMNS.update(
@@ -550,6 +571,9 @@ PERCENT_COLUMNS.update(
         "median_return_pct",
         "total_return_pct",
         "max_drawdown_pct",
+        "gap_pct",
+        "max_favorable_excursion",
+        "max_adverse_excursion",
     }
 )
 AMOUNT_COLUMNS.update({"monthly_revenue", "avg_turnover_20d", "latest_turnover"})
@@ -584,9 +608,21 @@ INTEGER_COLUMNS.update(
         "ma_exit_count",
         "max_holding_exit_count",
         "consecutive_loss_count",
+        "rejected_orders",
+        "loss_attribution_loss_count",
     }
 )
-STATUS_COLUMNS.update({"is_attention_stock", "is_disposition_stock", "revenue_12m_high"})
+STATUS_COLUMNS.update(
+    {
+        "is_attention_stock",
+        "is_disposition_stock",
+        "revenue_12m_high",
+        "new_entries_allowed",
+        "guardrail_status",
+        "loss_attribution_status",
+        "loss_bucket",
+    }
+)
 DATE_COLUMNS.update({"disposition_start_date", "disposition_end_date"})
 
 
@@ -607,6 +643,9 @@ def generate_html_report(
     market_intel = _read_latest_csv(report_dir, "market_intel_*.csv")
     strategy_validation = _read_latest_csv(report_dir, "strategy_validation_*.csv")
     trading_decisions = _read_latest_csv(report_dir, "trading_decisions_*.csv")
+    loss_attribution = _read_latest_csv(report_dir, "loss_attribution_*.csv")
+    market_regime = _read_latest_csv(report_dir, "market_regime_*.csv")
+    rejected_orders = _read_latest_csv(report_dir, "rejected_paper_orders_*.csv")
     active_config = load_config(ROOT / "config.yaml")
     trading_cost = active_config.get("trading_cost", {})
 
@@ -622,6 +661,9 @@ def generate_html_report(
         market_intel=market_intel,
         strategy_validation=strategy_validation,
         trading_decisions=trading_decisions,
+        loss_attribution=loss_attribution,
+        market_regime=market_regime,
+        rejected_orders=rejected_orders,
         trading_cost=trading_cost,
         config=active_config,
     )
@@ -647,6 +689,9 @@ def _render_page(
     market_intel: pd.DataFrame,
     strategy_validation: pd.DataFrame,
     trading_decisions: pd.DataFrame,
+    loss_attribution: pd.DataFrame,
+    market_regime: pd.DataFrame,
+    rejected_orders: pd.DataFrame,
     trading_cost: dict[str, object],
     config: dict[str, object] | None = None,
 ) -> str:
@@ -809,6 +854,8 @@ def _render_page(
         [
             _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
             _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status, trading_decisions), class_name="today-action-section"),
+            _guardrail_overview(latest_summary, market_regime, rejected_orders),
+            _loss_attribution_overview(loss_attribution),
             _decision_overview(latest_summary, trading_decisions),
             _data_quality_detail_block(latest_summary, data_fetch_status),
             _pnl_overview(latest_summary, latest_paper_summary, open_positions),
@@ -940,6 +987,7 @@ def _nav_tabs_v2() -> str:
         ("pending", "待進場"),
         ("closed", "已出場"),
         ("fundamental", "市場情報 / 多因子"),
+        ("decision", "決策引擎"),
         ("health", "健康檢查"),
     ]
     buttons = []
@@ -1227,6 +1275,12 @@ def _today_action_summary(
     items: list[str] = []
     if _uses_recent_data(summary):
         items.append("目前使用最近有效交易日資料，非即時交易日。")
+    if str(summary.get("guardrail_status", "")).upper() == "BLOCKED" or _format_cell("new_entries_allowed", summary.get("new_entries_allowed")) in {"否", "False"}:
+        reason = _format_cell("pause_new_entries_reason", summary.get("pause_new_entries_reason"))
+        items.append(f"Paper guardrails 暫停新增持倉：{reason if reason != '-' else '需人工確認風控狀態'}。")
+    regime_score = _to_float(summary.get("market_regime_score"))
+    if regime_score is not None and 0 < regime_score < 60:
+        items.append(f"市場環境分數 {regime_score:.0f} 低於新增持倉門檻，暫不新增紙上 pending order。")
     pending_count = 0
     if not pending_orders.empty and "status" in pending_orders.columns:
         pending_count = int((pending_orders["status"].fillna("").astype(str).str.upper() == "PENDING").sum())
@@ -1290,6 +1344,99 @@ def _decision_overview(summary: dict[str, object], decisions: pd.DataFrame) -> s
         ]
     note = '<p class="note">決策引擎僅供人工確認，未自動下單。</p>'
     return _section("決策引擎摘要", '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + note)
+
+
+def _guardrail_overview(
+    summary: dict[str, object],
+    market_regime: pd.DataFrame,
+    rejected_orders: pd.DataFrame,
+) -> str:
+    regime_score = summary.get("market_regime_score")
+    if (_to_float(regime_score) or 0) == 0 and not market_regime.empty:
+        regime_score = market_regime.iloc[0].get("market_regime_score")
+    allow_entries = summary.get("new_entries_allowed")
+    if _is_blank(allow_entries):
+        allow_entries = "是"
+    reason = _format_cell("pause_new_entries_reason", summary.get("pause_new_entries_reason"))
+    cards = [
+        ("市場環境分數", _format_cell("market_regime_score", regime_score)),
+        ("是否允許新增持倉", _format_cell("new_entries_allowed", allow_entries)),
+        ("Guardrail 狀態", _format_cell("guardrail_status", summary.get("guardrail_status"))),
+        ("暫停新倉原因", reason),
+        ("被擋下交易數", _format_cell("rejected_orders", summary.get("rejected_orders"))),
+    ]
+    rejected_table = _table(
+        rejected_orders,
+        [
+            "stock_id",
+            "stock_name",
+            "candidate_grade",
+            "signal_date",
+            "status",
+            "market_regime_score",
+            "rejected_reason",
+        ],
+        "目前尚無 guardrail 擋下的交易",
+        max_rows=20,
+    )
+    note = '<p class="note">Guardrails 只影響紙上交易 pending order；不影響既有持倉出場，也不會真實下單。</p>'
+    return _section(
+        "Paper trading guardrails",
+        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        + note
+        + _details_block("被擋下交易明細", rejected_table),
+    )
+
+
+def _loss_attribution_overview(loss_attribution: pd.DataFrame) -> str:
+    if loss_attribution.empty:
+        return _section("Loss attribution 摘要", _empty("目前尚無虧損歸因資料"))
+    realized = pd.to_numeric(
+        loss_attribution.get("realized_pnl_pct", pd.Series([None] * len(loss_attribution))),
+        errors="coerce",
+    )
+    unrealized = pd.to_numeric(
+        loss_attribution.get("unrealized_pnl_pct", pd.Series([None] * len(loss_attribution))),
+        errors="coerce",
+    )
+    returns = realized.where(realized.notna(), unrealized).fillna(0.0)
+    loss_frame = loss_attribution[returns < 0].copy()
+    top_reason = "-"
+    if not loss_frame.empty and "likely_loss_reason" in loss_frame.columns:
+        reasons = loss_frame["likely_loss_reason"].fillna("").astype(str)
+        reasons = reasons[reasons.str.strip() != ""]
+        if not reasons.empty:
+            top_reason = reasons.value_counts().index[0]
+    cards = [
+        ("虧損交易數", f"{len(loss_frame):,.0f}"),
+        ("最大不利波動最低值", _format_number_or_dash(pd.to_numeric(loss_attribution.get("max_adverse_excursion"), errors="coerce").min())),
+        ("主要虧損原因", top_reason),
+    ]
+    table = _table(
+        loss_attribution,
+        [
+            "stock_id",
+            "stock_name",
+            "candidate_grade",
+            "decision",
+            "realized_pnl_pct",
+            "unrealized_pnl_pct",
+            "exit_reason",
+            "liquidity_score",
+            "sector_strength_score",
+            "confidence_score",
+            "market_regime_score",
+            "loss_bucket",
+            "likely_loss_reason",
+        ],
+        "目前尚無虧損歸因資料",
+        max_rows=50,
+    )
+    return _section(
+        "Loss attribution 摘要",
+        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        + _details_block("Loss attribution 明細", table),
+    )
 
 
 def _decision_engine_content(decisions: pd.DataFrame, validation: pd.DataFrame) -> str:
@@ -1835,9 +1982,13 @@ def _key_conclusions_v2(summary: dict[str, object], data_fetch_status: pd.DataFr
         (f"{prefix}候選股數量", _format_cell("candidate_rows", summary.get("candidate_rows"))),
         (f"{prefix}通過風控股票數量", _format_cell("risk_pass_rows", summary.get("risk_pass_rows"))),
         (f"{prefix} pending orders 數量", _format_cell("pending_orders", summary.get("pending_orders"))),
+        ("被擋下交易數", _format_cell("rejected_orders", summary.get("rejected_orders"))),
+        ("市場環境分數", _format_cell("market_regime_score", summary.get("market_regime_score"))),
+        ("是否允許新增持倉", _format_cell("new_entries_allowed", summary.get("new_entries_allowed"))),
         (f"{prefix} open positions 數量", _format_cell("open_positions", summary.get("open_positions"))),
         (f"{prefix} closed trades 數量", _format_cell("closed_positions", summary.get("closed_positions"))),
         (f"{prefix} market intelligence 狀態", _format_cell("market_intel_status", summary.get("market_intel_status"))),
+        ("Guardrail 狀態", _format_cell("guardrail_status", summary.get("guardrail_status"))),
         ("資料品質摘要", _data_quality_summary(summary, data_fetch_status)),
     ]
     return '<div class="cards key-cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"

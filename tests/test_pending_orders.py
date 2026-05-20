@@ -87,11 +87,13 @@ def test_pending_order_skips_when_existing_open_position_and_preserves_old_trade
 
     trades = pd.read_csv(tmp_path / "paper_trades.csv", dtype={"stock_id": str})
     pending = pd.read_csv(tmp_path / "pending_orders_20260508.csv", dtype={"stock_id": str})
+    rejected = pd.read_csv(tmp_path / "rejected_paper_orders_20260508.csv", dtype={"stock_id": str})
     assert result.executed_orders.empty
     assert len(trades) == 1
     assert trades.iloc[0]["current_price"] == 950.0
-    assert pending.iloc[0]["status"] == "SKIPPED_EXISTING_POSITION"
-    assert "已有未平倉持倉" in pending.iloc[0]["skipped_reason"]
+    assert pending.empty
+    assert rejected.iloc[0]["status"] == "REJECTED_GUARDRAIL"
+    assert "已有未平倉持倉" in rejected.iloc[0]["rejected_reason"]
 
 
 def _engine_with_prices(tmp_path: Path, frames: list[pd.DataFrame]):

@@ -70,6 +70,7 @@ def test_decision_engine_outputs_advisory_decisions(tmp_path: Path) -> None:
     assert by_symbol.loc[("2330", "candidate"), "decision"] == "BUY_CANDIDATE"
     assert bool(by_symbol.loc[("2330", "candidate"), "can_auto_trade"]) is False
     assert by_symbol.loc[("2317", "candidate"), "decision"] == "WATCH_ONLY"
+    assert by_symbol.loc[("3008", "candidate"), "decision"] == "WATCH_ONLY"
     assert by_symbol.loc[("2603", "candidate"), "decision"] == "NO_TRADE"
     assert by_symbol.loc[("2454", "position"), "decision"] in {"REDUCE", "EXIT"}
     assert decisions["reason"].fillna("").astype(str).str.len().min() > 0
@@ -85,6 +86,10 @@ def test_auto_trading_defaults_are_safe() -> None:
     assert config["auto_trading"]["require_manual_approval"] is True
     assert config["decision_engine"]["output_advisory_only"] is True
     assert config["decision_engine"]["default_can_auto_trade"] is False
+    assert config["decision_engine"]["min_grade_for_buy_candidate"] == "A"
+    assert config["paper_trading_guardrails"]["enabled"] is True
+    assert config["paper_trading_guardrails"]["min_grade_for_new_entry"] == "A"
+    assert config["market_regime"]["enabled"] is True
 
 
 def _write_candidate_reports(path: Path) -> None:
@@ -92,6 +97,7 @@ def _write_candidate_reports(path: Path) -> None:
         [
             _candidate("2330", "台積電", confidence_score=80, liquidity_score=80, sector_strength_score=65),
             _candidate("2317", "鴻海", confidence_score=55, liquidity_score=70, sector_strength_score=55, risk_flags="資料不足"),
+            _candidate("3008", "大立光", confidence_score=68, liquidity_score=70, sector_strength_score=55),
             _candidate("2603", "長榮", confidence_score=75, liquidity_score=80, sector_strength_score=70, event_risk_level="HIGH", event_blocked=True),
             _candidate("1101", "台泥", confidence_score=75, liquidity_score=45, sector_strength_score=70),
             _candidate("2303", "聯電", confidence_score=75, liquidity_score=70, sector_strength_score=40),

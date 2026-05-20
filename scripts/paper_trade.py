@@ -45,7 +45,16 @@ def main() -> None:
         print(f"paper_trades_csv={result.trades_path}")
         return
 
-    result = run_paper_trade(reports_dir=args.reports_dir, capital=args.capital)
+    config = load_config(args.config)
+    engine = create_db_engine(config["database"]["url"])
+    init_db(engine)
+    result = run_paper_trade(
+        reports_dir=args.reports_dir,
+        capital=args.capital,
+        config=config,
+        config_path=args.config,
+        engine=engine,
+    )
     if result.warning:
         print(f"warning: {result.warning}")
         return
@@ -57,12 +66,16 @@ def main() -> None:
 
     print(f"source_report={result.source_report}")
     print(f"pending_orders_csv={result.pending_orders_path}")
+    print(f"rejected_orders_csv={result.rejected_orders_path}")
     print(f"paper_trades_csv={result.trades_path}")
     print(
         "summary "
         f"trade_date={result.trade_date.date()} "
         f"pending_orders={len(result.pending_orders[result.pending_orders['status'] == 'PENDING'])} "
+        f"rejected_orders={len(result.rejected_orders)} "
         f"open_positions={len(result.positions)} "
+        f"market_regime_score={result.market_regime_score} "
+        f"guardrail_status={result.guardrail_status} "
     )
 
 

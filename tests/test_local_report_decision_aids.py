@@ -104,6 +104,13 @@ def test_html_report_shows_local_factor_decision_aids(tmp_path: Path) -> None:
                 "closed_positions": 0,
                 "take_profit_exits": 0,
                 "stop_loss_exits": 0,
+                "market_regime_score": 42,
+                "new_entries_allowed": False,
+                "guardrail_status": "BLOCKED",
+                "pause_new_entries_reason": "market_regime_score 42.00 低於新增持倉門檻 60.00",
+                "rejected_orders": 1,
+                "loss_attribution_loss_count": 1,
+                "loss_attribution_top_reason": "市場環境偏弱",
                 "total_equity_after_cost": 1_000_000,
             }
         ]
@@ -154,6 +161,41 @@ def test_html_report_shows_local_factor_decision_aids(tmp_path: Path) -> None:
     )
     pd.DataFrame(
         [
+            {
+                "stock_id": "3008",
+                "stock_name": "大立光",
+                "status": "REJECTED_GUARDRAIL",
+                "candidate_grade": "B",
+                "market_regime_score": 42,
+                "rejected_reason": "候選分級 B 低於新增紙上交易門檻 A",
+            }
+        ]
+    ).to_csv(tmp_path / "rejected_paper_orders_20260515.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-05-15",
+                "market_regime_score": 42,
+                "source": "equal_weight_market",
+            }
+        ]
+    ).to_csv(tmp_path / "market_regime_20260515.csv", index=False)
+    pd.DataFrame(
+        [
+            {
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "candidate_grade": "B",
+                "decision": "HOLD",
+                "unrealized_pnl_pct": -0.02,
+                "market_regime_score": 42,
+                "loss_bucket": "unrealized_loss",
+                "likely_loss_reason": "市場環境偏弱",
+            }
+        ]
+    ).to_csv(tmp_path / "loss_attribution_20260515.csv", index=False)
+    pd.DataFrame(
+        [
             {"source_name": "liquidity", "provider_maturity": "local_derived", "status": "OK", "rows": 1, "warning": "", "fallback_action": "wrote_new_data"},
             {"source_name": "sector_strength", "provider_maturity": "local_derived", "status": "OK_WITH_FALLBACK", "rows": 1, "warning": "缺少產業分類，使用全市場相對強弱", "fallback_action": "used_local_fallback"},
         ]
@@ -163,6 +205,12 @@ def test_html_report_shows_local_factor_decision_aids(tmp_path: Path) -> None:
 
     assert "今日操作重點" in html
     assert "持倉風險燈號" in html
+    assert "市場環境分數" in html
+    assert "是否允許新增持倉" in html
+    assert "Guardrail 狀態" in html
+    assert "暫停新倉原因" in html
+    assert "Loss attribution 摘要" in html
+    assert "被擋下交易明細" in html
     assert "流動性分數" in html
     assert "產業相對強弱分數" in html
     assert "本地價量衍生資料" in html

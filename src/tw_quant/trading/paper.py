@@ -7,7 +7,11 @@ from pathlib import Path
 import re
 
 import pandas as pd
+from sqlalchemy import Engine
 
+from tw_quant.config import load_config
+from tw_quant.market_regime import MarketRegimeResult, evaluate_market_regime
+from tw_quant.trading.guardrails import build_guardrail_context, evaluate_candidate_entry
 
 POSITION_COLUMNS = [
     "signal_date",
@@ -71,6 +75,10 @@ PENDING_ORDER_COLUMNS = [
     "warning",
     "reason",
     "risk_reason",
+    "candidate_grade",
+    "grade_reason",
+    "grade_risk_flags",
+    "requires_manual_review",
     "multi_factor_score",
     "multi_factor_reason",
     "final_market_score",
@@ -85,7 +93,12 @@ PENDING_ORDER_COLUMNS = [
     "event_risk_level",
     "event_reason",
     "event_blocked",
+    "market_regime_score",
+    "guardrail_status",
+    "new_entries_allowed",
 ]
+
+REJECTED_ORDER_COLUMNS = PENDING_ORDER_COLUMNS + ["rejected_reason"]
 
 
 @dataclass(frozen=True)
@@ -94,20 +107,31 @@ class PaperTradeResult:
     source_report: Path | None
     positions_path: Path | None
     pending_orders_path: Path | None
+    rejected_orders_path: Path | None
     trades_path: Path
     positions: pd.DataFrame
     new_positions: pd.DataFrame
     pending_orders: pd.DataFrame
+    rejected_orders: pd.DataFrame
     skipped_existing: list[str]
     warning: str = ""
+    guardrail_status: str = ""
+    pause_new_entries_reason: str = ""
+    market_regime_score: float = 0.0
+    new_entries_allowed: bool = True
 
 
 def run_paper_trade(
     reports_dir: str | Path = "reports",
     capital: float = 1_000_000,
+    config: dict | None = None,
+    config_path: str | Path = "config.yaml",
+    engine: Engine | None = None,
+    market_regime: MarketRegimeResult | None = None,
 ) -> PaperTradeResult:
     report_dir = Path(reports_dir)
     trades_path = report_dir / "paper_trades.csv"
+    active_config = config or load_config(config_path)
     source_report = find_latest_risk_pass_report(report_dir)
     if source_report is None:
         return PaperTradeResult(
@@ -115,10 +139,12 @@ def run_paper_trade(
             source_report=None,
             positions_path=None,
             pending_orders_path=None,
+            rejected_orders_path=None,
             trades_path=trades_path,
             positions=pd.DataFrame(columns=POSITION_COLUMNS),
             new_positions=pd.DataFrame(columns=POSITION_COLUMNS),
             pending_orders=pd.DataFrame(columns=PENDING_ORDER_COLUMNS),
+            rejected_orders=pd.DataFrame(columns=REJECTED_ORDER_COLUMNS),
             skipped_existing=[],
             warning="no risk_pass_candidates report found",
         )
@@ -131,10 +157,12 @@ def run_paper_trade(
             source_report=source_report,
             positions_path=None,
             pending_orders_path=None,
+            rejected_orders_path=None,
             trades_path=trades_path,
             positions=pd.DataFrame(columns=POSITION_COLUMNS),
             new_positions=pd.DataFrame(columns=POSITION_COLUMNS),
             pending_orders=pd.DataFrame(columns=PENDING_ORDER_COLUMNS),
+            rejected_orders=pd.DataFrame(columns=REJECTED_ORDER_COLUMNS),
             skipped_existing=[],
             warning=f"risk pass report is empty: {source_report}",
         )
@@ -144,32 +172,65 @@ def run_paper_trade(
     open_positions = _open_positions(existing_trades)
     trade_date = pd.to_datetime(candidates["trade_date"].iloc[0])
     pending_path = report_dir / f"pending_orders_{trade_date.strftime('%Y%m%d')}.csv"
+    rejected_path = report_dir / f"rejected_paper_orders_{trade_date.strftime('%Y%m%d')}.csv"
     existing_pending = _load_pending_orders(pending_path)
     existing_order_ids = set(existing_pending["stock_id"]) if not existing_pending.empty else set()
+    open_position_ids = set(open_positions["stock_id"]) if not open_positions.empty else set()
+    regime_result = market_regime or _safe_market_regime(
+        engine=engine,
+        config=active_config,
+        trade_date=trade_date,
+        reports_dir=report_dir,
+    )
+    guardrails = build_guardrail_context(
+        reports_dir=report_dir,
+        capital=capital,
+        config=active_config,
+        market_regime=regime_result,
+    )
 
     pending_rows: list[dict] = []
+    rejected_rows: list[dict] = []
     for _, row in candidates.iterrows():
         stock_id = str(row["stock_id"]).strip()
+        duplicate_reason = ""
         if stock_id in existing_order_ids:
+            duplicate_reason = "已有待執行 pending order，略過重複建立"
+        elif stock_id in open_position_ids:
+            duplicate_reason = "已有未平倉持倉，略過重複建立"
+        decision = evaluate_candidate_entry(
+            row,
+            guardrails,
+            created_today=len(pending_rows),
+            duplicate_reason=duplicate_reason,
+        )
+        if not decision.allowed:
+            rejected_rows.append(_build_rejected_order(row, decision.reason, guardrails))
             continue
-        if _to_bool(row.get("event_blocked")):
-            continue
-        pending_rows.append(_build_pending_order(row))
+        pending_rows.append(_build_pending_order(row, guardrails))
 
     new_pending = pd.DataFrame(pending_rows, columns=PENDING_ORDER_COLUMNS)
     all_pending = _merge_pending_orders(existing_pending, new_pending)
     all_pending.to_csv(pending_path, index=False, encoding="utf-8-sig")
+    rejected = pd.DataFrame(rejected_rows, columns=REJECTED_ORDER_COLUMNS)
+    rejected.to_csv(rejected_path, index=False, encoding="utf-8-sig")
 
     return PaperTradeResult(
         trade_date=trade_date,
         source_report=source_report,
         positions_path=None,
         pending_orders_path=pending_path,
+        rejected_orders_path=rejected_path,
         trades_path=trades_path,
         positions=open_positions,
         new_positions=pd.DataFrame(columns=POSITION_COLUMNS),
         pending_orders=all_pending,
+        rejected_orders=rejected,
         skipped_existing=[],
+        guardrail_status=guardrails.guardrail_status,
+        pause_new_entries_reason=guardrails.pause_reason,
+        market_regime_score=guardrails.market_regime_score,
+        new_entries_allowed=guardrails.new_entries_allowed,
     )
 
 
@@ -185,7 +246,7 @@ def find_latest_risk_pass_report(reports_dir: str | Path) -> Path | None:
     return sorted(candidates, key=lambda item: item[0])[-1][1]
 
 
-def _build_pending_order(row: pd.Series) -> dict:
+def _build_pending_order(row: pd.Series, guardrails=None) -> dict:
     return {
         "signal_date": str(row["trade_date"]),
         "planned_entry_date": PENDING_ENTRY_MARKER,
@@ -205,6 +266,10 @@ def _build_pending_order(row: pd.Series) -> dict:
         "warning": "",
         "reason": str(row.get("reason", "")),
         "risk_reason": str(row.get("risk_reason", "")),
+        "candidate_grade": str(row.get("candidate_grade", "")),
+        "grade_reason": str(row.get("grade_reason", "")),
+        "grade_risk_flags": str(row.get("grade_risk_flags", "")),
+        "requires_manual_review": row.get("requires_manual_review", ""),
         "multi_factor_score": row.get("multi_factor_score", ""),
         "multi_factor_reason": str(row.get("multi_factor_reason", "")),
         "final_market_score": row.get("final_market_score", ""),
@@ -219,7 +284,48 @@ def _build_pending_order(row: pd.Series) -> dict:
         "event_risk_level": str(row.get("event_risk_level", "")),
         "event_reason": str(row.get("event_reason", "")),
         "event_blocked": row.get("event_blocked", ""),
+        "market_regime_score": getattr(guardrails, "market_regime_score", ""),
+        "guardrail_status": getattr(guardrails, "guardrail_status", ""),
+        "new_entries_allowed": getattr(guardrails, "new_entries_allowed", ""),
     }
+
+
+def _build_rejected_order(row: pd.Series, reason: str, guardrails) -> dict:
+    order = _build_pending_order(row, guardrails)
+    order["status"] = "REJECTED_GUARDRAIL"
+    order["skipped_reason"] = reason
+    order["warning"] = reason
+    order["rejected_reason"] = reason
+    return order
+
+
+def _safe_market_regime(
+    engine: Engine | None,
+    config: dict,
+    trade_date: pd.Timestamp,
+    reports_dir: Path,
+) -> MarketRegimeResult:
+    if engine is None:
+        return MarketRegimeResult(
+            trade_date=trade_date,
+            market_regime_score=100.0,
+            source="not_evaluated",
+            warning="market regime not evaluated in standalone paper_trade call",
+        )
+    try:
+        return evaluate_market_regime(
+            engine=engine,
+            config=config,
+            trade_date=trade_date,
+            reports_dir=reports_dir,
+        )
+    except Exception as exc:
+        return MarketRegimeResult(
+            trade_date=trade_date,
+            market_regime_score=50.0,
+            source="FAILED",
+            warning=f"{type(exc).__name__}: {exc}",
+        )
 
 
 def _load_trades(trades_path: Path) -> pd.DataFrame:

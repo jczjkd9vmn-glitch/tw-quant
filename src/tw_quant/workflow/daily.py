@@ -18,6 +18,7 @@ from tw_quant.reporting.export import export_latest_candidates
 from tw_quant.trading.paper import run_paper_trade
 from tw_quant.trading.paper_update import update_paper_positions
 from tw_quant.trading.pending import execute_pending_orders
+from tw_quant.validation.loss_attribution import generate_loss_attribution
 from tw_quant.validation.strategy_validation import generate_strategy_validation
 
 
@@ -74,6 +75,14 @@ class DailyWorkflowSummary:
     grade_b_count: int = 0
     grade_c_count: int = 0
     grade_d_count: int = 0
+    market_regime_score: float = 0.0
+    new_entries_allowed: bool = True
+    guardrail_status: str = ""
+    pause_new_entries_reason: str = ""
+    rejected_orders: int = 0
+    loss_attribution_status: str = ""
+    loss_attribution_loss_count: int = 0
+    loss_attribution_top_reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -88,6 +97,8 @@ class DailyWorkflowResult:
     update_result: Any | None = None
     validation_result: Any | None = None
     decision_result: Any | None = None
+    loss_attribution_result: Any | None = None
+    loss_attribution_result: Any | None = None
 
 
 def run_all_daily(
@@ -105,13 +116,14 @@ def run_all_daily(
     update_func: Callable[..., Any] = update_paper_positions,
     validation_func: Callable[..., Any] = generate_strategy_validation,
     decision_func: Callable[..., Any] = generate_trading_decisions,
+    loss_attribution_func: Callable[..., Any] = generate_loss_attribution,
 ) -> DailyWorkflowResult:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
     summary_values = _empty_summary(trade_date, capital)
     messages: list[str] = []
     daily_result = export_result = paper_result = execute_result = update_result = None
-    validation_result = decision_result = None
+    validation_result = decision_result = loss_attribution_result = None
 
     try:
         (
@@ -228,17 +240,35 @@ def run_all_daily(
         messages.append("paper_trade SKIP")
     else:
         try:
-            paper_result = paper_func(reports_dir=report_dir, capital=capital)
+            try:
+                paper_result = paper_func(
+                    reports_dir=report_dir,
+                    capital=capital,
+                    config=load_config(config_path),
+                    config_path=config_path,
+                    engine=engine,
+                )
+            except TypeError:
+                paper_result = paper_func(reports_dir=report_dir, capital=capital)
             if getattr(paper_result, "warning", ""):
                 messages.append(f"paper_trade warning {paper_result.warning}")
             else:
                 pending_count = _count_status(getattr(paper_result, "pending_orders", pd.DataFrame()), "PENDING")
+                rejected_count = len(getattr(paper_result, "rejected_orders", pd.DataFrame()))
                 summary_values["pending_orders"] = pending_count
                 summary_values["open_positions"] = len(paper_result.positions)
+                summary_values["rejected_orders"] = rejected_count
+                summary_values["market_regime_score"] = float(getattr(paper_result, "market_regime_score", 0.0) or 0.0)
+                summary_values["new_entries_allowed"] = bool(getattr(paper_result, "new_entries_allowed", True))
+                summary_values["guardrail_status"] = str(getattr(paper_result, "guardrail_status", ""))
+                summary_values["pause_new_entries_reason"] = str(getattr(paper_result, "pause_new_entries_reason", ""))
                 messages.append(
                     "paper_trade OK "
                     f"pending_orders={pending_count} "
-                    f"open_positions={len(paper_result.positions)}"
+                    f"rejected_orders={rejected_count} "
+                    f"open_positions={len(paper_result.positions)} "
+                    f"guardrail_status={summary_values['guardrail_status']} "
+                    f"market_regime_score={summary_values['market_regime_score']}"
                 )
         except Exception as exc:
             return _failed_result(
@@ -335,6 +365,30 @@ def run_all_daily(
                 update_result=update_result,
             )
 
+    try:
+        try:
+            loss_attribution_result = loss_attribution_func(
+                reports_dir=report_dir,
+                trade_date=summary_values["trade_date"],
+            )
+        except TypeError:
+            loss_attribution_result = loss_attribution_func(reports_dir=report_dir)
+        attribution = getattr(loss_attribution_result, "attribution", pd.DataFrame())
+        summary_values["loss_attribution_status"] = (
+            "WARNING" if getattr(loss_attribution_result, "warning", "") else "OK"
+        )
+        _merge_loss_attribution_summary(summary_values, attribution)
+        messages.append(
+            "loss_attribution OK "
+            f"rows={len(attribution)} "
+            f"loss_count={summary_values['loss_attribution_loss_count']}"
+        )
+        if getattr(loss_attribution_result, "warning", ""):
+            messages.append(f"loss_attribution warning {loss_attribution_result.warning}")
+    except Exception as exc:
+        summary_values["loss_attribution_status"] = "FAILED"
+        messages.append(f"loss_attribution warning {type(exc).__name__}: {exc}")
+
     validation_config = config.get("strategy_validation", {}) if "config" in locals() else {}
     if validation_config.get("enabled", True):
         try:
@@ -409,6 +463,7 @@ def run_all_daily(
         update_result=update_result,
         validation_result=validation_result,
         decision_result=decision_result,
+        loss_attribution_result=loss_attribution_result,
     )
 
 
@@ -489,6 +544,14 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "grade_b_count": 0,
         "grade_c_count": 0,
         "grade_d_count": 0,
+        "market_regime_score": 0.0,
+        "new_entries_allowed": True,
+        "guardrail_status": "",
+        "pause_new_entries_reason": "",
+        "rejected_orders": 0,
+        "loss_attribution_status": "",
+        "loss_attribution_loss_count": 0,
+        "loss_attribution_top_reason": "",
     }
 
 
@@ -558,6 +621,26 @@ def _merge_update_summary(summary_values: dict[str, Any], update_summary: pd.Dat
     summary_values["realized_pnl_after_cost_today"] = float(
         row.get("realized_pnl_after_cost_today", 0.0)
     )
+
+
+def _merge_loss_attribution_summary(summary_values: dict[str, Any], attribution: pd.DataFrame) -> None:
+    if attribution.empty:
+        return
+    realized = pd.to_numeric(
+        attribution.get("realized_pnl_pct", pd.Series([None] * len(attribution))),
+        errors="coerce",
+    )
+    unrealized = pd.to_numeric(
+        attribution.get("unrealized_pnl_pct", pd.Series([None] * len(attribution))),
+        errors="coerce",
+    )
+    returns = realized.where(realized.notna(), unrealized).fillna(0.0)
+    summary_values["loss_attribution_loss_count"] = int((returns < 0).sum())
+    if "likely_loss_reason" in attribution.columns:
+        reasons = attribution.loc[returns < 0, "likely_loss_reason"].fillna("").astype(str)
+        reasons = reasons[reasons.str.strip() != ""]
+        if not reasons.empty:
+            summary_values["loss_attribution_top_reason"] = reasons.value_counts().index[0]
 
 
 def _count_status(frame: pd.DataFrame, status: str) -> int:

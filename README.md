@@ -853,7 +853,40 @@ reports/trading_decisions_YYYYMMDD.csv
 - C 級：有明顯警訊或資料不足，適合列入觀察。
 - D 級：未通過風控、處置股、高風險事件或流動性太差。
 
-A 級不是保證買進，D 級也不是保證賣出；分級只是優先順序與風險提示。所有決策都會輸出 `can_auto_trade=false` 與 `requires_manual_review=true`。
+A 級不是保證買進，D 級也不是保證賣出；分級只是優先順序與風險提示。為降低過度進場，目前 `BUY_CANDIDATE` 預設只允許 A 級，B 級會改列 `WATCH_ONLY`。所有決策都會輸出 `can_auto_trade=false` 與 `requires_manual_review=true`。
+
+### Loss attribution、market regime 與 paper guardrails
+
+本版新增三個防止爛交易與過度進場的紙上交易保護層。這些規則只影響「是否建立新的 paper pending order」，不改既有出場策略、不接券商 API、不真實下單，也不會自動賣出既有持倉。
+
+Loss attribution 報表輸出：
+
+```text
+reports/loss_attribution_YYYYMMDD.csv
+```
+
+欄位會包含候選分級、決策、進出場日、進出場價、已實現 / 未實現損益率、出場原因、持有天數、流動性分數、產業相對強弱分數、信心分數、市場環境分數、跳空 / 進場落差、最大有利 / 不利波動、虧損分類與可能虧損原因。這份報表用來檢查虧損來源，例如市場環境偏弱、流動性偏低、產業相對弱勢、資料可信度偏低或停損出場。
+
+Market regime filter 會從 SQLite 價量資料判斷市場環境。若有加權 / 櫃買指數資料，會檢查 20MA、60MA 與 5 / 20 日報酬；若沒有指數資料，會使用全市場等權報酬 fallback。當 `market_regime_score` 低於門檻時，系統會暫停新增 paper pending order，但仍會照常管理既有持倉與出場。
+
+Paper trading guardrails 預設啟用：
+
+- A 級才可建立新的 paper pending order。
+- B 級改列 `WATCH_ONLY`。
+- D 級為 `NO_TRADE`。
+- 總回撤超過 5% 暫停新增持倉。
+- 單日虧損超過 2% 暫停新增持倉。
+- 連續停損 3 筆後暫停新增持倉 5 個交易日。
+- `max_open_positions` 預設 8。
+- `max_daily_new_positions` 預設 2。
+
+所有被擋下的候選都會寫入：
+
+```text
+reports/rejected_paper_orders_YYYYMMDD.csv
+```
+
+因此不會靜默消失。HTML 總覽會顯示 `market_regime_score`、是否允許新增持倉、guardrail 狀態、暫停新倉原因、被擋下交易數與 loss attribution 摘要。
 
 安全設定預設：
 
@@ -869,6 +902,22 @@ decision_engine:
   enabled: true
   output_advisory_only: true
   default_can_auto_trade: false
+  min_grade_for_buy_candidate: A
+
+paper_trading_guardrails:
+  enabled: true
+  min_grade_for_new_entry: A
+  max_total_drawdown_pct: 0.05
+  max_daily_loss_pct: 0.02
+  max_consecutive_stop_loss: 3
+  pause_new_entries_days: 5
+  max_open_positions: 8
+  max_daily_new_positions: 2
+
+market_regime:
+  enabled: true
+  min_score_for_new_entries: 60
+  fallback_to_equal_weight_market: true
 ```
 
 風險聲明：本系統不保證獲利；過去回測不代表未來；外部資料可能錯誤、延遲或缺漏；任何實盤交易都需要人工確認與額外券商 API 風控，本專案目前不提供真實下單能力。

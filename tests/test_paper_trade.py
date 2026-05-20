@@ -23,6 +23,7 @@ def test_paper_trade_creates_pending_orders_without_same_day_open_positions(tmp_
     assert result.new_positions.empty
     assert result.positions.empty
     assert len(result.pending_orders) == 2
+    assert result.rejected_orders.empty
     assert list(result.pending_orders.columns) == PENDING_ORDER_COLUMNS
 
     first = result.pending_orders[result.pending_orders["stock_id"] == "00891"].iloc[0]
@@ -56,7 +57,10 @@ def test_paper_trade_preserves_existing_open_positions_without_rebuilding(tmp_pa
     trades = pd.read_csv(result.trades_path, dtype={"stock_id": str})
     assert result.skipped_existing == []
     assert result.new_positions.empty
-    assert len(result.pending_orders) == 2
+    assert len(result.pending_orders) == 1
+    assert len(result.rejected_orders) == 1
+    assert result.rejected_orders.iloc[0]["stock_id"] == "00891"
+    assert "已有未平倉持倉" in result.rejected_orders.iloc[0]["rejected_reason"]
     assert len(trades) == 1
     assert len(trades[trades["stock_id"] == "00891"]) == 1
     assert len(result.positions) == 1

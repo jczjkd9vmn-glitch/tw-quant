@@ -129,9 +129,10 @@ def test_high_risk_event_blocks_new_pending_order(tmp_path: Path) -> None:
 
     result = run_paper_trade(reports_dir=tmp_path, capital=1_000_000)
 
-    assert len(result.pending_orders) == 1
     assert "2330" not in set(result.pending_orders["stock_id"].astype(str))
-    assert "2317" in set(result.pending_orders["stock_id"].astype(str))
+    assert "2330" in set(result.rejected_orders["stock_id"].astype(str))
+    rejected = result.rejected_orders.set_index("stock_id")
+    assert "高風險事件" in rejected.loc["2330", "rejected_reason"]
 
 
 def _engine_with_scores():

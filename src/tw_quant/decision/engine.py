@@ -113,6 +113,7 @@ def _candidate_decisions(candidates: pd.DataFrame, config: dict, trade_date: pd.
     decision_config = config.get("decision_engine", {}) if isinstance(config, dict) else {}
     min_confidence = float(decision_config.get("min_confidence_for_buy_candidate", 60))
     min_liquidity = float(decision_config.get("min_liquidity_for_buy_candidate", 50))
+    min_grade = str(decision_config.get("min_grade_for_buy_candidate", "A")).strip().upper() or "A"
     block_high_event = bool(decision_config.get("block_high_event_risk", True))
     block_disposition = bool(decision_config.get("block_disposition_stock", True))
     rows: list[dict] = []
@@ -124,9 +125,18 @@ def _candidate_decisions(candidates: pd.DataFrame, config: dict, trade_date: pd.
         event_level = str(row.get("event_risk_level", "") or "").upper()
         disposition = _to_bool(row.get("is_disposition_stock"))
         blocked = _to_bool(row.get("event_blocked")) or (block_high_event and event_level == "HIGH") or (block_disposition and disposition)
-        if grade in {"A", "B"} and risk_pass and confidence >= min_confidence and liquidity >= min_liquidity and not blocked:
+        if (
+            _grade_value(grade) >= _grade_value(min_grade)
+            and risk_pass
+            and confidence >= min_confidence
+            and liquidity >= min_liquidity
+            and not blocked
+        ):
             decision, level, action = "BUY_CANDIDATE", "WATCH", "review_before_entry"
             reason = "買進候選，需人工確認；不會自動下單"
+        elif grade == "B":
+            decision, level, action = "WATCH_ONLY", "WATCH", "observe_only"
+            reason = "B 級改列觀察名單，降低過度進場；需人工確認"
         elif grade == "C":
             decision, level, action = "WATCH_ONLY", "CAUTION", "observe_only"
             reason = "觀察名單，資料或風險條件需人工確認"
@@ -320,3 +330,7 @@ def _is_blank(value: object) -> bool:
         return bool(pd.isna(value))
     except TypeError:
         return False
+
+
+def _grade_value(value: str) -> int:
+    return {"D": 0, "C": 1, "B": 2, "A": 3}.get(str(value).strip().upper(), -1)

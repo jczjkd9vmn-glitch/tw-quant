@@ -248,6 +248,10 @@ class LocalDerivedProvider:
             industry_map = pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8-sig")
         except Exception:
             return history
+        if "industry" not in industry_map.columns and "industry_main" in industry_map.columns:
+            industry_map["industry"] = industry_map["industry_main"]
+        if "sub_industry" not in industry_map.columns and "industry_sub" in industry_map.columns:
+            industry_map["sub_industry"] = industry_map["industry_sub"]
         if industry_map.empty or "stock_id" not in industry_map.columns or "industry" not in industry_map.columns:
             return history
         lookup = industry_map.drop_duplicates("stock_id", keep="last").set_index("stock_id")

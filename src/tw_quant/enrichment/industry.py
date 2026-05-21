@@ -9,7 +9,17 @@ import pandas as pd
 from tw_quant.config import load_config
 
 
-INDUSTRY_COLUMNS = ["stock_id", "stock_name", "industry", "sub_industry", "market_type", "source", "updated_at"]
+INDUSTRY_COLUMNS = [
+    "stock_id",
+    "stock_name",
+    "market",
+    "industry_main",
+    "industry_sub",
+    "source",
+    "updated_at",
+    "confidence",
+    "fallback_used",
+]
 
 
 def update_industry_map(
@@ -50,11 +60,13 @@ def _derive_from_local_files(data_dir: Path) -> pd.DataFrame:
                 {
                     "stock_id": stock_id,
                     "stock_name": str(row.get("stock_name", "")),
-                    "industry": industry,
-                    "sub_industry": str(row.get("sub_industry", "")),
-                    "market_type": str(row.get("market_type", "")),
+                    "market": str(row.get("market", row.get("market_type", ""))),
+                    "industry_main": industry,
+                    "industry_sub": str(row.get("industry_sub", row.get("sub_industry", ""))),
                     "source": f"local:{filename}",
                     "updated_at": pd.Timestamp.today().strftime("%Y-%m-%d"),
+                    "confidence": 0.7,
+                    "fallback_used": True,
                 }
             )
     if not rows:
@@ -64,6 +76,12 @@ def _derive_from_local_files(data_dir: Path) -> pd.DataFrame:
 
 def _read_industry_map(path: Path) -> pd.DataFrame:
     frame = _read_csv(path)
+    if "industry_main" not in frame.columns and "industry" in frame.columns:
+        frame["industry_main"] = frame["industry"]
+    if "industry_sub" not in frame.columns and "sub_industry" in frame.columns:
+        frame["industry_sub"] = frame["sub_industry"]
+    if "market" not in frame.columns and "market_type" in frame.columns:
+        frame["market"] = frame["market_type"]
     for column in INDUSTRY_COLUMNS:
         if column not in frame.columns:
             frame[column] = ""

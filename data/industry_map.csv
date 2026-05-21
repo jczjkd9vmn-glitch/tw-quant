@@ -1,1 +1,1 @@
-﻿stock_id,stock_name,industry,sub_industry,market_type,source,updated_at
+﻿stock_id,stock_name,market,industry_main,industry_sub,source,updated_at,confidence,fallback_used

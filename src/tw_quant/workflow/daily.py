@@ -16,6 +16,7 @@ from tw_quant.data.pipeline import run_daily_pipeline
 from tw_quant.decision.engine import decision_counts, generate_trading_decisions
 from tw_quant.enrichment.industry import update_industry_map
 from tw_quant.enrichment.report import generate_ai_enrichment
+from tw_quant.reporting.dashboard_data import generate_market_recap, generate_pnl_chart_data
 from tw_quant.reporting.export import export_latest_candidates
 from tw_quant.trading.paper import run_paper_trade
 from tw_quant.trading.paper_update import update_paper_positions
@@ -103,6 +104,11 @@ class DailyWorkflowSummary:
     rule_based_enrichment_count: int = 0
     enrichment_insufficient_data_count: int = 0
     industry_map_status: str = ""
+    pnl_chart_status: str = ""
+    market_recap_status: str = ""
+    decision_dashboard_status: str = ""
+    config_summary_status: str = ""
+    enrichment_evidence_status: str = ""
 
 
 @dataclass(frozen=True)
@@ -119,6 +125,8 @@ class DailyWorkflowResult:
     decision_result: Any | None = None
     loss_attribution_result: Any | None = None
     enrichment_result: Any | None = None
+    pnl_chart_result: Any | None = None
+    market_recap_result: Any | None = None
 
 
 def run_all_daily(
@@ -139,6 +147,8 @@ def run_all_daily(
     loss_attribution_func: Callable[..., Any] = generate_loss_attribution,
     industry_map_func: Callable[..., Any] = update_industry_map,
     enrichment_func: Callable[..., Any] = generate_ai_enrichment,
+    pnl_chart_func: Callable[..., Any] = generate_pnl_chart_data,
+    market_recap_func: Callable[..., Any] = generate_market_recap,
 ) -> DailyWorkflowResult:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -146,6 +156,7 @@ def run_all_daily(
     messages: list[str] = []
     daily_result = export_result = paper_result = execute_result = update_result = None
     validation_result = decision_result = loss_attribution_result = enrichment_result = None
+    pnl_chart_result = market_recap_result = None
 
     try:
         (
@@ -549,6 +560,54 @@ def run_all_daily(
             summary_values["ai_enrichment_status"] = "FAILED"
             messages.append(f"ai_enrichment warning {type(exc).__name__}: {exc}")
 
+    try:
+        try:
+            pnl_chart_result = pnl_chart_func(
+                reports_dir=report_dir,
+                trade_date=summary_values["trade_date"],
+                current_summary=summary_values,
+            )
+        except TypeError:
+            pnl_chart_result = pnl_chart_func()
+        summary_values["pnl_chart_status"] = str(getattr(pnl_chart_result, "status", "OK"))
+        messages.append(
+            "pnl_chart_data "
+            f"{summary_values['pnl_chart_status']} "
+            f"rows={len(getattr(pnl_chart_result, 'frame', pd.DataFrame()))}"
+        )
+        if getattr(pnl_chart_result, "warning", ""):
+            messages.append(f"pnl_chart_data warning {pnl_chart_result.warning}")
+    except Exception as exc:
+        summary_values["pnl_chart_status"] = "FAILED"
+        messages.append(f"pnl_chart_data warning {type(exc).__name__}: {exc}")
+
+    try:
+        try:
+            market_recap_result = market_recap_func(
+                reports_dir=report_dir,
+                config_path=config_path,
+                trade_date=summary_values["trade_date"],
+            )
+        except TypeError:
+            market_recap_result = market_recap_func()
+        summary_values["market_recap_status"] = str(getattr(market_recap_result, "status", "OK"))
+        messages.append(
+            "market_recap "
+            f"{summary_values['market_recap_status']} "
+            f"rows={len(getattr(market_recap_result, 'frame', pd.DataFrame()))}"
+        )
+        if getattr(market_recap_result, "warning", ""):
+            messages.append(f"market_recap warning {market_recap_result.warning}")
+    except Exception as exc:
+        summary_values["market_recap_status"] = "FAILED"
+        messages.append(f"market_recap warning {type(exc).__name__}: {exc}")
+
+    summary_values["decision_dashboard_status"] = "OK" if summary_values.get("trading_decisions_status") != "FAILED" else "WARNING"
+    summary_values["config_summary_status"] = "OK"
+    summary_values["enrichment_evidence_status"] = (
+        "OK" if summary_values.get("ai_enrichment_status") in {"OK", "WARNING"} else summary_values.get("ai_enrichment_status", "")
+    )
+
     _refresh_fallback_status(summary_values)
     summary = DailyWorkflowSummary(**summary_values)
     summary_path = _write_summary(report_dir, summary)
@@ -566,6 +625,8 @@ def run_all_daily(
         decision_result=decision_result,
         loss_attribution_result=loss_attribution_result,
         enrichment_result=enrichment_result,
+        pnl_chart_result=pnl_chart_result,
+        market_recap_result=market_recap_result,
     )
 
 
@@ -672,6 +733,11 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "rule_based_enrichment_count": 0,
         "enrichment_insufficient_data_count": 0,
         "industry_map_status": "",
+        "pnl_chart_status": "",
+        "market_recap_status": "",
+        "decision_dashboard_status": "",
+        "config_summary_status": "",
+        "enrichment_evidence_status": "",
     }
 
 

@@ -10,20 +10,18 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from tw_quant.enrichment.report import generate_ai_enrichment
+from tw_quant.reporting.dashboard_data import generate_market_recap
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate rule-based/AI enrichment report.")
+    parser = argparse.ArgumentParser(description="Generate Taiwan market recap report.")
     parser.add_argument("--config", default=str(ROOT / "config.yaml"))
     parser.add_argument("--reports-dir", default=str(ROOT / "reports"))
-    parser.add_argument("--data-dir", default=str(ROOT / "data"))
     parser.add_argument("--date", default=None)
     args = parser.parse_args()
 
-    result = generate_ai_enrichment(
+    result = generate_market_recap(
         reports_dir=args.reports_dir,
-        data_dir=args.data_dir,
         config_path=args.config,
         trade_date=args.date,
     )
@@ -32,10 +30,9 @@ def main() -> None:
     print(
         "summary "
         f"trade_date={result.trade_date} "
-        f"rows={len(result.enrichment)} "
-        f"output={result.output_path} "
-        f"evidence={result.evidence_path} "
-        f"cache={result.cache_path}"
+        f"status={result.status} "
+        f"rows={len(result.frame)} "
+        f"output={result.output_path}"
     )
 
 

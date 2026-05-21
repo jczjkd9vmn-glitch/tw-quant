@@ -23,10 +23,16 @@ ENRICHMENT_COLUMNS = [
     "missing_data_flags",
     "enriched_industry",
     "enriched_industry_source",
+    "industry_main",
+    "industry_sub",
+    "sector_strength_mode",
+    "relative_strength_5d",
+    "relative_strength_20d",
     "valuation_context",
     "valuation_risk_level",
     "margin_credit_context",
     "margin_risk_level",
+    "margin_price_divergence",
     "sector_context",
     "risk_explanation",
     "opportunity_explanation",
@@ -87,12 +93,18 @@ class RuleBasedEnricher(BaseEnricher):
                     "ai_used": False,
                     "source_evidence_count": len(evidence),
                     "missing_data_flags": "；".join(missing),
-                    "enriched_industry": self._text(row.get("industry")) or "未知產業",
+                    "enriched_industry": self._industry(row),
                     "enriched_industry_source": self._text(row.get("industry_source")) or self._text(row.get("source")) or "local_csv_or_report",
+                    "industry_main": self._text(row.get("industry_main")) or self._text(row.get("industry")) or "未知產業",
+                    "industry_sub": self._text(row.get("industry_sub")) or self._text(row.get("sub_industry")) or "",
+                    "sector_strength_mode": self._text(row.get("sector_strength_mode")) or "",
+                    "relative_strength_5d": row.get("relative_strength_5d", ""),
+                    "relative_strength_20d": row.get("relative_strength_20d", ""),
                     "valuation_context": valuation.text,
                     "valuation_risk_level": valuation.risk_level,
                     "margin_credit_context": margin.text,
                     "margin_risk_level": margin.risk_level,
+                    "margin_price_divergence": margin.divergence,
                     "sector_context": self._sector_context(row),
                     "risk_explanation": risk_explanation,
                     "opportunity_explanation": opportunity,
@@ -109,15 +121,16 @@ class RuleBasedEnricher(BaseEnricher):
         pe = self._float(row.get("pe_ratio"))
         pb = self._float(row.get("pb_ratio"))
         dividend = self._float(row.get("dividend_yield"))
-        industry = self._text(row.get("industry")) or "全市場"
+        industry = self._industry(row)
         if pe is None:
             return ValuationContext("估值資料不足，無法判斷 PE 是否偏高", "UNKNOWN")
         if pe < 0:
             return ValuationContext(f"PE={pe:.2f}，可能反映虧損或 EPS 為負，PE 參考性偏低", "HIGH")
 
         peers = universe.copy()
-        if "industry" in peers.columns and industry != "全市場":
-            peers = peers[peers["industry"].fillna("").astype(str) == industry]
+        peer_column = "industry_main" if "industry_main" in peers.columns else "industry"
+        if peer_column in peers.columns and industry not in {"全市場", "未知產業"}:
+            peers = peers[peers[peer_column].fillna("").astype(str) == industry]
         peer_pe = pd.to_numeric(peers.get("pe_ratio", pd.Series(dtype=float)), errors="coerce")
         median = float(peer_pe[peer_pe > 0].median()) if (peer_pe > 0).any() else None
         fallback_note = ""
@@ -139,9 +152,15 @@ class RuleBasedEnricher(BaseEnricher):
             extras.append(f"PB={pb:.2f}")
         if dividend is not None:
             extras.append(f"殖利率={dividend:.2f}%")
+        risk_note = ""
+        if level == "HIGH":
+            risk_note = "；估值明顯高於比較基準，若成長未持續，評價可能受壓縮"
+        elif level == "MEDIUM":
+            risk_note = "；估值高於比較基準，需搭配營收與獲利成長檢查"
         return ValuationContext(
-            f"PE={pe:.2f}，同業/市場中位數約 {median:.2f}，約為 {ratio:.2f} 倍{fallback_note}"
-            + ("；" + "，".join(extras) if extras else ""),
+            f"PE={pe:.2f}，{industry}比較基準中位數約 {median:.2f}，約為 {ratio:.2f} 倍{fallback_note}"
+            + ("；" + "，".join(extras) if extras else "")
+            + risk_note,
             level,
         )
 
@@ -175,7 +194,12 @@ class RuleBasedEnricher(BaseEnricher):
             parts.append(f"20 日融資變化 {margin_20d:,.0f}")
         if institutional is not None:
             parts.append(f"5 日法人買賣超 {institutional:,.0f}")
-        note = "；融資增加但股價未同步上漲，需檢查籌碼壓力" if divergence_5d or divergence_20d else "；未見明顯融資/價格背離"
+        if divergence_20d:
+            note = "；近 20 日融資增加但股價沒有同步上漲，槓桿資金增加但價格反應有限，需檢查法人是否承接"
+        elif divergence_5d:
+            note = "；近 5 日融資增加但股價沒有明顯上漲，可能只是短期異常，需搭配法人與量能確認"
+        else:
+            note = "；未見明顯融資/價格背離，不代表沒有籌碼風險"
         return MarginContext("，".join(parts) + note, level, bool(divergence_5d or divergence_20d))
 
     def _evidence(self, row: pd.Series, trade_date: str) -> list[SourceEvidence]:
@@ -192,6 +216,11 @@ class RuleBasedEnricher(BaseEnricher):
             "sector_strength_score",
             "event_risk_level",
             "risk_flags",
+            "valuation_context",
+            "margin_credit_context",
+            "sector_context",
+            "liquidity_warning",
+            "sector_strength_warning",
         ]:
             value = row.get(field)
             if not self._blank(value):
@@ -213,10 +242,11 @@ class RuleBasedEnricher(BaseEnricher):
             ("pe_ratio", "估值資料不足"),
             ("financial_score", "財報資料不足"),
             ("margin_change_5d", "融資融券資料不足"),
-            ("industry", "產業分類資料不足"),
         ]:
             if self._blank(row.get(column)):
                 missing.append(label)
+        if self._industry(row) == "未知產業":
+            missing.append("產業分類資料不足")
         return missing
 
     def _risk_explanation(self, row: pd.Series, valuation: ValuationContext, margin: MarginContext, missing: list[str]) -> str:
@@ -225,9 +255,16 @@ class RuleBasedEnricher(BaseEnricher):
         if flags:
             risks.append(f"主要風險標籤：{flags}")
         if valuation.risk_level in {"MEDIUM", "HIGH"}:
-            risks.append(f"估值風險 {valuation.risk_level}")
+            risks.append(f"估值風險 {valuation.risk_level}：{valuation.text}")
         if margin.risk_level in {"MEDIUM", "HIGH"}:
-            risks.append(f"融資籌碼風險 {margin.risk_level}")
+            risks.append(f"融資籌碼風險 {margin.risk_level}：{margin.text}")
+        liquidity = self._float(row.get("liquidity_score"))
+        avg_turnover = self._float(row.get("avg_turnover_20d"))
+        if liquidity is not None and liquidity < 50:
+            if avg_turnover is not None:
+                risks.append(f"流動性偏低：20 日平均成交金額約 {avg_turnover:,.0f} 元，短線進出可能有滑價風險")
+            else:
+                risks.append("流動性偏低：短線進出可能有滑價風險")
         if missing:
             risks.append("部分資料不足")
         return "；".join(risks) if risks else "未見重大資料警訊"
@@ -254,12 +291,34 @@ class RuleBasedEnricher(BaseEnricher):
         return "；".join(focuses) if focuses else "檢查停損、流動性與事件風險"
 
     def _sector_context(self, row: pd.Series) -> str:
-        industry = self._text(row.get("industry")) or "未知產業"
+        industry = self._industry(row)
         mode = self._text(row.get("sector_strength_mode")) or ("industry_relative" if industry != "未知產業" else "unknown")
         score = self._float(row.get("sector_strength_score"))
+        rs5 = self._float(row.get("relative_strength_5d"))
+        rs20 = self._float(row.get("relative_strength_20d"))
         if score is None:
             return f"{industry}；產業相對強弱資料不足"
-        return f"{industry}；相對強弱分數 {score:.1f}；模式 {mode}"
+        basis = "同產業" if mode == "industry_relative" else "全市場平均" if mode == "market_relative_fallback" else "未知基準"
+        if mode == "market_relative_fallback":
+            fallback_note = "；目前缺少正式產業分類，因此只能視為全市場相對強弱，不能直接推論為同產業強勢"
+        elif mode == "industry_relative":
+            fallback_note = "；使用產業分類進行同產業相對比較"
+        else:
+            fallback_note = "；比較基準不足，需人工確認"
+        parts = [f"{industry}；相對 {basis} 強弱分數 {score:.1f}"]
+        if rs5 is not None:
+            parts.append(f"5 日相對強弱 {rs5:.2%}")
+        if rs20 is not None:
+            parts.append(f"20 日相對強弱 {rs20:.2%}")
+        return "，".join(parts) + fallback_note
+
+    def _industry(self, row: pd.Series) -> str:
+        return (
+            self._text(row.get("industry_main"))
+            or self._text(row.get("industry"))
+            or self._text(row.get("enriched_industry"))
+            or "未知產業"
+        )
 
     def _sanitize(self, text: str) -> str:
         result = text

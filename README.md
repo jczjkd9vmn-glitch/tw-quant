@@ -995,6 +995,40 @@ market_regime:
 - `affected_symbols_count`
 
 目前限制：財報仍是 best_effort，ROE、負債比、營業現金流不一定能從免費公開端點完整取得；一般新聞來源尚未接入正式新聞 API；sector strength 目前因 SQLite 缺少 industry 欄位，使用全市場相對強弱 fallback；liquidity 已改由本地價量資料衍生，但仍受 SQLite 價量資料完整度影響。外部來源失敗時，流程會保留既有 CSV 或採中性分數，不會讓每日 pipeline 直接崩潰。
+
+## 台股決策儀表盤與產品化報表
+
+本專案只專注台股，目前不支援 A 股、港股或美股，也沒有任何真實券商下單能力。系統定位是研究、紙上交易、風險控管與人工輔助，不是投資顧問或自動交易機器人。
+
+GitHub Pages 報表會整合以下產品化區塊：
+
+- 今日損益圖：使用 `reports/daily_summary_*.csv`、`reports/paper_summary_*.csv` 與 `reports/paper_trades.csv` 產生今日未實現損益、今日已實現損益、今日總損益、累計已實現損益與近期總資產趨勢。正損益使用台股習慣紅色，負損益使用綠色。
+- 決策儀表盤：彙整 `BUY_CANDIDATE`、`WATCH_ONLY`、`NO_TRADE`、`HOLD`、`REDUCE review`、`EXIT review` 與 A/B/C/D 分級。`BUY_CANDIDATE` 顯示為「買進候選，需人工確認」，不代表自動買進。
+- 風險警報：整理 market regime 偏低、guardrail BLOCKED、pending order 被取消、處置股 / 注意股、流動性偏低、接近停損、高風險事件、PE 偏高、融資連增但股價不漲、資料可信度不足與產業資料不足。
+- 利好催化：整理月營收年增、法人買超、相對強勢、流動性佳、基本面改善、事件利多與技術面轉強。這些只作為觀察理由，不保證後續表現。
+- 大盤復盤：產生 `reports/market_recap_YYYYMMDD.csv`，顯示加權 / 櫃買指數欄位、上漲 / 下跌 / 平盤家數、漲停 / 跌停家數、market_regime_score 與市場概況摘要。若尚無正式指數資料，會明確標示使用本地 SQLite 全市場價量 fallback。
+- 配置說明：揭露 `auto_trading.enabled=false`、`can_place_real_orders=false`、`market_intel.affect_trading=false`、`multi_factor.affect_ranking=false`、pending order 有效期限、出場策略參數、交易成本、滑價假設與 `ai_enrichment.allow_external_ai=false`。
+
+每日流程會嘗試產生：
+
+```text
+reports/pnl_chart_data_YYYYMMDD.csv
+reports/market_recap_YYYYMMDD.csv
+reports/enrichment_evidence_YYYYMMDD.csv
+```
+
+若補充報表失敗，主流程不應直接崩潰，會在 `daily_summary_YYYYMMDD.csv` 內記錄 `pnl_chart_status`、`market_recap_status`、`decision_dashboard_status`、`config_summary_status` 與 `enrichment_evidence_status`。
+
+股票卡片會補強資料脈絡：
+
+- 估值脈絡：`valuation_context` 會說明 PE、PB、殖利率、同產業或全市場中位數比較。PE 偏高只代表評價風險需要人工確認，不等同不能買或一定會跌。
+- 融資 / 籌碼脈絡：`margin_credit_context` 會說明融資餘額變化、股價同期變化、法人承接與注意 / 處置股狀態。融資連增但股價不漲只是籌碼壓力提示。
+- 相對強弱脈絡：`sector_context` 會說明比較基準是同產業、全市場 fallback 或未知。若缺少產業分類，報表會明確寫出「只能視為全市場相對強勢，不能直接推論為同產業強勢」。
+- 資料來源依據：`reports/enrichment_evidence_YYYYMMDD.csv` 會列出來源名稱、來源類型、來源日期、欄位、欄位值與 fallback 狀態；HTML 卡片中預設收合顯示。
+
+Discord 每日通知會同步顯示今日損益摘要、決策摘要、大盤復盤摘要、主要風險警報、利好催化與 enrichment 狀態，並明確標示「僅供人工確認」、「未自動下單」、「資料不足時不做強結論」。
+
+風險聲明：不保證獲利；過去績效不代表未來；資料可能延遲、缺漏或錯誤；AI / rule-based enrichment 只解釋既有資料，不會直接控制交易；任何實盤交易都需要人工確認與額外券商 API 風控，而本專案目前不提供真實下單能力。
 ## Official Provider Robustness Notes
 
 本專案的官方資料來源仍採分階段接入，資料源失敗時不會中斷每日流程，也不會覆寫既有有效 CSV。

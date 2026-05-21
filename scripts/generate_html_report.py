@@ -214,6 +214,11 @@ COLUMN_LABELS = {
     "rule_based_enrichment_count": "Rule-based fallback 筆數",
     "enrichment_insufficient_data_count": "資料不足筆數",
     "industry_map_status": "產業分類補強狀態",
+    "pnl_chart_status": "今日損益圖狀態",
+    "market_recap_status": "大盤復盤狀態",
+    "decision_dashboard_status": "決策儀表盤狀態",
+    "config_summary_status": "配置說明狀態",
+    "enrichment_evidence_status": "資料來源依據狀態",
     "enrichment_status": "資料補強狀態",
     "enrichment_provider": "資料補強 provider",
     "ai_used": "是否使用外部 AI",
@@ -233,7 +238,51 @@ COLUMN_LABELS = {
     "ai_summary": "AI / Enrichment 摘要",
     "ai_warning": "AI / Enrichment 警示",
     "source_evidence_json": "資料來源依據",
+    "industry_main": "主要產業",
+    "industry_sub": "細分產業",
+    "sector_strength_mode": "相對強弱模式",
+    "margin_price_divergence": "融資價格背離",
+    "market_recap_status": "大盤復盤狀態",
+    "regime_label": "市場狀態",
+    "twse_index": "加權指數",
+    "tpex_index": "櫃買指數",
+    "advancers": "上漲家數",
+    "decliners": "下跌家數",
+    "unchanged": "平盤家數",
+    "limit_up_count": "漲停家數",
+    "limit_down_count": "跌停家數",
+    "market_breadth_summary": "市場廣度摘要",
+    "recap_summary": "復盤摘要",
+    "fallback_used": "是否使用 fallback",
+    "data_quality_note": "資料品質說明",
+    "today_total_pnl": "今日總損益",
+    "total_return_pct": "報酬率",
+    "source_name": "資料源",
+    "source_type": "來源類型",
+    "source_date": "來源日期",
+    "field_name": "欄位",
+    "field_value": "欄位值",
+    "evidence_summary": "依據摘要",
+    "confidence_impact": "可信度影響",
 }
+
+
+MARKET_RECAP_COLUMNS_FOR_TABLE = [
+    "trade_date",
+    "market_regime_score",
+    "regime_label",
+    "twse_index",
+    "tpex_index",
+    "advancers",
+    "decliners",
+    "unchanged",
+    "limit_up_count",
+    "limit_down_count",
+    "market_breadth_summary",
+    "recap_summary",
+    "fallback_used",
+    "data_quality_note",
+]
 
 
 COLUMN_LABELS.update(
@@ -521,6 +570,7 @@ PNL_COLUMNS = {
     "realized_pnl",
     "realized_pnl_after_cost",
     "realized_pnl_after_cost_today",
+    "today_total_pnl",
 }
 INTEGER_COLUMNS = {
     "rank",
@@ -663,6 +713,11 @@ INTEGER_COLUMNS.update(
         "consecutive_loss_count",
         "rejected_orders",
         "loss_attribution_loss_count",
+        "advancers",
+        "decliners",
+        "unchanged",
+        "limit_up_count",
+        "limit_down_count",
     }
 )
 STATUS_COLUMNS.update(
@@ -674,6 +729,14 @@ STATUS_COLUMNS.update(
         "guardrail_status",
         "loss_attribution_status",
         "loss_bucket",
+        "fallback_used",
+        "ai_used",
+        "margin_price_divergence",
+        "pnl_chart_status",
+        "market_recap_status",
+        "decision_dashboard_status",
+        "config_summary_status",
+        "enrichment_evidence_status",
     }
 )
 DATE_COLUMNS.update({"disposition_start_date", "disposition_end_date"})
@@ -700,6 +763,9 @@ def generate_html_report(
     market_regime = _read_latest_csv(report_dir, "market_regime_*.csv")
     rejected_orders = _read_latest_csv(report_dir, "rejected_paper_orders_*.csv")
     ai_enrichment = _read_latest_csv(report_dir, "ai_enrichment_*.csv")
+    enrichment_evidence = _read_latest_csv(report_dir, "enrichment_evidence_*.csv")
+    pnl_chart_data = _read_latest_csv(report_dir, "pnl_chart_data_*.csv")
+    market_recap = _read_latest_csv(report_dir, "market_recap_*.csv")
     active_config = load_config(ROOT / "config.yaml")
     trading_cost = active_config.get("trading_cost", {})
 
@@ -719,6 +785,9 @@ def generate_html_report(
         market_regime=market_regime,
         rejected_orders=rejected_orders,
         ai_enrichment=ai_enrichment,
+        enrichment_evidence=enrichment_evidence,
+        pnl_chart_data=pnl_chart_data,
+        market_recap=market_recap,
         trading_cost=trading_cost,
         config=active_config,
     )
@@ -748,6 +817,9 @@ def _render_page(
     market_regime: pd.DataFrame,
     rejected_orders: pd.DataFrame,
     ai_enrichment: pd.DataFrame,
+    enrichment_evidence: pd.DataFrame,
+    pnl_chart_data: pd.DataFrame,
+    market_recap: pd.DataFrame,
     trading_cost: dict[str, object],
     config: dict[str, object] | None = None,
 ) -> str:
@@ -842,10 +914,15 @@ def _render_page(
         "valuation_risk_level",
         "margin_credit_context",
         "margin_risk_level",
+        "margin_price_divergence",
+        "industry_main",
+        "industry_sub",
         "sector_context",
+        "sector_strength_mode",
         "enrichment_provider",
         "ai_used",
         "source_evidence_count",
+        "source_evidence_json",
         "market_fundamental_score",
         "market_valuation_score",
         "market_momentum_score",
@@ -892,6 +969,10 @@ def _render_page(
             "manual_review_focus",
             "valuation_context",
             "margin_credit_context",
+            "sector_context",
+            "sector_strength_mode",
+            "source_evidence_count",
+            "source_evidence_json",
             "multi_factor_reason",
             "reason",
         ],
@@ -927,6 +1008,9 @@ def _render_page(
         [
             _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
             _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status, trading_decisions), class_name="today-action-section"),
+            _pnl_chart_section(latest_summary, pnl_chart_data, recent_summaries),
+            _decision_dashboard(latest_summary, trading_decisions, candidates, open_positions),
+            _market_recap_section(market_recap, latest_summary),
             _guardrail_overview(latest_summary, market_regime, rejected_orders),
             _loss_attribution_overview(loss_attribution),
             _enrichment_overview(latest_summary, ai_enrichment),
@@ -948,6 +1032,7 @@ def _render_page(
             _fundamental_summary(candidates),
             _details_block("今日候選股詳細表", candidate_detail),
             _details_block("通過風控股票詳細表", risk_pass_detail),
+            _details_block("資料來源依據", _evidence_table(enrichment_evidence)),
         ]
     )
     health_content = "".join(
@@ -958,6 +1043,7 @@ def _render_page(
             _details_block("系統健康檢查詳細項目", _health_section(_non_data_source_health_items(health_items))),
             _details_block("最近每日 summary", recent_summary_brief),
             _details_block("完整每日 summary 原始資料", recent_summary_full),
+            _details_block("配置說明", _config_summary(config or {}), open_by_default=True),
         ]
     )
     decision_content = _decision_engine_content(trading_decisions, strategy_validation)
@@ -1146,6 +1232,237 @@ def _pnl_overview(
     primary_cards = "".join(_overview_metric(label, value, raw, class_name) for label, value, raw, class_name in primary)
     secondary_cards = "".join(_overview_metric(label, value, raw, "") for label, value, raw in secondary)
     return f'<div class="pnl-card"><h3>損益總覽</h3><div class="pnl-primary">{primary_cards}</div><div class="pnl-secondary">{secondary_cards}</div></div>'
+
+
+def _pnl_chart_section(
+    summary: dict[str, object],
+    pnl_chart_data: pd.DataFrame,
+    recent_summaries: pd.DataFrame,
+) -> str:
+    source = pnl_chart_data if not pnl_chart_data.empty else recent_summaries
+    if source.empty:
+        return _section("今日損益圖", _empty("損益資料不足"))
+    row = source.iloc[-1].to_dict()
+    unrealized = _first_number(row, "unrealized_pnl")
+    realized_today = _first_number(row, "realized_pnl_after_cost")
+    if realized_today is None:
+        realized_today = _first_number(summary, "realized_pnl_after_cost_today")
+    today_total = _first_number(row, "today_total_pnl")
+    if today_total is None:
+        today_total = (unrealized or 0.0) + (realized_today or 0.0)
+    cumulative = _first_number(summary, "realized_pnl_after_cost")
+    total_equity = _first_number(row, "total_equity_after_cost") or _first_number(summary, "total_equity_after_cost")
+    previous_equity = None
+    if len(source) >= 2:
+        previous_equity = _first_number(source.iloc[-2].to_dict(), "total_equity_after_cost")
+    equity_change = (total_equity - previous_equity) if total_equity is not None and previous_equity is not None else None
+    bars = [
+        ("今日未實現損益", unrealized),
+        ("今日已實現損益", realized_today),
+        ("今日總損益", today_total),
+        ("累計已實現損益", cumulative),
+        ("總資產變化", equity_change),
+    ]
+    max_abs = max([abs(value or 0.0) for _, value in bars] + [1.0])
+    bar_html = "".join(_pnl_bar(label, value, max_abs) for label, value in bars)
+    line_chart = _pnl_line_chart(source)
+    return _section(
+        "今日損益圖",
+        f'<div class="chart-grid"><div class="chart-card"><h3>今日損益摘要</h3>{bar_html}</div>'
+        f'<div class="chart-card"><h3>近期資產 / 損益趨勢</h3>{line_chart}</div></div>',
+    )
+
+
+def _pnl_bar(label: str, value: float | None, max_abs: float) -> str:
+    raw = value or 0.0
+    width = min(100.0, abs(raw) / max_abs * 100.0)
+    return (
+        '<div class="pnl-bar-row">'
+        f'<span>{escape(label)}</span>'
+        f'<div class="pnl-bar-track"><i class="{_profit_class(raw)}" style="width:{width:.1f}%"></i></div>'
+        f'<strong class="{_profit_class(raw)}">{escape(_signed_or_dash(raw))}</strong>'
+        "</div>"
+    )
+
+
+def _pnl_line_chart(frame: pd.DataFrame) -> str:
+    if frame.empty:
+        return _empty("損益資料不足")
+    rows = frame.tail(20).copy()
+    series_columns = [
+        ("total_equity_after_cost", "扣成本後總資產", "#f5f5f5"),
+        ("unrealized_pnl", "未實現損益", "#ef4444"),
+        ("realized_pnl_after_cost", "已實現損益", "#22c55e"),
+    ]
+    all_values: list[float] = []
+    for column, _, _ in series_columns:
+        if column in rows.columns:
+            all_values.extend(pd.to_numeric(rows[column], errors="coerce").dropna().astype(float).tolist())
+    if not all_values:
+        return _empty("損益資料不足")
+    min_value = min(all_values)
+    max_value = max(all_values)
+    if min_value == max_value:
+        min_value -= 1
+        max_value += 1
+    width, height, pad = 360, 160, 18
+    polylines = []
+    for column, label, color in series_columns:
+        if column not in rows.columns:
+            continue
+        values = pd.to_numeric(rows[column], errors="coerce").tolist()
+        points = []
+        for index, value in enumerate(values):
+            if pd.isna(value):
+                continue
+            x = pad + (width - pad * 2) * (index / max(len(values) - 1, 1))
+            y = height - pad - (height - pad * 2) * ((float(value) - min_value) / (max_value - min_value))
+            points.append(f"{x:.1f},{y:.1f}")
+        if points:
+            polylines.append(f'<polyline points="{" ".join(points)}" fill="none" stroke="{color}" stroke-width="2" />')
+    legend = "".join(
+        f'<span><i style="background:{color}"></i>{escape(label)}</span>' for _, label, color in series_columns
+    )
+    return (
+        f'<svg class="pnl-line-chart" viewBox="0 0 {width} {height}" role="img" aria-label="近期資產與損益趨勢">'
+        f'<line x1="{pad}" y1="{height-pad}" x2="{width-pad}" y2="{height-pad}" stroke="#334155" />'
+        + "".join(polylines)
+        + "</svg>"
+        + f'<div class="chart-legend">{legend}</div>'
+    )
+
+
+def _decision_dashboard(
+    summary: dict[str, object],
+    decisions: pd.DataFrame,
+    candidates: pd.DataFrame,
+    open_positions: pd.DataFrame,
+) -> str:
+    stats = [
+        ("BUY_CANDIDATE", _decision_count(decisions, "decision", "BUY_CANDIDATE")),
+        ("WATCH_ONLY", _decision_count(decisions, "decision", "WATCH_ONLY")),
+        ("NO_TRADE", _decision_count(decisions, "decision", "NO_TRADE")),
+        ("HOLD", _decision_count(decisions, "decision", "HOLD")),
+        ("REDUCE review", _decision_count(decisions, "decision", "REDUCE")),
+        ("EXIT review", _decision_count(decisions, "decision", "EXIT")),
+        ("A 級候選", _decision_count(decisions, "candidate_grade", "A") or int(_to_float(summary.get("grade_a_count")) or 0)),
+        ("B 級候選", _decision_count(decisions, "candidate_grade", "B") or int(_to_float(summary.get("grade_b_count")) or 0)),
+        ("C 級候選", _decision_count(decisions, "candidate_grade", "C") or int(_to_float(summary.get("grade_c_count")) or 0)),
+        ("D 級候選", _decision_count(decisions, "candidate_grade", "D") or int(_to_float(summary.get("grade_d_count")) or 0)),
+    ]
+    stat_cards = '<div class="cards decision-stat-cards">' + "".join(_card(label, f"{value:,.0f}") for label, value in stats) + "</div>"
+    top = decisions.copy()
+    if not top.empty:
+        score = top["final_market_score"] if "final_market_score" in top.columns else top.get("multi_factor_score", pd.Series([0] * len(top)))
+        top["_dashboard_score"] = pd.to_numeric(score, errors="coerce").fillna(0)
+        top = top.sort_values("_dashboard_score", ascending=False).head(5)
+    top_table = _responsive_compact_records(
+        top,
+        ["stock_id", "stock_name", "decision", "candidate_grade", "total_score", "multi_factor_score", "final_market_score", "confidence_score"],
+        ["reason", "risk_flags", "final_comment", "ai_summary", "manual_review_focus"],
+        "目前尚無決策重點股票",
+        5,
+    )
+    risks = _risk_alert_list(summary, candidates, decisions, open_positions)
+    catalysts = _catalyst_list(candidates, decisions)
+    content = (
+        stat_cards
+        + _details_block("分析結果摘要", top_table, open_by_default=True)
+        + '<div class="dashboard-split">'
+        + _section("風險警報", '<ul class="risk-list">' + "".join(f"<li>{escape(item)}</li>" for item in risks) + "</ul>")
+        + _section("利好催化", '<ul class="catalyst-list">' + "".join(f"<li>{escape(item)}</li>" for item in catalysts) + "</ul>")
+        + "</div>"
+        + '<p class="note">買進候選需人工確認；出場訊號檢查需人工確認；本系統未自動下單。</p>'
+    )
+    return _section("決策儀表盤", content)
+
+
+def _risk_alert_list(
+    summary: dict[str, object],
+    candidates: pd.DataFrame,
+    decisions: pd.DataFrame,
+    open_positions: pd.DataFrame,
+) -> list[str]:
+    items: list[str] = []
+    regime_score = _to_float(summary.get("market_regime_score"))
+    if regime_score is not None and 0 < regime_score < 60:
+        items.append(f"market_regime_score {regime_score:.0f} 偏低，紙上新增持倉需保守。")
+    if str(summary.get("guardrail_status", "")).upper() == "BLOCKED":
+        items.append("Guardrail 狀態為 BLOCKED，新增或執行 pending order 需暫停。")
+    cancelled = int(_to_float(summary.get("pending_orders_cancelled_count")) or 0)
+    if cancelled:
+        items.append(f"有 {cancelled} 筆 pending order 被取消，需檢查 rejected report。")
+    for frame in [candidates, decisions, open_positions]:
+        if frame.empty:
+            continue
+        for _, row in frame.head(20).iterrows():
+            flags = _safe_text(row.get("risk_flags"))
+            if any(keyword in flags for keyword in ["處置股", "注意股", "PE 偏高", "融資", "流動性", "產業資料不足"]):
+                items.append(f"{_format_cell('stock_id', row.get('stock_id'))} {_format_cell('stock_name', row.get('stock_name'))}：{flags}")
+            if _to_float(row.get("liquidity_score")) is not None and (_to_float(row.get("liquidity_score")) or 0) < 50:
+                items.append(f"{_format_cell('stock_id', row.get('stock_id'))} 流動性分數偏低，短線滑價風險較高。")
+            if str(row.get("event_risk_level", "")).upper() == "HIGH":
+                items.append(f"{_format_cell('stock_id', row.get('stock_id'))} 高風險事件，需人工確認。")
+            if len(items) >= 5:
+                return items[:5]
+    return items[:5] or ["目前未彙整到重大風險警報，仍需人工檢查資料品質。"]
+
+
+def _catalyst_list(candidates: pd.DataFrame, decisions: pd.DataFrame) -> list[str]:
+    items: list[str] = []
+    combined = pd.concat([frame for frame in [candidates, decisions] if not frame.empty], ignore_index=True) if (not candidates.empty or not decisions.empty) else pd.DataFrame()
+    if combined.empty:
+        return ["目前尚無利好催化資料。"]
+    for _, row in combined.head(30).iterrows():
+        stock = f"{_format_cell('stock_id', row.get('stock_id'))} {_format_cell('stock_name', row.get('stock_name'))}".strip()
+        if (_to_float(row.get("revenue_yoy")) or 0) > 0:
+            items.append(f"{stock} 月營收年增為正，可列入觀察。")
+        if (_to_float(row.get("institutional_score")) or 0) >= 65 or "法人買超" in _safe_text(row.get("risk_flags")):
+            items.append(f"{stock} 籌碼面偏多，需搭配價格與量能確認。")
+        if (_to_float(row.get("sector_strength_score")) or 0) >= 65:
+            items.append(f"{stock} 相對強弱分數偏高，但仍需確認比較基準。")
+        if (_to_float(row.get("liquidity_score")) or 0) >= 70:
+            items.append(f"{stock} 流動性較佳，紙上成交假設相對可檢查。")
+        if len(items) >= 5:
+            return items[:5]
+    return items[:5] or ["目前尚無明確利好催化，請以候選股理由與風控檢查為主。"]
+
+
+def _market_recap_section(market_recap: pd.DataFrame, summary: dict[str, object]) -> str:
+    if market_recap.empty:
+        fallback = pd.DataFrame(
+            [
+                {
+                    "trade_date": summary.get("trade_date", ""),
+                    "market_regime_score": summary.get("market_regime_score", ""),
+                    "regime_label": "大盤復盤資料不足",
+                    "recap_summary": "尚無 market_recap 資料，使用 daily summary 市場環境分數 fallback。",
+                    "fallback_used": True,
+                    "data_quality_note": "market_recap CSV 尚未產生",
+                }
+            ]
+        )
+        market_recap = fallback
+    row = market_recap.iloc[0].to_dict()
+    cards = [
+        ("加權指數", _format_cell("twse_index", row.get("twse_index"))),
+        ("櫃買指數", _format_cell("tpex_index", row.get("tpex_index"))),
+        ("市場環境分數", _format_cell("market_regime_score", row.get("market_regime_score"))),
+        ("市場狀態", _format_cell("regime_label", row.get("regime_label"))),
+        ("上漲家數", _format_cell("advancers", row.get("advancers"))),
+        ("下跌家數", _format_cell("decliners", row.get("decliners"))),
+        ("平盤家數", _format_cell("unchanged", row.get("unchanged"))),
+        ("漲停家數", _format_cell("limit_up_count", row.get("limit_up_count"))),
+        ("跌停家數", _format_cell("limit_down_count", row.get("limit_down_count"))),
+    ]
+    table = _table(market_recap, MARKET_RECAP_COLUMNS_FOR_TABLE, "目前尚無大盤復盤資料", 5)
+    content = (
+        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        + f'<p class="recap-summary">{escape(_format_cell("recap_summary", row.get("recap_summary")))}</p>'
+        + f'<p class="note">{escape(_format_cell("data_quality_note", row.get("data_quality_note")))}</p>'
+        + _details_block("大盤復盤原始資料", table)
+    )
+    return _section("大盤復盤", content)
 
 
 def _overview_metric(label: str, value: str, raw_value: float | None, extra_class: str = "") -> str:
@@ -1504,6 +1821,27 @@ def _enrichment_overview(summary: dict[str, object], enrichment: pd.DataFrame) -
     return _section("AI / Enrichment 摘要", '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + note + _details_block("AI / Enrichment 明細", detail))
 
 
+def _evidence_table(evidence: pd.DataFrame) -> str:
+    return _table(
+        evidence,
+        [
+            "trade_date",
+            "stock_id",
+            "stock_name",
+            "source_name",
+            "source_type",
+            "source_date",
+            "field_name",
+            "field_value",
+            "evidence_summary",
+            "fallback_used",
+            "confidence_impact",
+        ],
+        "目前尚無資料來源依據",
+        100,
+    )
+
+
 def _loss_attribution_overview(loss_attribution: pd.DataFrame) -> str:
     if loss_attribution.empty:
         return _section("Loss attribution 摘要", _empty("目前尚無虧損歸因資料"))
@@ -1604,7 +1942,18 @@ def _decision_engine_content(decisions: pd.DataFrame, validation: pd.DataFrame) 
         "risk_explanation",
         "data_quality_explanation",
         "valuation_context",
+        "valuation_risk_level",
         "margin_credit_context",
+        "margin_risk_level",
+        "margin_price_divergence",
+        "industry_main",
+        "industry_sub",
+        "sector_strength_mode",
+        "relative_strength_5d",
+        "relative_strength_20d",
+        "sector_context",
+        "enrichment_status",
+        "ai_used",
         "source_evidence_count",
         "source_evidence_json",
     ]
@@ -1707,20 +2056,12 @@ def _pending_card_list(frame: pd.DataFrame, empty_message: str) -> str:
     for _, row in frame.iterrows():
         stock_id = _format_cell("stock_id", row.get("stock_id"))
         stock_name = _format_cell("stock_name", row.get("stock_name"))
-        fields = _detail_grid(
+        summary_fields = _detail_grid(
             row,
             [
                 "signal_date",
                 "planned_entry_date",
-                "actual_entry_date",
                 "status",
-                "signal_close",
-                "entry_price",
-                "fundamental_score",
-                "fundamental_reason",
-                "institutional_score",
-                "credit_score",
-                "event_risk_score",
                 "liquidity_score",
                 "sector_strength_score",
                 "final_market_score",
@@ -1729,11 +2070,31 @@ def _pending_card_list(frame: pd.DataFrame, empty_message: str) -> str:
                 "final_comment",
             ],
         )
+        detail_fields = _detail_grid(
+            row,
+            [
+                "actual_entry_date",
+                "signal_close",
+                "entry_price",
+                "fundamental_score",
+                "fundamental_reason",
+                "institutional_score",
+                "credit_score",
+                "event_risk_score",
+                "ai_summary",
+                "manual_review_focus",
+                "valuation_context",
+                "margin_credit_context",
+                "sector_context",
+                "source_evidence_count",
+                "source_evidence_json",
+            ],
+        )
         cards.append(
             '<article class="mobile-card pending-card">'
             f'<div class="card-title-row"><h3>{escape(stock_id)} {escape(stock_name)}</h3>'
             f'<span>{escape(_format_cell("status", row.get("status")))}</span></div>'
-            f"{fields}</article>"
+            f"{summary_fields}<details class=\"card-details\"><summary>資料來源依據與完整資料</summary>{detail_fields}</details></article>"
         )
     return '<div class="broker-cards">' + "".join(cards) + "</div>"
 
@@ -1831,6 +2192,27 @@ def _position_detail_grid(row: pd.Series) -> str:
         "avg_turnover_20d",
         "relative_strength_5d",
         "relative_strength_20d",
+        "ai_summary",
+        "manual_review_focus",
+        "risk_explanation",
+        "opportunity_explanation",
+        "data_quality_explanation",
+        "source_evidence_count",
+        "enrichment_status",
+        "ai_used",
+        "pe_ratio",
+        "pb_ratio",
+        "dividend_yield",
+        "valuation_context",
+        "valuation_risk_level",
+        "margin_credit_context",
+        "margin_risk_level",
+        "margin_price_divergence",
+        "industry_main",
+        "industry_sub",
+        "sector_strength_mode",
+        "sector_context",
+        "source_evidence_json",
     ]:
         if column in row.index:
             fields.append((COLUMN_LABELS.get(column, column), _format_cell(column, row.get(column))))
@@ -1927,11 +2309,17 @@ def _enrich_with_fundamentals(frame: pd.DataFrame, candidates: pd.DataFrame) -> 
         "missing_data_flags",
         "enriched_industry",
         "enriched_industry_source",
+        "industry_main",
+        "industry_sub",
         "valuation_context",
         "valuation_risk_level",
         "margin_credit_context",
         "margin_risk_level",
+        "margin_price_divergence",
         "sector_context",
+        "sector_strength_mode",
+        "relative_strength_5d",
+        "relative_strength_20d",
         "risk_explanation",
         "opportunity_explanation",
         "data_quality_explanation",
@@ -3158,6 +3546,64 @@ def _cost_overview(
     return '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + note
 
 
+def _config_summary(config: dict[str, object]) -> str:
+    if not config:
+        return _empty("目前尚無配置資料")
+
+    def pick(section: str, key: str) -> object:
+        value = config.get(section, {})
+        return value.get(key, "") if isinstance(value, dict) else ""
+
+    rows = [
+        ["auto_trading.enabled", _raw_bool(pick("auto_trading", "enabled")), "真實下單總開關，預設關閉"],
+        ["auto_trading.can_place_real_orders", _raw_bool(pick("auto_trading", "can_place_real_orders")), "禁止真實券商委託"],
+        ["auto_trading.require_manual_approval", _raw_bool(pick("auto_trading", "require_manual_approval")), "任何未來實盤都需人工確認"],
+        ["paper_trading_guardrails.enabled", _raw_bool(pick("paper_trading_guardrails", "enabled")), "紙上交易新增/執行前風控"],
+        ["pending_order.expire_after_trading_days", _format_cell("expires_after_trading_days", pick("pending_order", "expire_after_trading_days")), "pending order 有效期限"],
+        ["paper_trading_guardrails.max_open_positions", _format_cell("open_positions", pick("paper_trading_guardrails", "max_open_positions")), "最大紙上持倉數"],
+        ["paper_trading_guardrails.max_daily_new_positions", _format_cell("new_positions", pick("paper_trading_guardrails", "max_daily_new_positions")), "每日最多新增紙上持倉"],
+        ["market_intel.enabled", _raw_bool(pick("market_intel", "enabled")), "市場情報是否啟用"],
+        ["market_intel.provider", _format_cell("market_intel_source", pick("market_intel", "provider")), "台股市場情報 provider"],
+        ["market_intel.affect_trading", _raw_bool(pick("market_intel", "affect_trading")), "市場情報不直接下單"],
+        ["market_intel.cache_enabled", _raw_bool(pick("market_intel", "cache_enabled")), "市場情報快取"],
+        ["market_intel.allow_mock", _raw_bool(pick("market_intel", "allow_mock")), "完全無資料時才允許 mock fallback"],
+        ["multi_factor.affect_ranking", _raw_bool(pick("multi_factor", "affect_ranking")), "多因子預設不改候選排序"],
+        ["multi_factor.affect_risk_pass", _raw_bool(pick("multi_factor", "affect_risk_pass")), "多因子預設不改 risk pass"],
+        ["event_risk.block_disposition_stock", _raw_bool(pick("event_risk", "block_disposition_stock")), "處置股風控"],
+        ["event_risk.block_attention_stock", _raw_bool(pick("event_risk", "block_attention_stock")), "注意股風控"],
+        ["exit_strategy.take_profit_1_pct", _format_rate_percent(pick("exit_strategy", "take_profit_1_pct")), "第一段停利門檻"],
+        ["exit_strategy.take_profit_2_pct", _format_rate_percent(pick("exit_strategy", "take_profit_2_pct")), "第二段停利門檻"],
+        ["exit_strategy.trailing_stop_activate_pct", _format_rate_percent(pick("exit_strategy", "trailing_stop_activate_pct")), "移動停利啟動門檻"],
+        ["exit_strategy.trailing_stop_drawdown_pct", _format_rate_percent(pick("exit_strategy", "trailing_stop_drawdown_pct")), "移動停利回落幅度"],
+        ["exit_strategy.ma_exit_window", _format_cell("holding_days", pick("exit_strategy", "ma_exit_window")), "均線出場視窗"],
+        ["exit_strategy.max_holding_days", _format_cell("holding_days", pick("exit_strategy", "max_holding_days")), "最長持有天數"],
+        ["trading_cost.commission_rate", _format_permille(pick("trading_cost", "commission_rate")), "手續費率"],
+        ["trading_cost.min_commission", _format_amount_plain(pick("trading_cost", "min_commission")), "最低手續費"],
+        ["trading_cost.sell_tax_rate_stock", _format_rate_percent(pick("trading_cost", "sell_tax_rate_stock")), "股票交易稅"],
+        ["trading_cost.sell_tax_rate_etf", _format_rate_percent(pick("trading_cost", "sell_tax_rate_etf")), "ETF 交易稅"],
+        ["trading_cost.slippage_rate", _format_rate_percent(pick("trading_cost", "slippage_rate")), "滑價假設"],
+        ["ai_enrichment.enabled", _raw_bool(pick("ai_enrichment", "enabled")), "資料解釋層"],
+        ["ai_enrichment.provider", _format_cell("enrichment_provider", pick("ai_enrichment", "provider")), "預設 rule-based"],
+        ["ai_enrichment.allow_external_ai", _raw_bool(pick("ai_enrichment", "allow_external_ai")), "外部 AI 預設關閉"],
+        ["ai_enrichment.advisory_only", _raw_bool(pick("ai_enrichment", "advisory_only")), "只做輔助解釋"],
+    ]
+    table = _plain_table(["設定", "目前值", "說明"], rows, class_name="config-table")
+    note = (
+        '<p class="note">目前沒有真實下單能力；AI 只做資料解釋；market_intel 不直接下單；'
+        "guardrails 只會阻擋紙上交易新倉或 pending execution。</p>"
+    )
+    return table + note
+
+
+def _raw_bool(value: object) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    text = str(value).strip().lower()
+    if text in {"true", "false"}:
+        return text
+    return _format_cell("status", value)
+
+
 def _fallback_note(summary: dict[str, object]) -> str:
     if not summary:
         return _empty("目前沒有可判斷 fallback 的每日 summary")
@@ -3308,6 +3754,8 @@ def _format_cell(column: str, value: object) -> str:
     if column == "entry_price_source":
         text = str(value).strip()
         return ENTRY_PRICE_SOURCE_LABELS.get(text, text)
+    if column == "source_evidence_json":
+        return _truncate_text(str(value), 600)
     if column in STATUS_COLUMNS:
         text = str(value).strip()
         return STATUS_LABELS.get(text, text)
@@ -3521,6 +3969,20 @@ h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
 .overview-metric strong,.card strong{display:block;margin-top:4px;font-size:17px;color:#f8fafc;word-break:break-word}
 .overview-metric.pnl-main strong{font-size:24px}
 .overview-metric.total-value strong{font-size:22px}
+.chart-grid,.dashboard-split{display:grid;gap:12px}
+.chart-card{padding:13px;background:#0b1220;border:1px solid #243244;border-radius:10px}
+.pnl-bar-row{display:grid;grid-template-columns:110px 1fr 92px;gap:8px;align-items:center;margin:9px 0}
+.pnl-bar-row span{font-size:12px;color:#94a3b8}.pnl-bar-row strong{text-align:right;font-size:13px}
+.pnl-bar-track{height:10px;border-radius:999px;background:#1f2937;overflow:hidden}
+.pnl-bar-track i{display:block;height:100%;border-radius:999px;background:#e5e7eb}
+.pnl-bar-track i.profit-positive{background:#ef4444}.pnl-bar-track i.profit-negative{background:#22c55e}.pnl-bar-track i.profit-flat{background:#94a3b8}
+.pnl-line-chart{width:100%;min-height:160px;background:#0f172a;border:1px solid #1f2937;border-radius:8px}
+.chart-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;color:#cbd5e1;font-size:12px}
+.chart-legend i{display:inline-block;width:10px;height:10px;border-radius:999px;margin-right:5px}
+.decision-stat-cards{margin-bottom:12px}
+.risk-list,.catalyst-list{margin:0;padding-left:20px}
+.risk-list li,.catalyst-list li{margin:7px 0}
+.recap-summary{margin:10px 0 0;color:#e5e7eb;font-weight:700}
 .profit-positive{color:#f87171!important}
 .profit-negative{color:#34d399!important}
 .profit-flat{color:#e5e7eb!important}
@@ -3582,7 +4044,7 @@ tr:last-child td{border-bottom:0}
 .health strong{display:inline-block;margin-right:8px;padding:2px 8px;border-radius:999px;font-size:12px}
 .health span,.health em{display:block;margin-top:5px;font-style:normal}
 .health.正常 strong{background:#065f46;color:#d1fae5}.health.注意 strong{background:#854d0e;color:#fef3c7}.health.警告 strong{background:#991b1b;color:#fee2e2}
-@media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards,.mobile-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}
+@media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.chart-grid,.dashboard-split{grid-template-columns:repeat(2,minmax(0,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards,.mobile-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}
 """
 
 

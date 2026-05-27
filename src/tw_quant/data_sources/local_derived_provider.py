@@ -163,7 +163,7 @@ class LocalDerivedProvider:
         for stock_id, group in history.groupby("stock_id", sort=False):
             group = group.sort_values("trade_date")
             latest = group.iloc[-1]
-            industry = str(latest.get("industry", "") or "").strip()
+            industry = self._clean_text(latest.get("industry"))
             has_stock_industry = bool(industry and industry != "全市場")
             mode = "industry_relative" if has_stock_industry else "market_relative_fallback"
             stock_return_5d = self._period_return(group, short_window)
@@ -174,8 +174,8 @@ class LocalDerivedProvider:
                     "stock_id": str(stock_id),
                     "stock_name": latest.get("stock_name", ""),
                     "industry": industry if has_stock_industry else "全市場",
-                    "sub_industry": latest.get("sub_industry", ""),
-                    "industry_source": latest.get("industry_source", ""),
+                    "sub_industry": self._clean_text(latest.get("sub_industry")),
+                    "industry_source": self._clean_text(latest.get("industry_source")),
                     "sector_strength_mode": mode,
                     "stock_return_5d": stock_return_5d,
                     "stock_return_20d": stock_return_20d,
@@ -208,14 +208,15 @@ class LocalDerivedProvider:
         )
         data["sector_strength_score"] = data.apply(self._sector_strength_score, axis=1)
         data = data[SECTOR_STRENGTH_DERIVED_COLUMNS]
-        warning = ""
+        warnings = []
         status = "OK"
         if fallback_mask.any():
             fallback_count = int(fallback_mask.sum())
-            warning = f"{fallback_count} 檔缺少產業分類，使用全市場相對強弱"
+            warnings.append(f"{fallback_count} 檔缺少產業分類，使用全市場相對強弱")
             status = "OK_WITH_FALLBACK"
         if data[["stock_return_5d", "stock_return_20d"]].isna().all(axis=None):
-            warning = "價格資料不足，產業 / 相對強弱分數採中性"
+            warnings.append("價格資料不足，產業 / 相對強弱分數採中性")
+        warning = "；".join(warnings)
         return self._ok_result("sector_strength", data, warning, as_of, latest_date, status=status)
 
     def _load_history(self, as_of: str | None) -> pd.DataFrame:
@@ -334,6 +335,20 @@ class LocalDerivedProvider:
             return float(value)
         except (TypeError, ValueError):
             return np.nan
+
+    @staticmethod
+    def _clean_text(value: Any) -> str:
+        if value is None:
+            return ""
+        try:
+            if pd.isna(value):
+                return ""
+        except TypeError:
+            pass
+        text = str(value).strip()
+        if text.lower() in {"nan", "none", "nat", "<na>"}:
+            return ""
+        return text
 
     @staticmethod
     def _date_text(value: Any) -> str:

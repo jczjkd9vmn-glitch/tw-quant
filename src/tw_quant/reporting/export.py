@@ -13,6 +13,7 @@ from tw_quant.data.database import load_candidate_scores
 from tw_quant.decision.grading import apply_candidate_grades
 from tw_quant.fundamental.revenue import score_revenue_for_symbols
 from tw_quant.market_intel.report import MARKET_INTEL_COLUMNS, build_market_intel_report
+from tw_quant.reporting.data_quality import write_data_quality_health
 from tw_quant.scoring.multi_factor import apply_multi_factor_scores, write_data_fetch_status
 
 
@@ -99,6 +100,9 @@ EXPORT_COLUMNS = [
     "disposition_end_date",
     "disposition_reason",
     "industry",
+    "sub_industry",
+    "industry_source",
+    "sector_strength_mode",
     "stock_return_5d",
     "stock_return_20d",
     "market_return_5d",
@@ -119,10 +123,14 @@ EXPORT_COLUMNS = [
     "liquidity_warning",
     "slippage_risk_score",
     "risk_flags",
+    "data_quality_flags",
+    "investment_risk_flags",
     "candidate_grade",
     "grade_reason",
     "grade_risk_flags",
     "requires_manual_review",
+    "review_level",
+    "review_reason",
     "data_source_warning",
     "system_comment",
     *MARKET_INTEL_COLUMNS,
@@ -226,6 +234,7 @@ def export_latest_candidates(
     candidates_path = report_dir / f"candidates_{date_label}.csv"
     risk_pass_path = report_dir / f"risk_pass_candidates_{date_label}.csv"
     data_fetch_status_path = write_data_fetch_status(report_dir, latest_date, data_fetch_status)
+    write_data_quality_health(report_dir, candidates, data_fetch_status)
     candidates.to_csv(candidates_path, index=False, encoding="utf-8-sig")
     risk_pass_candidates.to_csv(risk_pass_path, index=False, encoding="utf-8-sig")
 

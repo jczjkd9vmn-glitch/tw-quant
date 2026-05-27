@@ -20,6 +20,41 @@ INDUSTRY_COLUMNS = [
     "confidence",
     "fallback_used",
 ]
+INDUSTRY_LOAD_COLUMNS = INDUSTRY_COLUMNS + ["industry", "sub_industry"]
+
+
+def load_industry_map(
+    data_dir: str | Path = "data",
+    config_path: str | Path = "config.yaml",
+) -> pd.DataFrame:
+    """Load manually maintained industry mappings without inventing missing values."""
+
+    config = load_config(config_path)
+    industry_config = config.get("industry_enrichment", {})
+    data_path = Path(data_dir)
+    paths: list[Path] = []
+    if bool(industry_config.get("fallback_to_local_csv", True)):
+        paths.append(
+            _resolve_map_path(
+                industry_config.get("industry_map_path", data_path / "industry_map.csv"),
+                data_path,
+                config_path,
+            )
+        )
+    reference_path = industry_config.get("reference_map_path", "data/reference/stock_industry_map.csv")
+    paths.append(_resolve_map_path(reference_path, data_path, config_path))
+
+    frames = [_read_industry_map(path) for path in paths]
+    frames = [frame for frame in frames if not frame.empty]
+    if not frames:
+        return pd.DataFrame(columns=INDUSTRY_LOAD_COLUMNS)
+
+    merged = pd.concat(frames, ignore_index=True)
+    merged = _with_industry_aliases(merged)
+    merged["stock_id"] = merged["stock_id"].astype(str).str.strip()
+    merged["industry"] = merged["industry"].fillna("").astype(str).str.strip()
+    merged = merged[(merged["stock_id"] != "") & (merged["industry"] != "")]
+    return merged.drop_duplicates("stock_id", keep="last")[INDUSTRY_LOAD_COLUMNS].reset_index(drop=True)
 
 
 def update_industry_map(
@@ -28,9 +63,11 @@ def update_industry_map(
 ) -> tuple[Path, str, int]:
     config = load_config(config_path)
     industry_config = config.get("industry_enrichment", {})
-    target = Path(industry_config.get("industry_map_path", Path(data_dir) / "industry_map.csv"))
-    if not target.is_absolute():
-        target = Path(data_dir) / target.name
+    target = _resolve_map_path(
+        industry_config.get("industry_map_path", Path(data_dir) / "industry_map.csv"),
+        Path(data_dir),
+        config_path,
+    )
     target.parent.mkdir(parents=True, exist_ok=True)
     existing = _read_industry_map(target)
     derived = _derive_from_local_files(Path(data_dir))
@@ -97,9 +134,35 @@ def _read_csv(path: Path) -> pd.DataFrame:
         return pd.DataFrame(columns=INDUSTRY_COLUMNS)
 
 
+def _with_industry_aliases(frame: pd.DataFrame) -> pd.DataFrame:
+    result = frame.copy()
+    if "industry" not in result.columns and "industry_main" in result.columns:
+        result["industry"] = result["industry_main"]
+    if "industry_main" not in result.columns and "industry" in result.columns:
+        result["industry_main"] = result["industry"]
+    if "sub_industry" not in result.columns and "industry_sub" in result.columns:
+        result["sub_industry"] = result["industry_sub"]
+    if "industry_sub" not in result.columns and "sub_industry" in result.columns:
+        result["industry_sub"] = result["sub_industry"]
+    for column in INDUSTRY_LOAD_COLUMNS:
+        if column not in result.columns:
+            result[column] = ""
+    return result
+
+
 def _merge(existing: pd.DataFrame, derived: pd.DataFrame) -> pd.DataFrame:
     if existing.empty:
         return derived[INDUSTRY_COLUMNS].copy()
     merged = pd.concat([existing, derived], ignore_index=True)
     merged["stock_id"] = merged["stock_id"].astype(str).str.strip()
     return merged.drop_duplicates("stock_id", keep="last")[INDUSTRY_COLUMNS].reset_index(drop=True)
+
+
+def _resolve_map_path(path_value: object, data_dir: Path, config_path: str | Path) -> Path:
+    path = Path(str(path_value))
+    if path.is_absolute():
+        return path
+    config_root = Path(config_path).resolve().parent
+    if path.parts and path.parts[0] == data_dir.name:
+        return config_root / path
+    return data_dir / path

@@ -1,0 +1,2 @@
+﻿trade_date,market_regime_score,source,twse_above_20ma,twse_above_60ma,tpex_above_20ma,tpex_above_60ma,market_return_5d,market_return_20d,market_above_20ma_ratio,market_above_60ma_ratio,warning
+2026-05-22,63.0,index,False,False,,,-0.9506,0.085969,,,

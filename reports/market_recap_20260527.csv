@@ -1,0 +1,2 @@
+﻿trade_date,market_regime_score,regime_label,twse_index,tpex_index,advancers,decliners,unchanged,limit_up_count,limit_down_count,market_breadth_summary,recap_summary,fallback_used,data_quality_note
+2026-05-27,45.0,大盤偏空,14.17,,495,759,92,25,8,下跌家數 759 高於上漲家數 495，市場廣度偏空,大盤偏空；下跌家數 759 高於上漲家數 495，市場廣度偏空；market_regime_score=45，目前紙上新增持倉需保守。,True,未接正式指數來源時，使用本地 SQLite 全市場價量 fallback

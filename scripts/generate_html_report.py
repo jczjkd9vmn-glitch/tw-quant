@@ -16,6 +16,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from tw_quant.config import load_config
+from tw_quant.reporting.data_quality import write_data_quality_health
 
 
 COLUMN_LABELS = {
@@ -169,6 +170,8 @@ COLUMN_LABELS = {
     "confidence_score": "信心分數",
     "market_risk_score": "市場風險分數",
     "risk_flags": "主要風險標籤",
+    "data_quality_flags": "資料不足旗標",
+    "investment_risk_flags": "投資風險旗標",
     "final_comment": "系統短評",
     "error_step": "失敗步驟",
     "error_message": "錯誤訊息",
@@ -340,6 +343,7 @@ COLUMN_LABELS.update(
         "relative_strength_5d": "5 日相對強弱",
         "relative_strength_20d": "20 日相對強弱",
         "sector_strength_rank": "產業強度排名",
+        "sector_strength_mode": "相對強弱模式",
         "sector_strength_reason": "產業強弱理由",
         "sector_strength_warning": "產業強弱警告",
         "avg_volume_20d": "20 日均量",
@@ -375,6 +379,8 @@ COLUMN_LABELS.update(
     "grade_reason": "分級理由",
     "grade_risk_flags": "分級風險標籤",
     "requires_manual_review": "需要人工確認",
+    "review_level": "檢查層級",
+    "review_reason": "檢查原因",
     "position_size_suggestion": "部位提示",
     "can_auto_trade": "可否自動交易",
     "data_quality_note": "資料品質註記",
@@ -411,12 +417,19 @@ COLUMN_LABELS.update(
         "actual_period": "實際期間",
         "latest_available_period": "最近可用期間",
         "source_url_or_name": "來源名稱",
+        "source_name": "資料源",
+        "fallback_action": "Fallback 動作",
         "is_real_data": "是否真實資料",
         "is_mock": "是否 mock",
         "is_stale": "是否過舊",
         "data_age_days": "資料年齡天數",
         "coverage_ratio": "覆蓋率",
         "affected_symbols_count": "影響股票數",
+        "check_name": "檢查項目",
+        "category": "類別",
+        "health_status": "健康狀態",
+        "data_issue": "資料問題",
+        "investment_risk": "投資風險",
     }
 )
 
@@ -495,6 +508,11 @@ STATUS_LABELS = {
     "large_loss": "大額虧損",
     "small_loss": "小額虧損",
     "unrealized_loss": "未實現虧損",
+    "STANDARD_REVIEW": "一般檢查",
+    "DATA_REVIEW": "資料檢查",
+    "RISK_REVIEW": "風險檢查",
+    "WARNING": "警告",
+    "ATTENTION": "注意",
 }
 
 STATUS_LABELS.update({"MOCK": "mock / 中性資料"})
@@ -602,6 +620,8 @@ INTEGER_COLUMNS = {
     "summary_executed_orders",
     "summary_open_positions",
     "summary_closed_positions",
+    "rows",
+    "affected_symbols_count",
 }
 STATUS_COLUMNS = {
     "status",
@@ -624,6 +644,10 @@ STATUS_COLUMNS = {
     "action",
     "can_auto_trade",
     "requires_manual_review",
+    "review_level",
+    "health_status",
+    "data_issue",
+    "investment_risk",
 }
 DATE_COLUMNS = {
     "trade_date",
@@ -826,6 +850,7 @@ def _render_page(
     latest_summary = _first_row(daily_summary)
     data_fetch_status = _read_latest_csv(report_dir, "data_fetch_status_*.csv")
     candidates = _normalize_attention_disposition_display(candidates)
+    data_quality_health = _refresh_data_quality_health(report_dir, candidates, data_fetch_status)
     risk_pass = _normalize_attention_disposition_display(_enrich_with_fundamentals(risk_pass, candidates))
     market_intel = _normalize_attention_disposition_display(market_intel)
     enrichment_source = _combined_enrichment_sources(ai_enrichment, candidates, risk_pass, market_intel)
@@ -861,7 +886,10 @@ def _render_page(
         "risk_pass",
         "is_attention_stock",
         "is_disposition_stock",
+        "review_level",
         "risk_flags",
+        "data_quality_flags",
+        "investment_risk_flags",
         "final_comment",
     ]
     market_detail_columns = [
@@ -900,9 +928,11 @@ def _render_page(
         "avg_turnover_20d",
         "slippage_risk_score",
         "sector_strength_score",
+        "sector_strength_mode",
         "relative_strength_5d",
         "relative_strength_20d",
         "sector_strength_warning",
+        "review_reason",
         "data_source_warning",
         "market_intel_warning",
         "system_comment",
@@ -951,9 +981,14 @@ def _render_page(
             "avg_turnover_20d",
             "slippage_risk_score",
             "sector_strength_score",
+            "sector_strength_mode",
             "relative_strength_5d",
             "relative_strength_20d",
             "sector_strength_warning",
+            "review_level",
+            "review_reason",
+            "data_quality_flags",
+            "investment_risk_flags",
             "attention_reason",
             "disposition_reason",
             "event_reason",
@@ -1016,6 +1051,7 @@ def _render_page(
             _enrichment_overview(latest_summary, ai_enrichment),
             _decision_overview(latest_summary, trading_decisions),
             _data_quality_detail_block(latest_summary, data_fetch_status),
+            _data_quality_health_section(data_quality_health),
             _pnl_overview(latest_summary, latest_paper_summary, open_positions),
             _details_block("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary, trading_cost)),
             _details_block("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades, open_positions)),
@@ -1038,6 +1074,7 @@ def _render_page(
     health_content = "".join(
         [
             _health_summary_cards(health_items),
+            _data_quality_health_section(data_quality_health),
             _data_source_summary_section(data_fetch_status),
             _details_block("資料來源技術細節", _data_source_technical_details(data_fetch_status)),
             _details_block("系統健康檢查詳細項目", _health_section(_non_data_source_health_items(health_items))),
@@ -1924,6 +1961,8 @@ def _decision_engine_content(decisions: pd.DataFrame, validation: pd.DataFrame) 
         "sector_strength_score",
         "can_auto_trade",
         "requires_manual_review",
+        "review_level",
+        "review_reason",
         "ai_summary",
         "manual_review_focus",
     ]
@@ -1933,6 +1972,8 @@ def _decision_engine_content(decisions: pd.DataFrame, validation: pd.DataFrame) 
         "current_status",
         "reason",
         "risk_flags",
+        "data_quality_flags",
+        "investment_risk_flags",
         "total_score",
         "multi_factor_score",
         "final_market_score",
@@ -2535,6 +2576,63 @@ def _key_conclusions(summary: dict[str, object]) -> str:
         ("交易成本總額", _format_cell("total_cost", summary.get("total_cost"))),
     ]
     return '<div class="cards key-cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+
+
+def _refresh_data_quality_health(
+    report_dir: Path,
+    candidates: pd.DataFrame,
+    data_fetch_status: pd.DataFrame,
+) -> pd.DataFrame:
+    try:
+        write_data_quality_health(report_dir, candidates, data_fetch_status)
+    except Exception:
+        pass
+    return _read_csv(report_dir / "data_quality_health.csv")
+
+
+def _data_quality_health_section(data_quality_health: pd.DataFrame) -> str:
+    if data_quality_health.empty:
+        return _section("資料健康檢查", _empty("目前尚無 data_quality_health.csv"), class_name="data-quality-health")
+    data_issues = _count_true(data_quality_health, "data_issue")
+    investment_risks = _count_true(data_quality_health, "investment_risk")
+    warning_count = _status_count(data_quality_health, "health_status", "WARNING")
+    attention_count = _status_count(data_quality_health, "health_status", "ATTENTION")
+    cards = [
+        ("資料問題項目", f"{data_issues:,.0f}"),
+        ("投資風險項目", f"{investment_risks:,.0f}"),
+        ("警告項目", f"{warning_count:,.0f}"),
+        ("注意項目", f"{attention_count:,.0f}"),
+    ]
+    table = _table(
+        data_quality_health,
+        [
+            "check_name",
+            "category",
+            "health_status",
+            "review_level",
+            "review_reason",
+            "data_issue",
+            "investment_risk",
+            "affected_symbols_count",
+            "source_name",
+            "status",
+            "fallback_action",
+        ],
+        "目前尚無資料健康檢查資料",
+        max_rows=40,
+    )
+    note = '<div class="note">資料不足只代表需要補查或使用 fallback，不等同真正投資風險；投資風險會獨立列在投資風險旗標與檢查原因。</div>'
+    return _section(
+        "資料健康檢查",
+        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + note + table,
+        class_name="data-quality-health",
+    )
+
+
+def _status_count(frame: pd.DataFrame, column: str, value: str) -> int:
+    if frame.empty or column not in frame.columns:
+        return 0
+    return int(frame[column].fillna("").astype(str).str.upper().eq(value).sum())
 
 
 def _key_conclusions_v2(summary: dict[str, object], data_fetch_status: pd.DataFrame) -> str:
@@ -3756,6 +3854,9 @@ def _format_cell(column: str, value: object) -> str:
         return ENTRY_PRICE_SOURCE_LABELS.get(text, text)
     if column == "source_evidence_json":
         return _truncate_text(str(value), 600)
+    if column == "category":
+        text = str(value).strip()
+        return {"source": "資料來源", "candidate": "候選股", "industry": "產業分類"}.get(text, text)
     if column in STATUS_COLUMNS:
         text = str(value).strip()
         return STATUS_LABELS.get(text, text)

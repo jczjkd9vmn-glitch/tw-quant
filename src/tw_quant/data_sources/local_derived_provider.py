@@ -14,6 +14,7 @@ from sqlalchemy.engine import Engine
 from tw_quant.config import load_config
 from tw_quant.data.database import create_db_engine, load_price_history
 from tw_quant.data_sources.base import ProviderResult
+from tw_quant.enrichment.industry import load_industry_map
 
 
 LIQUIDITY_DERIVED_COLUMNS = [
@@ -158,16 +159,13 @@ class LocalDerivedProvider:
         short_window = self.factor_config.sector_short_window
         long_window = self.factor_config.sector_long_window
         latest_date = history["trade_date"].max()
-        has_industry = "industry" in history.columns and history["industry"].fillna("").astype(str).str.strip().ne("").any()
-        if not has_industry:
-            history["industry"] = "全市場"
-            history["sub_industry"] = ""
-            history["industry_source"] = ""
-
         rows: list[dict[str, Any]] = []
         for stock_id, group in history.groupby("stock_id", sort=False):
             group = group.sort_values("trade_date")
             latest = group.iloc[-1]
+            industry = self._clean_text(latest.get("industry"))
+            has_stock_industry = bool(industry and industry != "全市場")
+            mode = "industry_relative" if has_stock_industry else "market_relative_fallback"
             stock_return_5d = self._period_return(group, short_window)
             stock_return_20d = self._period_return(group, long_window)
             rows.append(
@@ -175,10 +173,10 @@ class LocalDerivedProvider:
                     "trade_date": self._date_text(latest_date),
                     "stock_id": str(stock_id),
                     "stock_name": latest.get("stock_name", ""),
-                    "industry": latest.get("industry", "全市場") or "全市場",
-                    "sub_industry": latest.get("sub_industry", ""),
-                    "industry_source": latest.get("industry_source", ""),
-                    "sector_strength_mode": "industry_relative" if has_industry else "market_relative_fallback",
+                    "industry": industry if has_stock_industry else "全市場",
+                    "sub_industry": self._clean_text(latest.get("sub_industry")),
+                    "industry_source": self._clean_text(latest.get("industry_source")),
+                    "sector_strength_mode": mode,
                     "stock_return_5d": stock_return_5d,
                     "stock_return_20d": stock_return_20d,
                 }
@@ -189,31 +187,36 @@ class LocalDerivedProvider:
         market_return_20d = pd.to_numeric(data["stock_return_20d"], errors="coerce").mean()
         data["market_return_5d"] = market_return_5d
         data["market_return_20d"] = market_return_20d
-        if has_industry:
-            data["sector_return_5d"] = data.groupby("industry")["stock_return_5d"].transform("mean")
-            data["sector_return_20d"] = data.groupby("industry")["stock_return_20d"].transform("mean")
-            data["relative_strength_5d"] = data["stock_return_5d"] - data["sector_return_5d"]
-            data["relative_strength_20d"] = data["stock_return_20d"] - data["sector_return_20d"]
-            data["sector_strength_warning"] = ""
-        else:
-            data["sector_return_5d"] = market_return_5d
-            data["sector_return_20d"] = market_return_20d
-            data["relative_strength_5d"] = data["stock_return_5d"] - market_return_5d
-            data["relative_strength_20d"] = data["stock_return_20d"] - market_return_20d
-            data["sector_strength_warning"] = "缺少產業分類，使用全市場相對強弱"
+        data["sector_return_5d"] = market_return_5d
+        data["sector_return_20d"] = market_return_20d
+        industry_mask = data["sector_strength_mode"] == "industry_relative"
+        fallback_mask = ~industry_mask
+        if industry_mask.any():
+            data.loc[industry_mask, "sector_return_5d"] = data.loc[industry_mask].groupby("industry")[
+                "stock_return_5d"
+            ].transform("mean")
+            data.loc[industry_mask, "sector_return_20d"] = data.loc[industry_mask].groupby("industry")[
+                "stock_return_20d"
+            ].transform("mean")
+        data["relative_strength_5d"] = data["stock_return_5d"] - data["sector_return_5d"]
+        data["relative_strength_20d"] = data["stock_return_20d"] - data["sector_return_20d"]
+        data["sector_strength_warning"] = ""
+        data.loc[fallback_mask, "sector_strength_warning"] = "缺少產業分類，使用全市場相對強弱"
 
         data["sector_strength_rank"] = (
             data["relative_strength_20d"].rank(method="min", ascending=False, na_option="bottom").astype("Int64")
         )
         data["sector_strength_score"] = data.apply(self._sector_strength_score, axis=1)
         data = data[SECTOR_STRENGTH_DERIVED_COLUMNS]
-        warning = ""
+        warnings = []
         status = "OK"
-        if not has_industry:
-            warning = "缺少產業分類，使用全市場相對強弱"
+        if fallback_mask.any():
+            fallback_count = int(fallback_mask.sum())
+            warnings.append(f"{fallback_count} 檔缺少產業分類，使用全市場相對強弱")
             status = "OK_WITH_FALLBACK"
         if data[["stock_return_5d", "stock_return_20d"]].isna().all(axis=None):
-            warning = "價格資料不足，產業 / 相對強弱分數採中性"
+            warnings.append("價格資料不足，產業 / 相對強弱分數採中性")
+        warning = "；".join(warnings)
         return self._ok_result("sector_strength", data, warning, as_of, latest_date, status=status)
 
     def _load_history(self, as_of: str | None) -> pd.DataFrame:
@@ -236,18 +239,8 @@ class LocalDerivedProvider:
         return history.sort_values(["stock_id", "trade_date"])
 
     def _merge_industry_map(self, history: pd.DataFrame) -> pd.DataFrame:
-        industry_config = self.config.get("industry_enrichment", {})
-        path_text = str(industry_config.get("industry_map_path", "data/industry_map.csv"))
-        path = Path(path_text)
-        if not path.is_absolute():
-            root = self.config_path.parent if self.config_path.parent != Path(".") else Path(".")
-            path = root / path
-        if not path.exists():
-            return history
-        try:
-            industry_map = pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8-sig")
-        except Exception:
-            return history
+        data_dir = self.config_path.resolve().parent / "data"
+        industry_map = load_industry_map(data_dir=data_dir, config_path=self.config_path)
         if industry_map.empty or "stock_id" not in industry_map.columns or "industry" not in industry_map.columns:
             return history
         lookup = industry_map.drop_duplicates("stock_id", keep="last").set_index("stock_id")
@@ -342,6 +335,20 @@ class LocalDerivedProvider:
             return float(value)
         except (TypeError, ValueError):
             return np.nan
+
+    @staticmethod
+    def _clean_text(value: Any) -> str:
+        if value is None:
+            return ""
+        try:
+            if pd.isna(value):
+                return ""
+        except TypeError:
+            pass
+        text = str(value).strip()
+        if text.lower() in {"nan", "none", "nat", "<na>"}:
+            return ""
+        return text
 
     @staticmethod
     def _date_text(value: Any) -> str:

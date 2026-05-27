@@ -95,6 +95,49 @@ def test_sector_strength_provider_falls_back_to_market_relative_without_industry
     assert pd.notna(row["sector_strength_rank"])
 
 
+def test_sector_strength_provider_chooses_mode_per_stock(tmp_path: Path) -> None:
+    data_dir = tmp_path / "data"
+    reference_dir = data_dir / "reference"
+    reference_dir.mkdir(parents=True)
+    pd.DataFrame(
+        [
+            {
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "industry": "半導體",
+                "sub_industry": "晶圓代工",
+                "market_type": "TSE",
+                "source": "manual",
+                "updated_at": "2026-05-15",
+            }
+        ]
+    ).to_csv(reference_dir / "stock_industry_map.csv", index=False, encoding="utf-8-sig")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "\n".join(
+            [
+                "database:",
+                f"  url: sqlite:///{tmp_path / 'tw_quant.sqlite'}",
+                "industry_enrichment:",
+                "  reference_map_path: data/reference/stock_industry_map.csv",
+                "  industry_map_path: data/industry_map.csv",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    provider = LocalDerivedProvider(engine=_engine(tmp_path), config_path=config_path)
+
+    result = provider.fetch_sector_strength("20260515")
+
+    by_symbol = result.data.set_index("stock_id")
+    assert result.status == "OK_WITH_FALLBACK"
+    assert by_symbol.loc["2330", "industry"] == "半導體"
+    assert by_symbol.loc["2330", "sector_strength_mode"] == "industry_relative"
+    assert by_symbol.loc["2330", "sector_strength_warning"] == ""
+    assert by_symbol.loc["9999", "sector_strength_mode"] == "market_relative_fallback"
+    assert "缺少產業分類" in by_symbol.loc["9999", "sector_strength_warning"]
+
+
 def test_multi_factor_uses_liquidity_and_sector_without_changing_trade_flags(tmp_path: Path) -> None:
     candidates = pd.DataFrame(
         [
@@ -126,6 +169,8 @@ def test_multi_factor_uses_liquidity_and_sector_without_changing_trade_flags(tmp
     assert result["risk_pass"].tolist() == [1, 1]
     assert "流動性偏低" in result.loc[result["stock_id"] == "9999", "risk_flags"].iloc[0]
     assert "相對強勢" in result.loc[result["stock_id"] == "2330", "risk_flags"].iloc[0]
+    assert "缺少產業分類" in result.loc[result["stock_id"] == "2330", "data_quality_flags"].iloc[0]
+    assert "流動性偏低" in result.loc[result["stock_id"] == "9999", "investment_risk_flags"].iloc[0]
 
 
 def test_fetch_multi_factor_uses_local_derived_providers(tmp_path: Path, monkeypatch) -> None:

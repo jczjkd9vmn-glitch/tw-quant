@@ -17,6 +17,9 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert "台股紙上交易帳務" in html
     assert "損益總覽" in html
     assert "系統健康檢查" in html
+    assert "資料健康檢查" in html
+    assert "資料不足只代表需要補查或使用 fallback" in html
+    assert (tmp_path / "data_quality_health.csv").exists()
     assert "市場情報 / 多因子" in html
     assert "決策引擎" in html
     assert "BUY_CANDIDATE" in html

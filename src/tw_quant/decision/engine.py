@@ -39,6 +39,10 @@ DECISION_COLUMNS = [
     "position_size_suggestion",
     "can_auto_trade",
     "requires_manual_review",
+    "review_level",
+    "review_reason",
+    "data_quality_flags",
+    "investment_risk_flags",
     "data_quality_note",
 ]
 
@@ -203,7 +207,9 @@ def _base_row(
         "action": action,
         "candidate_grade": grade,
         "reason": reason + _reason_suffix(getter("grade_reason", "")),
-        "risk_flags": _text(getter("grade_risk_flags", "")) or _text(getter("risk_flags", "")),
+        "risk_flags": _text(getter("grade_risk_flags", ""))
+        or _text(getter("investment_risk_flags", ""))
+        or _text(getter("risk_flags", "")),
         "confidence_score": _num(getter("confidence_score"), 50.0),
         "total_score": _num(getter("total_score"), 0.0),
         "multi_factor_score": _num(getter("multi_factor_score"), 50.0),
@@ -214,6 +220,10 @@ def _base_row(
         "position_size_suggestion": _num(getter("suggested_position_pct"), 0.0),
         "can_auto_trade": False,
         "requires_manual_review": True,
+        "review_level": _text(getter("review_level", "")) or "STANDARD_REVIEW",
+        "review_reason": _text(getter("review_reason", "")) or "一般人工確認",
+        "data_quality_flags": _text(getter("data_quality_flags", "")),
+        "investment_risk_flags": _text(getter("investment_risk_flags", "")),
         "data_quality_note": _data_quality_note(row),
     }
 
@@ -251,7 +261,7 @@ def _near_stop_loss(row: pd.Series, config: dict) -> bool:
 def _data_quality_note(row: pd.Series | dict) -> str:
     text = "；".join(
         _text(row.get(column, ""))
-        for column in ["market_intel_warning", "data_source_warning", "financial_warning", "valuation_warning"]
+        for column in ["data_quality_flags", "market_intel_warning", "data_source_warning", "financial_warning", "valuation_warning"]
         if _text(row.get(column, ""))
     )
     return text or "資料品質已檢查；仍需人工確認"

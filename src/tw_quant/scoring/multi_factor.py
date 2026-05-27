@@ -84,6 +84,9 @@ MULTI_FACTOR_COLUMNS = [
     "disposition_end_date",
     "disposition_reason",
     "industry",
+    "sub_industry",
+    "industry_source",
+    "sector_strength_mode",
     "stock_return_5d",
     "stock_return_20d",
     "market_return_5d",
@@ -106,6 +109,8 @@ MULTI_FACTOR_COLUMNS = [
     "liquidity_warning",
     "slippage_risk_score",
     "risk_flags",
+    "data_quality_flags",
+    "investment_risk_flags",
     "data_source_warning",
     "system_comment",
     "pe_ratio",
@@ -286,6 +291,8 @@ def apply_multi_factor_scores(
     frame["original_total_score"] = pd.to_numeric(frame["total_score"], errors="coerce").fillna(50.0)
     frame["multi_factor_score"] = frame.apply(_calculate_multi_factor_score, axis=1)
     frame["multi_factor_reason"] = frame.apply(_multi_factor_reason, axis=1)
+    frame["data_quality_flags"] = frame.apply(_data_quality_flags, axis=1)
+    frame["investment_risk_flags"] = frame.apply(_investment_risk_flags, axis=1)
     frame["risk_flags"] = frame.apply(_risk_flags, axis=1)
     frame["data_source_warning"] = _data_source_warning(statuses)
     frame["system_comment"] = frame.apply(_system_comment, axis=1)
@@ -491,6 +498,7 @@ def _multi_factor_defaults() -> dict[str, object]:
         "sector_strength_score": 50.0,
         "sector_strength_warning": "",
         "sector_strength_reason": "產業相對強弱資料不足，採中性分數",
+        "sector_strength_mode": "",
         "liquidity_score": 50.0,
         "latest_volume": None,
         "latest_turnover": None,
@@ -498,6 +506,8 @@ def _multi_factor_defaults() -> dict[str, object]:
         "liquidity_warning": "流動性資料不足，採中性分數",
         "slippage_risk_score": 50.0,
         "risk_flags": "",
+        "data_quality_flags": "",
+        "investment_risk_flags": "",
         "data_source_warning": "",
         "system_comment": "",
     }
@@ -637,6 +647,9 @@ def _neutral_sector(symbols: list[str]) -> pd.DataFrame:
         {
             "stock_id": symbols,
             "industry": "",
+            "sub_industry": "",
+            "industry_source": "",
+            "sector_strength_mode": "",
             "stock_return_5d": None,
             "stock_return_20d": None,
             "market_return_5d": None,
@@ -672,31 +685,9 @@ def _neutral_liquidity(symbols: list[str]) -> pd.DataFrame:
 
 
 def _risk_flags(row: pd.Series) -> str:
-    flags: list[str] = []
-    if _number(row.get("revenue_score"), 50.0) == 50.0 and _is_blank(row.get("revenue_yoy")):
-        flags.append("基本面資料不足")
-    if _number(row.get("valuation_score"), 50.0) == 50.0 and _is_blank(row.get("pe_ratio")) and _is_blank(row.get("pb_ratio")):
-        flags.append("估值資料不足")
-    if _number(row.get("financial_score"), 50.0) == 50.0 and _is_blank(row.get("eps")) and _is_blank(row.get("roe")):
-        flags.append("財報資料不足")
-    if _number(row.get("liquidity_score"), 50.0) == 50.0 and _is_blank(row.get("avg_turnover_20d")):
-        flags.append("流動性資料不足")
-    if _number(row.get("sector_strength_score"), 50.0) == 50.0 and _is_blank(row.get("relative_strength_20d")):
-        flags.append("產業強弱資料不足")
-    if _number(row.get("liquidity_score"), 50.0) < 40.0:
-        flags.append("流動性偏低")
-    if _number(row.get("slippage_risk_score"), 50.0) < 50.0:
-        flags.append("滑價風險偏高")
-    if _number(row.get("sector_strength_score"), 50.0) < 45.0:
-        flags.append("產業弱勢")
+    flags = _flag_parts(row.get("data_quality_flags")) + _flag_parts(row.get("investment_risk_flags"))
     if _number(row.get("relative_strength_20d"), 0.0) > 0.0:
         flags.append("相對強勢")
-    if "缺少產業分類" in str(row.get("sector_strength_warning", "") or ""):
-        flags.append("產業資料不足")
-    if _to_bool(row.get("is_attention_stock")):
-        flags.append("注意股")
-    if _to_bool(row.get("is_disposition_stock")):
-        flags.append("處置股")
     for column in [
         "credit_risk_flags",
         "event_risk_flags",
@@ -710,9 +701,66 @@ def _risk_flags(row: pd.Series) -> str:
         text = str(row.get(column, "") or "").strip()
         if text and text != "nan":
             flags.extend(part.strip() for part in text.replace("；", "|").split("|") if part.strip())
+    return _join_flags(flags)
+
+
+def _data_quality_flags(row: pd.Series) -> str:
+    flags: list[str] = []
+    if _number(row.get("revenue_score"), 50.0) == 50.0 and _is_blank(row.get("revenue_yoy")):
+        flags.append("基本面資料不足")
+    if _number(row.get("valuation_score"), 50.0) == 50.0 and _is_blank(row.get("pe_ratio")) and _is_blank(row.get("pb_ratio")):
+        flags.append("估值資料不足")
+    if _number(row.get("financial_score"), 50.0) == 50.0 and _is_blank(row.get("eps")) and _is_blank(row.get("roe")):
+        flags.append("財報資料不足")
+    if _number(row.get("liquidity_score"), 50.0) == 50.0 and _is_blank(row.get("avg_turnover_20d")):
+        flags.append("流動性資料不足")
+    if _number(row.get("sector_strength_score"), 50.0) == 50.0 and _is_blank(row.get("relative_strength_20d")):
+        flags.append("產業強弱資料不足")
+    if str(row.get("sector_strength_mode", "") or "") == "market_relative_fallback":
+        flags.append("產業分類資料不足")
+    for column in [
+        "sector_strength_warning",
+        "valuation_warning",
+        "financial_warning",
+        "institutional_warning",
+        "revenue_warning",
+        "liquidity_warning",
+    ]:
+        for part in _flag_parts(row.get(column)):
+            if _is_data_issue_text(part):
+                flags.append(part)
+    return _join_flags(flags)
+
+
+def _investment_risk_flags(row: pd.Series) -> str:
+    flags: list[str] = []
+    if _number(row.get("liquidity_score"), 50.0) < 40.0:
+        flags.append("流動性偏低")
+    if _number(row.get("slippage_risk_score"), 50.0) < 50.0:
+        flags.append("滑價風險偏高")
+    if _number(row.get("sector_strength_score"), 50.0) < 45.0:
+        flags.append("產業弱勢")
+    if _to_bool(row.get("is_attention_stock")):
+        flags.append("注意股")
+    if _to_bool(row.get("is_disposition_stock")):
+        flags.append("處置股")
+    if str(row.get("event_risk_level", "") or "").upper() == "HIGH":
+        flags.append("高風險事件")
     if _to_bool(row.get("event_blocked")):
         flags.append("禁止新增進場")
-    return "；".join(dict.fromkeys(flags))
+    for column in [
+        "credit_risk_flags",
+        "event_risk_flags",
+        "liquidity_risk_flags",
+        "valuation_warning",
+        "financial_warning",
+        "institutional_warning",
+        "revenue_warning",
+    ]:
+        for part in _flag_parts(row.get(column)):
+            if part and not _is_data_issue_text(part):
+                flags.append(part)
+    return _join_flags(flags)
 
 
 def _system_comment(row: pd.Series) -> str:
@@ -720,8 +768,10 @@ def _system_comment(row: pd.Series) -> str:
         return "有處置股或重大負面事件，預設禁止新增進場"
     if _number(row.get("multi_factor_score"), 50.0) >= 70:
         return "多因子條件偏強，可列入優先觀察"
-    if _risk_flags(row):
-        return "有風險標籤，需降低優先度"
+    if _investment_risk_flags(row):
+        return "有投資風險標籤，需降低優先度"
+    if _data_quality_flags(row):
+        return "資料不足，需人工補查後再判斷"
     return "資料中性，仍以原本技術面與風控結果為準"
 
 
@@ -757,6 +807,22 @@ def _to_bool(value: object) -> bool:
         return False
     text = str(value).strip().lower()
     return text in {"true", "1", "yes", "y", "是"}
+
+
+def _flag_parts(value: object) -> list[str]:
+    text = str(value or "").strip()
+    if not text or text == "nan":
+        return []
+    return [part.strip() for part in text.replace("|", "；").split("；") if part.strip()]
+
+
+def _is_data_issue_text(value: str) -> bool:
+    text = str(value or "")
+    return any(keyword in text for keyword in ["資料不足", "缺少產業分類", "採中性", "無法產生"])
+
+
+def _join_flags(parts: list[str]) -> str:
+    return "；".join(dict.fromkeys(part for part in parts if part))
 
 
 def _is_blank(value: object) -> bool:

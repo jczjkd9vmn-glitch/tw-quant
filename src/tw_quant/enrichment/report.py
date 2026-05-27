@@ -9,6 +9,7 @@ import pandas as pd
 
 from tw_quant.config import load_config
 from tw_quant.enrichment.ai_enricher import AIEnricher
+from tw_quant.enrichment.industry import load_industry_map
 from tw_quant.enrichment.rule_based_enricher import ENRICHMENT_COLUMNS, RuleBasedEnricher
 
 
@@ -37,7 +38,7 @@ def generate_ai_enrichment(
         frame = pd.DataFrame(columns=ENRICHMENT_COLUMNS)
         return EnrichmentResult(target_date, None, None, frame, warning="ai_enrichment disabled")
 
-    base = _load_universe(report_dir, data_path, target_date)
+    base = _load_universe(report_dir, data_path, target_date, config_path)
     if base.empty:
         frame = pd.DataFrame(columns=ENRICHMENT_COLUMNS)
         output_path = report_dir / f"ai_enrichment_{_date_label(target_date)}.csv"
@@ -67,7 +68,7 @@ def generate_ai_enrichment(
     return EnrichmentResult(target_date, output_path, cache_path, enrichment, warning=warning)
 
 
-def _load_universe(report_dir: Path, data_dir: Path, target_date: str) -> pd.DataFrame:
+def _load_universe(report_dir: Path, data_dir: Path, target_date: str, config_path: str | Path) -> pd.DataFrame:
     frames = [
         _read_latest(report_dir, "trading_decisions_*.csv"),
         _read_latest(report_dir, "candidates_*.csv"),
@@ -76,8 +77,8 @@ def _load_universe(report_dir: Path, data_dir: Path, target_date: str) -> pd.Dat
     base = _combine_by_symbol(*frames)
     if base.empty:
         return base
+    base = _merge_optional(base, load_industry_map(data_dir=data_dir, config_path=config_path))
     for data_file in [
-        data_dir / "industry_map.csv",
         data_dir / "valuation.csv",
         data_dir / "financials.csv",
         data_dir / "margin_short.csv",

@@ -69,6 +69,9 @@ def test_decision_engine_outputs_advisory_decisions(tmp_path: Path) -> None:
     by_symbol = decisions.set_index(["stock_id", "source"])
     assert by_symbol.loc[("2330", "candidate"), "decision"] == "BUY_CANDIDATE"
     assert bool(by_symbol.loc[("2330", "candidate"), "can_auto_trade"]) is False
+    assert "review_level" in decisions.columns
+    assert "review_reason" in decisions.columns
+    assert by_symbol.loc[("2330", "candidate"), "review_level"] in {"STANDARD_REVIEW", "DATA_REVIEW", "RISK_REVIEW"}
     assert by_symbol.loc[("2317", "candidate"), "decision"] == "WATCH_ONLY"
     assert by_symbol.loc[("3008", "candidate"), "decision"] == "WATCH_ONLY"
     assert by_symbol.loc[("2603", "candidate"), "decision"] == "NO_TRADE"

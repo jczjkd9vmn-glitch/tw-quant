@@ -167,6 +167,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "enabled": True,
         "allow_public_source_fetch": True,
         "fallback_to_local_csv": True,
+        "reference_map_path": "data/reference/stock_industry_map.csv",
         "industry_map_path": "data/industry_map.csv",
     },
     "valuation_context": {

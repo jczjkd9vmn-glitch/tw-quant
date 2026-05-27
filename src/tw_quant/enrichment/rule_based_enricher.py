@@ -220,16 +220,17 @@ class RuleBasedEnricher(BaseEnricher):
         return missing
 
     def _risk_explanation(self, row: pd.Series, valuation: ValuationContext, margin: MarginContext, missing: list[str]) -> str:
-        flags = self._text(row.get("risk_flags"))
+        flags = self._text(row.get("investment_risk_flags")) or self._investment_only_flags(row.get("risk_flags"))
+        data_flags = self._text(row.get("data_quality_flags"))
         risks = []
         if flags:
-            risks.append(f"主要風險標籤：{flags}")
+            risks.append(f"投資風險標籤：{flags}")
         if valuation.risk_level in {"MEDIUM", "HIGH"}:
             risks.append(f"估值風險 {valuation.risk_level}")
         if margin.risk_level in {"MEDIUM", "HIGH"}:
             risks.append(f"融資籌碼風險 {margin.risk_level}")
-        if missing:
-            risks.append("部分資料不足")
+        if data_flags or missing:
+            risks.append("資料不足另列檢查，不視為投資風險")
         return "；".join(risks) if risks else "未見重大資料警訊"
 
     def _opportunity_explanation(self, row: pd.Series) -> str:
@@ -266,6 +267,14 @@ class RuleBasedEnricher(BaseEnricher):
         for term in self.forbidden_terms:
             result = result.replace(term, "需人工確認")
         return result
+
+    def _investment_only_flags(self, value: Any) -> str:
+        flags = []
+        for part in self._text(value).replace("|", "；").split("；"):
+            text = part.strip()
+            if text and not any(keyword in text for keyword in ["資料不足", "缺少產業分類", "採中性"]):
+                flags.append(text)
+        return "；".join(dict.fromkeys(flags))
 
     @staticmethod
     def _float(value: Any) -> float | None:

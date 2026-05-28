@@ -1,7 +1,7 @@
 ﻿check_name,category,health_status,review_level,review_reason,data_issue,investment_risk,rows,affected_symbols_count,source_name,status,fallback_action
-候選股資料完整度,candidate,ATTENTION,DATA_REVIEW,20 檔候選股有資料不足或 fallback 註記,True,False,20,20,,,
-候選股投資風險,candidate,ATTENTION,RISK_REVIEW,16 檔候選股有投資風險註記,False,True,20,16,,,
-產業分類覆蓋率,industry,ATTENTION,DATA_REVIEW,20 檔缺少產業分類，使用全市場相對強弱 fallback,True,False,20,20,,,
+候選股資料完整度,candidate,ATTENTION,DATA_REVIEW,8 檔候選股有資料不足或 fallback 註記,True,False,20,8,,,
+候選股投資風險,candidate,ATTENTION,RISK_REVIEW,17 檔候選股有投資風險註記,False,True,20,17,,,
+產業分類覆蓋率,industry,OK,OK,0 檔缺少產業分類，使用全市場相對強弱 fallback,False,False,20,0,,,
 資料來源：monthly_revenue,source,OK,OK,資料來源正常,False,False,1078,0,monthly_revenue,OK,nan
 資料來源：valuation,source,OK,OK,資料來源正常,False,False,1077,0,valuation,OK,nan
 資料來源：financials,source,OK,OK,資料來源正常,False,False,1042,0,financials,OK,nan
@@ -11,4 +11,4 @@
 資料來源：attention_disposition,source,OK,OK,資料來源正常,False,False,69,0,attention_disposition,OK,nan
 資料來源：sector_strength,source,OK,OK,資料來源正常,False,False,1432,0,sector_strength,OK,nan
 資料來源：liquidity,source,OK,OK,資料來源正常,False,False,1432,0,liquidity,OK,nan
-資料來源：market_intel,source,ATTENTION,DATA_REVIEW,基本面資料不足，採中性分數；估值資料不足，採中性分數；價格資料不足，動能採中性分數；使用快取 / 非當日資料；市場事件資料不足，採中性處理；基本面資料不足，採中性分數；估值資料不足，採中性分數；價格資料不足，動能採中性分數；使用快取 / 非當日資料；市場事件資料不足，採中性處理；基本面資料不足，採中性分數；估值資料不足，採中性分數；價格資料不足，動能採中性分數；基本面資料不足，採中性分數；估值資料不足，採中性分數；使用快取 / 非當日資料,True,False,20,20,market_intel,OK_WITH_WARNING,non_trading_day_fallback
+資料來源：market_intel,source,ATTENTION,DATA_REVIEW,market_intel 使用快取資料，需確認資料時效,True,False,20,20,market_intel,CACHE,cache

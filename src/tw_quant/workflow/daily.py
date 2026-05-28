@@ -13,6 +13,7 @@ from tw_quant.config import load_config
 from tw_quant.data.database import create_db_engine, init_db, load_latest_price_date
 from tw_quant.data.exceptions import TradingHalted
 from tw_quant.data.pipeline import run_daily_pipeline
+from tw_quant.data_sources.local_derived_provider import LocalDerivedProvider
 from tw_quant.decision.engine import decision_counts, generate_trading_decisions
 from tw_quant.enrichment.industry import update_industry_map
 from tw_quant.enrichment.report import generate_ai_enrichment
@@ -217,6 +218,26 @@ def run_all_daily(
         config = load_config(config_path)
         engine = create_db_engine(config["database"]["url"])
         init_db(engine)
+        data_dir = Path(config_path).resolve().parent / "data"
+        try:
+            try:
+                _industry_path, industry_status, industry_rows = industry_map_func(
+                    data_dir=data_dir,
+                    config_path=config_path,
+                )
+            except TypeError:
+                _industry_path, industry_status, industry_rows = industry_map_func()
+            summary_values["industry_map_status"] = str(industry_status)
+            messages.append(f"industry_map {industry_status} rows={industry_rows}")
+            _refresh_local_sector_strength(
+                data_dir=data_dir,
+                config_path=config_path,
+                trade_date=summary_values["trade_date"],
+                messages=messages,
+            )
+        except Exception as exc:
+            summary_values["industry_map_status"] = "FAILED"
+            messages.append(f"industry_map warning {type(exc).__name__}: {exc}")
         try:
             export_result = export_func(
                 engine,
@@ -552,21 +573,6 @@ def run_all_daily(
     except Exception as exc:
         messages.append(f"position_review_summary warning {type(exc).__name__}: {exc}")
 
-    try:
-        data_dir = Path(config_path).resolve().parent / "data"
-        try:
-            _industry_path, industry_status, industry_rows = industry_map_func(
-                data_dir=data_dir,
-                config_path=config_path,
-            )
-        except TypeError:
-            _industry_path, industry_status, industry_rows = industry_map_func()
-        summary_values["industry_map_status"] = str(industry_status)
-        messages.append(f"industry_map {industry_status} rows={industry_rows}")
-    except Exception as exc:
-        summary_values["industry_map_status"] = "FAILED"
-        messages.append(f"industry_map warning {type(exc).__name__}: {exc}")
-
     enrichment_config = config.get("ai_enrichment", {}) if "config" in locals() else {}
     if enrichment_config.get("enabled", True):
         try:
@@ -823,6 +829,28 @@ def _failed_result(
     summary_path = _write_summary(report_dir, summary)
     messages.append(f"daily_summary_csv={summary_path}")
     return DailyWorkflowResult(summary=summary, summary_path=summary_path, messages=messages, **results)
+
+
+def _refresh_local_sector_strength(
+    data_dir: Path,
+    config_path: str | Path,
+    trade_date: str,
+    messages: list[str],
+) -> None:
+    try:
+        result = LocalDerivedProvider(config_path=config_path).fetch_sector_strength(trade_date)
+        data = getattr(result, "data", pd.DataFrame())
+        if data.empty:
+            warning = getattr(result, "warning", "") or "no local sector strength rows"
+            messages.append(f"sector_strength refresh warning {warning}")
+            return
+        data_dir.mkdir(parents=True, exist_ok=True)
+        data.to_csv(data_dir / "sector_strength.csv", index=False, encoding="utf-8-sig")
+        messages.append(f"sector_strength refresh {getattr(result, 'status', 'OK')} rows={len(data)}")
+        if getattr(result, "warning", ""):
+            messages.append(f"sector_strength refresh warning {result.warning}")
+    except Exception as exc:  # noqa: BLE001
+        messages.append(f"sector_strength refresh warning {type(exc).__name__}: {exc}")
 
 
 def _merge_update_summary(summary_values: dict[str, Any], update_summary: pd.DataFrame) -> None:

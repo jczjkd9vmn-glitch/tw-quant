@@ -1,0 +1,15 @@
+﻿trade_date,stock_id,stock_name,decision,hold,reduce,exit_review,near_stop_loss,near_take_profit,data_quality_warning,current_price,stop_loss_price,unrealized_pnl_pct,risk_light,review_reason
+2026-05-28,2376,技嘉,HOLD,True,False,False,False,False,False,337.5,293.43,0.064669,,一般人工確認
+2026-05-28,6206,飛捷,REDUCE,False,True,False,False,False,False,138.5,110.93,0.163866,,一般人工確認
+2026-05-28,1256,鮮活果汁-KY,HOLD,True,False,False,False,False,False,198.0,175.07,-0.006019,,一般人工確認
+2026-05-28,3048,益登,REDUCE,False,True,False,False,False,False,72.2,43.15,0.561209,,一般人工確認
+2026-05-28,8926,台汽電,REDUCE,False,True,False,False,False,False,67.3,52.98,0.126177,,一般人工確認
+2026-05-28,2030,彰源,HOLD,True,False,False,False,False,False,17.75,16.67,-0.031024,,一般人工確認
+2026-05-28,2425,承啟,HOLD,True,False,False,False,False,False,34.6,32.45,-0.023575,,一般人工確認
+2026-05-28,6579,研揚,REDUCE,False,True,False,False,False,False,169.5,138.46,0.136447,,一般人工確認
+2026-05-28,3059,華晶科,HOLD,True,False,False,False,False,False,41.85,38.86,-0.003382,,一般人工確認
+2026-05-28,8163,達方,HOLD,False,True,False,False,True,False,36.75,31.55,0.073488,,一般人工確認
+2026-05-28,4562,穎漢,EXIT,False,False,True,True,False,False,40.3,39.51,-0.078724,,一般人工確認
+2026-05-28,2478,大毅,REDUCE,False,True,False,False,False,False,127.0,88.6,0.318847,,一般人工確認
+2026-05-28,6902,GOGOLOOK,REDUCE,False,True,False,False,False,False,134.5,116.84,0.041594,,一般人工確認
+2026-05-28,4571,鈞興-KY,EXIT,False,False,True,True,False,False,212.0,209.3,-0.077176,,一般人工確認

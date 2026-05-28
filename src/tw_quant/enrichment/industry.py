@@ -9,7 +9,18 @@ import pandas as pd
 from tw_quant.config import load_config
 
 
-INDUSTRY_COLUMNS = ["stock_id", "stock_name", "industry", "sub_industry", "market_type", "source", "updated_at"]
+INDUSTRY_COLUMNS = [
+    "stock_id",
+    "stock_name",
+    "market",
+    "industry_main",
+    "industry_sub",
+    "source",
+    "updated_at",
+    "confidence",
+    "fallback_used",
+]
+INDUSTRY_LOAD_COLUMNS = INDUSTRY_COLUMNS + ["industry", "sub_industry"]
 
 
 def load_industry_map(
@@ -36,13 +47,14 @@ def load_industry_map(
     frames = [_read_industry_map(path) for path in paths]
     frames = [frame for frame in frames if not frame.empty]
     if not frames:
-        return pd.DataFrame(columns=INDUSTRY_COLUMNS)
+        return pd.DataFrame(columns=INDUSTRY_LOAD_COLUMNS)
 
     merged = pd.concat(frames, ignore_index=True)
+    merged = _with_industry_aliases(merged)
     merged["stock_id"] = merged["stock_id"].astype(str).str.strip()
     merged["industry"] = merged["industry"].fillna("").astype(str).str.strip()
     merged = merged[(merged["stock_id"] != "") & (merged["industry"] != "")]
-    return merged.drop_duplicates("stock_id", keep="last")[INDUSTRY_COLUMNS].reset_index(drop=True)
+    return merged.drop_duplicates("stock_id", keep="last")[INDUSTRY_LOAD_COLUMNS].reset_index(drop=True)
 
 
 def update_industry_map(
@@ -85,11 +97,13 @@ def _derive_from_local_files(data_dir: Path) -> pd.DataFrame:
                 {
                     "stock_id": stock_id,
                     "stock_name": str(row.get("stock_name", "")),
-                    "industry": industry,
-                    "sub_industry": str(row.get("sub_industry", "")),
-                    "market_type": str(row.get("market_type", "")),
+                    "market": str(row.get("market", row.get("market_type", ""))),
+                    "industry_main": industry,
+                    "industry_sub": str(row.get("industry_sub", row.get("sub_industry", ""))),
                     "source": f"local:{filename}",
                     "updated_at": pd.Timestamp.today().strftime("%Y-%m-%d"),
+                    "confidence": 0.7,
+                    "fallback_used": True,
                 }
             )
     if not rows:
@@ -99,6 +113,12 @@ def _derive_from_local_files(data_dir: Path) -> pd.DataFrame:
 
 def _read_industry_map(path: Path) -> pd.DataFrame:
     frame = _read_csv(path)
+    if "industry_main" not in frame.columns and "industry" in frame.columns:
+        frame["industry_main"] = frame["industry"]
+    if "industry_sub" not in frame.columns and "sub_industry" in frame.columns:
+        frame["industry_sub"] = frame["sub_industry"]
+    if "market" not in frame.columns and "market_type" in frame.columns:
+        frame["market"] = frame["market_type"]
     for column in INDUSTRY_COLUMNS:
         if column not in frame.columns:
             frame[column] = ""
@@ -112,6 +132,22 @@ def _read_csv(path: Path) -> pd.DataFrame:
         return pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8-sig")
     except Exception:
         return pd.DataFrame(columns=INDUSTRY_COLUMNS)
+
+
+def _with_industry_aliases(frame: pd.DataFrame) -> pd.DataFrame:
+    result = frame.copy()
+    if "industry" not in result.columns and "industry_main" in result.columns:
+        result["industry"] = result["industry_main"]
+    if "industry_main" not in result.columns and "industry" in result.columns:
+        result["industry_main"] = result["industry"]
+    if "sub_industry" not in result.columns and "industry_sub" in result.columns:
+        result["sub_industry"] = result["industry_sub"]
+    if "industry_sub" not in result.columns and "sub_industry" in result.columns:
+        result["industry_sub"] = result["sub_industry"]
+    for column in INDUSTRY_LOAD_COLUMNS:
+        if column not in result.columns:
+            result[column] = ""
+    return result
 
 
 def _merge(existing: pd.DataFrame, derived: pd.DataFrame) -> pd.DataFrame:

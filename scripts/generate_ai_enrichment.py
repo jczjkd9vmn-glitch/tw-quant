@@ -34,6 +34,7 @@ def main() -> None:
         f"trade_date={result.trade_date} "
         f"rows={len(result.enrichment)} "
         f"output={result.output_path} "
+        f"evidence={result.evidence_path} "
         f"cache={result.cache_path}"
     )
 

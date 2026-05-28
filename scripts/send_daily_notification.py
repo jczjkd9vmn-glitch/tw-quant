@@ -75,6 +75,7 @@ def build_notification_message(
     paper_trades = _load_report(report_dir / "paper_trades.csv")
     trading_decisions = _load_latest_report(report_dir, "trading_decisions_*.csv")
     ai_enrichment = _load_latest_report(report_dir, "ai_enrichment_*.csv")
+    market_recap = _load_latest_report(report_dir, "market_recap_*.csv")
 
     lines = [
         "台股紙上交易每日摘要",
@@ -114,6 +115,12 @@ def build_notification_message(
             f"滑價假設：{_format_rate_percent(trading_cost.get('slippage_rate'))}",
             f"扣成本後總資產：{_format_amount(summary.get('total_equity_after_cost'))}",
             f"今日扣成本後已實現損益：{_format_signed(summary.get('realized_pnl_after_cost_today'))}",
+            "今日損益摘要："
+            f"未實現 {_format_signed(summary.get('unrealized_pnl'))}；"
+            f"已實現 {_format_signed(summary.get('realized_pnl_after_cost_today'))}；"
+            f"今日總損益 {_format_signed((_to_float(summary.get('unrealized_pnl')) or 0) + (_to_float(summary.get('realized_pnl_after_cost_today')) or 0))}；"
+            f"總資產 {_format_amount(summary.get('total_equity_after_cost') or summary.get('total_equity'))}；"
+            f"報酬率 {_portfolio_return_text(summary)}",
             f"今日停利筆數：{_format_int(summary.get('take_profit_exits'))}",
             f"今日停損筆數：{_format_int(summary.get('stop_loss_exits'))}",
             f"今日移動停利筆數：{_format_int(summary.get('trailing_stop_exits'))}",
@@ -128,7 +135,9 @@ def build_notification_message(
             f"籌碼加分候選股數：{_format_int(summary.get('institutional_positive_candidates'))}",
         ]
     )
+    lines.extend(_market_recap_digest(summary, market_recap))
     lines.extend(_decision_digest(summary, trading_decisions))
+    lines.extend(_dashboard_risk_catalyst_digest(candidates, trading_decisions, summary))
     lines.extend(_enrichment_digest(summary, ai_enrichment, trading_decisions))
     lines.extend(_candidate_digest(candidates))
     lines.extend(_official_data_digest(candidates))
@@ -136,6 +145,7 @@ def build_notification_message(
     lines.extend(_position_digest(paper_trades))
     lines.append(f"今日系統健康狀態：{_health_text(summary, candidates)}")
     lines.append("決策引擎提醒：僅供人工確認，未自動下單")
+    lines.append("資料提醒：資料不足時不做強結論")
     lines.append("Pending order 提醒：僅為紙上交易，不是真實下單")
     footer = f"GitHub Pages 報表網址：{pages or '未設定'}"
     lines.append(footer)
@@ -168,6 +178,58 @@ def _decision_digest(summary: dict[str, object], decisions: pd.DataFrame) -> lis
     lines.append("前 5 名 BUY_CANDIDATE：" + (buy if buy else "無"))
     lines.append("前 5 名 HIGH_RISK / NO_TRADE：" + (risk if risk else "無"))
     return lines
+
+
+def _market_recap_digest(summary: dict[str, object], market_recap: pd.DataFrame) -> list[str]:
+    if market_recap.empty:
+        return [
+            "大盤復盤摘要：尚無 market_recap，使用 market_regime_score "
+            f"{_format_amount(summary.get('market_regime_score'))} fallback"
+        ]
+    row = market_recap.iloc[0]
+    return [
+        "大盤復盤摘要："
+        f"{_format_text(row.get('regime_label'))}；"
+        f"market_regime_score {_format_amount(row.get('market_regime_score'))}；"
+        f"{_format_text(row.get('market_breadth_summary'))}；"
+        f"新增紙上持倉：{_format_text(summary.get('guardrail_status'))}"
+    ]
+
+
+def _dashboard_risk_catalyst_digest(
+    candidates: pd.DataFrame,
+    decisions: pd.DataFrame,
+    summary: dict[str, object],
+) -> list[str]:
+    risks: list[str] = []
+    catalysts: list[str] = []
+    regime = _to_float(summary.get("market_regime_score"))
+    if regime is not None and 0 < regime < 60:
+        risks.append(f"市場環境分數 {regime:.0f} 偏低")
+    if str(summary.get("guardrail_status", "")).upper() == "BLOCKED":
+        risks.append("guardrail 暫停新增或執行 pending order")
+    combined = pd.concat(
+        [frame for frame in [candidates, decisions] if not frame.empty],
+        ignore_index=True,
+        sort=False,
+    ) if (not candidates.empty or not decisions.empty) else pd.DataFrame()
+    for _, row in combined.head(30).iterrows():
+        stock = f"{_format_text(row.get('stock_id'))} {_format_text(row.get('stock_name'))}".strip()
+        flags = _format_text(row.get("risk_flags"))
+        if any(keyword in flags for keyword in ["PE 偏高", "融資", "流動性", "處置股", "注意股", "產業資料不足"]):
+            risks.append(f"{stock}：{flags[:40]}")
+        if (_to_float(row.get("revenue_yoy")) or 0) > 0:
+            catalysts.append(f"{stock} 月營收年增為正")
+        if (_to_float(row.get("sector_strength_score")) or 0) >= 65:
+            catalysts.append(f"{stock} 相對強勢")
+        if (_to_float(row.get("liquidity_score")) or 0) >= 70:
+            catalysts.append(f"{stock} 流動性佳")
+        if len(risks) >= 5 and len(catalysts) >= 5:
+            break
+    return [
+        "風險警報：" + ("；".join(dict.fromkeys(risks[:5])) if risks else "目前無彙整到重大風險"),
+        "利好催化：" + ("；".join(dict.fromkeys(catalysts[:5])) if catalysts else "目前無彙整到明確利好催化"),
+    ]
 
 
 def _enrichment_digest(
@@ -455,6 +517,14 @@ def _format_rate_percent(value: object) -> str:
         return "-"
     text = f"{number * 100:.3f}".rstrip("0").rstrip(".")
     return f"{text}%"
+
+
+def _portfolio_return_text(summary: dict[str, object]) -> str:
+    equity = _to_float(summary.get("total_equity_after_cost") or summary.get("total_equity"))
+    capital = _to_float(summary.get("total_capital")) or 1_000_000.0
+    if equity is None or not capital:
+        return "-"
+    return _format_rate_percent((equity - capital) / capital)
 
 
 def _format_text(value: object) -> str:

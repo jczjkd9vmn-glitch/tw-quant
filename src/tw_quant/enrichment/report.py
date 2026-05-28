@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from pathlib import Path
 
 import pandas as pd
@@ -20,6 +21,7 @@ class EnrichmentResult:
     cache_path: Path | None
     enrichment: pd.DataFrame
     warning: str = ""
+    evidence_path: Path | None = None
 
 
 def generate_ai_enrichment(
@@ -43,7 +45,16 @@ def generate_ai_enrichment(
         frame = pd.DataFrame(columns=ENRICHMENT_COLUMNS)
         output_path = report_dir / f"ai_enrichment_{_date_label(target_date)}.csv"
         frame.to_csv(output_path, index=False, encoding="utf-8-sig")
-        return EnrichmentResult(target_date, output_path, None, frame, warning="no symbols for enrichment")
+        evidence_path = report_dir / f"enrichment_evidence_{_date_label(target_date)}.csv"
+        _evidence_frame(frame, target_date).to_csv(evidence_path, index=False, encoding="utf-8-sig")
+        return EnrichmentResult(
+            target_date,
+            output_path,
+            None,
+            frame,
+            warning="no symbols for enrichment",
+            evidence_path=evidence_path,
+        )
 
     max_symbols = int(enrich_config.get("max_symbols_per_run", 30))
     base = base.head(max_symbols).copy()
@@ -59,13 +70,63 @@ def generate_ai_enrichment(
 
     output_path = report_dir / f"ai_enrichment_{_date_label(target_date)}.csv"
     enrichment.to_csv(output_path, index=False, encoding="utf-8-sig")
+    evidence_path = report_dir / f"enrichment_evidence_{_date_label(target_date)}.csv"
+    _evidence_frame(enrichment, target_date).to_csv(evidence_path, index=False, encoding="utf-8-sig")
     cache_path = None
     if enrich_config.get("cache_enabled", True):
         cache_dir = report_dir / "cache"
         cache_dir.mkdir(parents=True, exist_ok=True)
         cache_path = cache_dir / f"ai_enrichment_{_date_label(target_date)}.json"
         cache_path.write_text(enrichment.to_json(orient="records", force_ascii=False), encoding="utf-8")
-    return EnrichmentResult(target_date, output_path, cache_path, enrichment, warning=warning)
+    return EnrichmentResult(target_date, output_path, cache_path, enrichment, warning=warning, evidence_path=evidence_path)
+
+
+def _evidence_frame(enrichment: pd.DataFrame, trade_date: str) -> pd.DataFrame:
+    columns = [
+        "trade_date",
+        "stock_id",
+        "stock_name",
+        "source_name",
+        "source_type",
+        "source_date",
+        "field_name",
+        "field_value",
+        "evidence_summary",
+        "fallback_used",
+        "confidence_impact",
+    ]
+    rows: list[dict[str, object]] = []
+    if enrichment.empty or "source_evidence_json" not in enrichment.columns:
+        return pd.DataFrame(columns=columns)
+    for _, row in enrichment.iterrows():
+        stock_id = str(row.get("stock_id", "")).strip()
+        stock_name = str(row.get("stock_name", "")).strip()
+        try:
+            evidence_items = json.loads(str(row.get("source_evidence_json") or "[]"))
+        except json.JSONDecodeError:
+            evidence_items = []
+        for item in evidence_items if isinstance(evidence_items, list) else []:
+            if not isinstance(item, dict):
+                continue
+            field = str(item.get("field_name", "")).strip()
+            value = item.get("field_value", "")
+            fallback = "fallback" in str(item.get("warning", "")).lower() or "fallback" in str(value).lower()
+            rows.append(
+                {
+                    "trade_date": trade_date,
+                    "stock_id": stock_id,
+                    "stock_name": stock_name,
+                    "source_name": item.get("source_name", ""),
+                    "source_type": item.get("source_type", ""),
+                    "source_date": item.get("source_date", ""),
+                    "field_name": field,
+                    "field_value": value,
+                    "evidence_summary": f"{field}={value}" if field else str(value),
+                    "fallback_used": fallback,
+                    "confidence_impact": item.get("confidence", ""),
+                }
+            )
+    return pd.DataFrame(rows, columns=columns)
 
 
 def _load_universe(report_dir: Path, data_dir: Path, target_date: str, config_path: str | Path) -> pd.DataFrame:
@@ -106,6 +167,12 @@ def _derive_context_columns(frame: pd.DataFrame) -> pd.DataFrame:
         result["institutional_net_buy_5d"] = result.get("institutional_5d_sum", result.get("total_institutional_net_buy", ""))
     if "industry_source" not in result.columns:
         result["industry_source"] = result.get("source", "")
+    if "industry" not in result.columns and "industry_main" in result.columns:
+        result["industry"] = result["industry_main"]
+    if "industry_main" not in result.columns and "industry" in result.columns:
+        result["industry_main"] = result["industry"]
+    if "industry_sub" not in result.columns and "sub_industry" in result.columns:
+        result["industry_sub"] = result["sub_industry"]
     if "sector_strength_mode" not in result.columns:
         warnings = (
             result["sector_strength_warning"]

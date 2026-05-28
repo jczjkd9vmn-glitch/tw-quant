@@ -1,6 +1,13 @@
 # 台股自動化量化分析系統
 
-這是第一版 Python 台股量化分析專案骨架，重點是資料治理、規則化評分、回測、風控與模擬交易。系統不會保證獲利，也不包含任何真實下單功能。
+這是台股自動化研究、紙上交易、風控與報表系統，重點是資料治理、規則化評分、回測、pending order 紙上交易、出場管理、決策輔助、GitHub Pages 報表與 Discord 通知。系統只專注台股，不支援 A 股、港股或美股；不保證獲利，也不包含任何真實下單功能。
+
+## 系統範圍與安全聲明
+
+- 台股限定：資料來源以 TWSE、TPEX、MOPS、本地 SQLite、本地 CSV fallback 與 `reports/` 既有資料為主。
+- 紙上交易限定：`auto_trading.enabled=false`、`can_place_real_orders=false`，目前沒有真實券商 API 或真實委託能力。
+- AI 不控制交易：AI / rule-based enrichment 只解釋既有資料與 evidence，不建立 pending order、不改出場策略、不執行下單。
+- 不保證獲利：回測、紙上交易、分級與決策引擎都只供研究與人工確認，過去績效不代表未來。
 
 ## 功能
 
@@ -11,7 +18,7 @@
 - 回測引擎採用收盤後產生訊號、隔日開盤模擬進場，避免同日偷看資料。
 - 風控模組會檢查資料異常、流動性、波動、停損與部位大小。
 - Streamlit Dashboard 顯示候選清單、評分、理由、停損、部位與回測績效。
-- 第一版只允許模擬交易，真實券商下單介面會直接拒絕。
+- 目前只允許模擬交易；專案未提供真實券商下單介面。
 
 ## 專案結構
 
@@ -260,14 +267,14 @@ GitHub Pages 報表已改為手機優先的帳務 / 庫存介面，首頁標題�
 
 ### 多面向資料與輔助評分
 
-系統會在匯出候選股時補上多因子觀察欄位，產生 `multi_factor_score` 與 `multi_factor_reason`。第一版預設只作為輔助判斷，不改變原本 `total_score` 排序，也不改變既有 `risk_pass` 結果；也就是技術面、動能、風控與既有紙上交易流程仍是主流程。
+系統會在匯出候選股時補上多因子觀察欄位，產生 `multi_factor_score` 與 `multi_factor_reason`。預設只作為輔助判斷，不改變原本 `total_score` 排序，也不改變既有 `risk_pass` 結果；也就是技術面、動能、風控與既有紙上交易流程仍是主流程。
 
 目前支援的資料面向：
 
 - 月營收資料：讀取 `data/monthly_revenue.csv`，輸出 `revenue_score`、`revenue_yoy`、`revenue_mom`、`accumulated_revenue_yoy` 與 `revenue_reason`。
 - 估值資料：讀取 `data/valuation.csv`，觀察 PE、PB、殖利率，輸出 `valuation_score`、`valuation_reason` 與 `valuation_warning`。
 - 財報資料：讀取 `data/financials.csv`，觀察 EPS、ROE、毛利率、營益率、負債比與營業現金流，輸出 `financial_score`、`financial_reason` 與 `financial_warning`。
-- 重大訊息 / 新聞風險：第一版以官方重大訊息型資料 `data/material_events.csv` 為主，用關鍵字分類利多、利空與高風險事件，輸出 `event_score`、`event_risk_level`、`event_reason` 與 `event_blocked`。
+- 重大訊息 / 市場事件風險：以官方重大訊息型資料與 `data/material_events.csv` fallback 為主，用關鍵字分類利多、利空與高風險事件，輸出 `event_score`、`event_risk_level`、`event_reason` 與 `event_blocked`。
 - 籌碼資料：讀取 `data/institutional.csv`，觀察外資、投信、自營商買賣超與法人合計買賣超，輸出 `institutional_score` 與 `institutional_reason`。
 
 缺少任一資料來源時，workflow 不會失敗，該面向採中性分數並在 reason 欄位記錄資料不足。每日匯出會另外產生：
@@ -457,18 +464,18 @@ trading_cost:
 
 ```yaml
 exit_strategy:
-  take_profit_1_pct: 0.10
+  take_profit_1_pct: 0.08
   take_profit_1_sell_pct: 0.50
-  take_profit_2_pct: 0.20
-  take_profit_2_sell_pct: 1.00
+  take_profit_2_pct: 0.15
+  take_profit_2_sell_pct: 0.50
   trailing_stop_activate_pct: 0.08
-  trailing_stop_drawdown_pct: 0.06
+  trailing_stop_drawdown_pct: 0.08
   ma_exit_window: 20
-  max_holding_days: 20
+  max_holding_days: 30
   min_profit_for_holding: 0.03
 ```
 
-每日更新會依序檢查停損、第一段停利、第二段停利、移動停利、跌破 20 日均線與持有過久出場。第一段停利只賣出部分部位，會更新 `remaining_shares` 並保留 `OPEN`；剩餘股數歸零時才改為 `CLOSED`。每次部分賣出都會計算賣出手續費、交易稅與滑價。
+每日更新會依序檢查停損、第一段停利、第二段停利、移動停利、跌破 20 日均線與持有過久出場。第一段停利與第二段停利只賣出部分部位，會更新 `remaining_shares` 並保留 `OPEN`；剩餘股數歸零時才改為 `CLOSED`。每次部分賣出都會計算賣出手續費、交易稅與滑價。
 
 ## 基本面與月營收觀察
 
@@ -484,7 +491,7 @@ data/monthly_revenue.csv
 stock_id, stock_name, year_month, revenue, revenue_yoy, revenue_mom, accumulated_revenue, accumulated_revenue_yoy
 ```
 
-候選股匯出會新增 `revenue_yoy`、`revenue_mom`、`accumulated_revenue_yoy` 與 `fundamental_reason`。第一版基本面資料只作為觀察欄位與報表輔助，不改變 `total_score`、候選股排序、`risk_pass` 或紙上交易進場邏輯。若缺少 `data/monthly_revenue.csv` 或個股沒有資料，會顯示「基本面資料不足，採中性分數」，流程不會失敗。
+候選股匯出會新增 `revenue_yoy`、`revenue_mom`、`accumulated_revenue_yoy` 與 `fundamental_reason`。基本面資料作為觀察欄位與報表輔助；除非 config 明確開啟，預設不改變 `total_score`、候選股排序、`risk_pass` 或紙上交易進場邏輯。若缺少 `data/monthly_revenue.csv` 或個股沒有資料，會顯示「基本面資料不足，採中性分數」，流程不會失敗。
 
 ## 每日紙上持倉更新
 
@@ -521,19 +528,23 @@ python -m pytest
 ## 重要限制
 
 - 本系統只做研究、回測與模擬交易，不保證任何投資績效。
-- 第一版沒有任何真實下單能力。
+- 目前沒有任何真實下單能力。
 - 資料缺漏、OHLC 異常、重複資料或風控不通過時，系統會拒絕產生可交易指令。
 - 基本面與籌碼欄位若資料不足，評分會使用中性或保守規則，並在理由中揭露。
 
-## 多因子資料自動抓取（第一版）
+## 多因子資料自動抓取
 
-新增 `scripts/fetch_multi_factor_data.py`，每日會嘗試更新以下 5 個資料來源：
+`scripts/fetch_multi_factor_data.py` 每日會嘗試更新以下資料來源，並依來源成熟度標示 `production`、`best_effort`、`local_derived`、`placeholder` 或 `csv_fallback`。資料源失敗時不會中斷每日流程；既有 CSV 有資料時會保留既有資料，沒有資料時才建立空 schema。
 
 - `monthly_revenue`
 - `valuation`
 - `financials`
 - `material_events`
 - `institutional`
+- `margin_short`
+- `attention_disposition`
+- `liquidity`
+- `sector_strength`
 
 輸出檔案：
 
@@ -550,141 +561,36 @@ python -m pytest
 狀態欄位：
 
 - `source_name`
-- `status`（`OK` / `EMPTY` / `MISSING` / `FAILED`）
+- `provider_maturity`
+- `status`（`OK` / `OK_WITH_FALLBACK` / `CACHE` / `EMPTY` / `MISSING` / `FAILED` / `MOCK`）
 - `rows`
 - `warning`
 - `error_message`
+- `fallback_action`
+- `requested_period`
+- `actual_period`
+- `latest_available_period`
+- `is_real_data`
+- `is_mock`
+- `data_age_days`
 
-## Mobile Report、出場策略與 Market Intelligence
+## 報表、出場策略與市場情報概覽
 
-本專案新增手機優先的 GitHub Pages 報表、完整紙上交易出場策略，以及 market intelligence 輔助判斷模組。這些功能不保證獲利，且不會改變既有選股核心邏輯、pending order 隔日進場架構或真實下單限制。
+- GitHub Pages 報表由 `scripts/generate_html_report.py` 產生 `reports/index.html` 與 `docs/index.html`；最新版內容包含損益圖、決策儀表盤、大盤復盤、配置說明、持倉風險燈號、資料來源健康檢查與 enrichment evidence。
+- 出場策略由 `config.yaml` 的 `exit_strategy` 控制，預設啟用停損、分段停利、移動停利、20 日均線出場與持有過久出場；舊版 `paper_trades.csv` 缺欄位時會做 dtype 與欄位相容處理。
+- Market intelligence 預設使用 `real` provider，優先整合公開重大訊息、注意 / 處置股與既有多因子資料；只有完全沒有可用事件或 fallback 資料時才退回 `mock`。
+- `yfinance` provider 仍保留為可替換範例與歷史相容設計；目前主流程只專注台股，不把 yfinance 當作台股正式資料來源。
+- Market intelligence、multi-factor、AI enrichment 與 Discord 摘要都只作為報表與人工輔助，不會直接產生買單、真實下單或跳過既有風控。
 
-### 手機版報表
-
-`scripts/generate_html_report.py` 會產生：
-
-```text
-reports/index.html
-docs/index.html
-```
-
-報表首頁加入「今日重點結論」與「系統健康檢查」，手機上優先顯示結論，再用卡片式呈現候選股、通過風控股票、待進場、目前持倉、已出場交易與 market intelligence 摘要。桌機版仍保留表格，詳細資料預設用 `<details><summary>` 收合。
-
-損益顏色採台股習慣：紅色代表正損益，綠色代表負損益，灰白色代表 0 或無資料。資料缺失時會顯示 warning 或「今日無資料」，不會讓整份 HTML 報表失敗。
-
-### 出場策略
-
-`config.yaml` 的 `exit_strategy` 預設值：
-
-```yaml
-exit_strategy:
-  take_profit_1_pct: 0.08
-  take_profit_1_sell_pct: 0.50
-  take_profit_2_pct: 0.15
-  take_profit_2_sell_pct: 0.50
-  trailing_stop_activate_pct: 0.08
-  trailing_stop_drawdown_pct: 0.08
-  ma_exit_window: 20
-  max_holding_days: 30
-  min_profit_for_holding: 0.03
-```
-
-每日更新紙上持倉時依序檢查：
-
-1. 跌破停損價：賣出剩餘全部部位，`exit_reason=stop_loss`。
-2. 報酬達 +8%：賣出 50%，`exit_reason=take_profit_1`，並記錄 `partial_exit_1_done`。
-3. 報酬達 +15%：賣出剩餘部位 50%，`exit_reason=take_profit_2`，並記錄 `partial_exit_2_done`。
-4. 從持有期間最高價回落 8%：賣出剩餘全部部位，`exit_reason=trailing_stop`。
-5. 收盤跌破 20 日均線：賣出剩餘全部部位，`exit_reason=ma20_break`。資料不足 20 日時會略過，不會失敗。
-6. 持有超過 30 個交易日且獲利不足 3%：賣出剩餘全部部位，`exit_reason=max_holding_days`。
-
-出場同樣套用既有交易成本與滑價模型，會計算賣出手續費、證券交易稅、賣出滑價與扣成本後損益。舊版 `paper_trades.csv` 缺少新欄位時會自動補欄位並轉 dtype，保留 legacy CSV 相容性。
-
-完整出場策略預設啟用；若未來需要停用，應透過明確 config（例如 `enable_exit_strategy: false`）控制，不要透過省略 `exit_strategy` 來隱性關閉。
-
-### Market Intelligence
-
-新增模組：
-
-```text
-src/tw_quant/market_intel/providers/base.py
-src/tw_quant/market_intel/providers/mock_provider.py
-src/tw_quant/market_intel/providers/yfinance_provider.py
-src/tw_quant/market_intel/scoring.py
-src/tw_quant/market_intel/report.py
-```
-
-目前預設使用 `real` provider，優先整合公開重大訊息、注意 / 處置股與既有多因子資料；只有完全沒有可用事件或 fallback 資料時，才會退回 `mock`。`yfinance` provider 是可替換設計；若未安裝或外部來源失敗，只會回傳 warning 與中性分數，不會讓 pipeline crash。
-
-Market intelligence 會輸出基本面分數、估值分數、動能分數、新聞情緒分數、綜合市場分數、信心分數、主要風險標籤、系統短評、資料來源與 warning。
-
-輸出檔案：
-
-```text
-reports/market_intel_YYYYMMDD.csv
-reports/cache/market_intel_YYYYMMDD.json
-```
-
-`reports/cache/market_intel_YYYYMMDD.json` 是快取，避免重跑時重複打外部 provider。若 cache 存在，系統會優先讀 cache；若不存在，會使用 provider 建立並寫入 cache。
-
-### 交易限制
-
-Market intelligence 預設只影響報表、Discord 摘要與候選股輔助欄位，不會直接產生買單，不會直接排除股票，也不會改變 pending order 進場日期邏輯。
-
-預設設定：
-
-```yaml
-market_intel:
-  enabled: true
-  provider: real
-  cache_enabled: true
-  affect_ranking: false
-  affect_trading: false
-  enable_market_intel_filter: false
-  provider_order: [official_events, material_events, attention_disposition, csv_fallback, mock]
-  allow_mock: true
-  mock_only_when_no_real_data: true
-
-data_sources:
-  monthly_revenue:
-    enabled: true
-    lookback_months: 6
-    allow_existing_csv_fallback: true
-  valuation:
-    enabled: true
-    allow_existing_csv_fallback: true
-  financials:
-    enabled: true
-    allow_existing_csv_fallback: true
-  material_events:
-    enabled: true
-    allow_existing_csv_fallback: true
-  confidence:
-    enabled: true
-    stale_days_threshold: 90
-```
-
-若未來要讓 market intelligence 影響排序或進場，必須先透過 config 明確開啟，且仍需保留風控檢查與可追蹤理由。
-
-### Discord 通知
-
-Discord 每日通知新增今日市場判斷摘要、分數最高前 5 名候選股、新聞風險最高前 5 名、資料不足警告、今日系統健康狀態、目前 OPEN 持倉重點與今日 exit signal / 出場原因摘要。Webhook URL 仍從 GitHub Secrets 的 `DISCORD_WEBHOOK_URL` 讀取，不可寫死在程式碼。
-
-設計原則：
-
-- 優先抓公開來源。
-- 若抓取失敗，會 fallback 到既有 CSV；若連既有 CSV 都沒有，會建立對應 schema 的空檔。
-- 缺資料時不會讓 workflow 失敗，選股與交易流程維持可執行。
-- 缺資料時多因子評分採中性分數，不會假造資料。
 ## 官方市場資料來源 provider
 
-本專案新增官方市場資料來源 provider，主要放在 `src/tw_quant/data_sources/`，用於補強 market intelligence 與多因子輔助評分。第一版資料只影響報表、分數、排序參考、warning 與 Discord 通知；不會直接產生買單，也不會改變既有選股核心邏輯。`market_intel.affect_trading` 預設為 `false`。
+官方市場資料來源 provider 主要放在 `src/tw_quant/data_sources/`，用於補強 market intelligence 與多因子輔助評分。資料預設只影響報表、分數、排序參考、warning 與 Discord 通知；不會直接產生買單，也不會改變既有選股核心邏輯。`market_intel.affect_trading` 預設為 `false`。
 
 目前資料來源與 fallback：
 
 - `TWSEProvider`：三大法人買賣超、信用交易 / 融資融券資料、注意股 / 處置股資料的官方 TWSE provider。三大法人會優先抓 TWSE T86；信用與事件資料抓不到時會回傳 warning 並使用空資料。
-- `MOPSProvider`：月營收與重大訊息 provider。月營收會嘗試讀官方公開表格，失敗時 fallback 到 `data/monthly_revenue.csv`；重大訊息第一版保留為非中斷式 warning。
-- `TPEXProvider`：櫃買資料 provider 骨架，第一版回傳 warning 與空資料，方便後續補齊 OTC 官方端點。
+- `MOPSProvider`：月營收與重大訊息 provider。月營收會嘗試讀官方公開表格，失敗時 fallback 到 `data/monthly_revenue.csv`；重大訊息仍採 best-effort 與 local CSV fallback。
+- `TPEXProvider`：櫃買資料 provider 骨架，目前回傳 warning 與空資料，方便後續補齊 OTC 官方端點。
 - 本機 CSV fallback：`data/institutional.csv`、`data/margin_short.csv`、`data/attention_disposition.csv`、`data/monthly_revenue.csv`、`data/material_events.csv`、`data/sector_strength.csv`、`data/liquidity.csv`。
 
 外部資料 cache 會寫到 `reports/cache/`，此目錄已加入 `.gitignore`，不應 commit。cache 損壞或資料來源失敗時，流程不會 crash，會記錄 warning 並以中性分數繼續。
@@ -699,7 +605,7 @@ Discord 每日通知新增今日市場判斷摘要、分數最高前 5 名候選
 - 流動性：`liquidity_score`、`avg_turnover_20d`、`slippage_risk_score`。
 - 綜合判斷：`final_market_score`、`confidence_score`、`data_source_warning`、`system_comment`。
 
-`final_market_score` 第一版權重：
+`final_market_score` 目前權重：
 
 - 動能：25%
 - 籌碼：20%
@@ -740,7 +646,10 @@ python scripts/fetch_multi_factor_data.py
 - `MOPS monthly_revenue`：`best_effort`，會嘗試抓公開月營收表格；若環境缺少 `lxml` 或 HTML table 結構變動，會 fallback 到 `data/monthly_revenue.csv`。
 - `material_events`：目前仍是 `placeholder` / local CSV fallback，尚未完整串接 MOPS 重大訊息正式 endpoint。
 - `TPEXProvider`：目前是 `placeholder`，不是完整正式資料來源，保留給後續櫃買官方資料接入。
-- `valuation`、`financials`、`sector_strength`、`liquidity`：第一版以 CSV fallback 或本地衍生資料為主，缺資料時採中性分數。
+- `valuation`：TWSE OpenAPI best-effort，失敗時使用既有 CSV 或中性分數。
+- `financials`：TWSE OpenAPI best-effort，EPS 與損益表衍生欄位較穩定；ROE、負債比與現金流仍可能缺資料。
+- `sector_strength`：已由 SQLite 本地價格資料衍生；若缺少產業分類，會使用全市場相對強弱 fallback。
+- `liquidity`：已由 SQLite 本地價量資料衍生，仍受 SQLite 價量資料完整度影響。
 
 `reports/data_fetch_status_YYYYMMDD.csv` 會包含 `provider_maturity` 欄位：
 
@@ -995,7 +904,41 @@ market_regime:
 - `affected_symbols_count`
 
 目前限制：財報仍是 best_effort，ROE、負債比、營業現金流不一定能從免費公開端點完整取得；一般新聞來源尚未接入正式新聞 API；sector strength 目前因 SQLite 缺少 industry 欄位，使用全市場相對強弱 fallback；liquidity 已改由本地價量資料衍生，但仍受 SQLite 價量資料完整度影響。外部來源失敗時，流程會保留既有 CSV 或採中性分數，不會讓每日 pipeline 直接崩潰。
-## Official Provider Robustness Notes
+
+## 台股決策儀表盤與產品化報表
+
+本專案只專注台股，目前不支援 A 股、港股或美股，也沒有任何真實券商下單能力。系統定位是研究、紙上交易、風險控管與人工輔助，不是投資顧問或自動交易機器人。
+
+GitHub Pages 報表會整合以下產品化區塊：
+
+- 今日損益圖：使用 `reports/daily_summary_*.csv`、`reports/paper_summary_*.csv` 與 `reports/paper_trades.csv` 產生今日未實現損益、今日已實現損益、今日總損益、累計已實現損益與近期總資產趨勢。正損益使用台股習慣紅色，負損益使用綠色。
+- 決策儀表盤：彙整 `BUY_CANDIDATE`、`WATCH_ONLY`、`NO_TRADE`、`HOLD`、`REDUCE review`、`EXIT review` 與 A/B/C/D 分級。`BUY_CANDIDATE` 顯示為「買進候選，需人工確認」，不代表自動買進。
+- 風險警報：整理 market regime 偏低、guardrail BLOCKED、pending order 被取消、處置股 / 注意股、流動性偏低、接近停損、高風險事件、PE 偏高、融資連增但股價不漲、資料可信度不足與產業資料不足。
+- 利好催化：整理月營收年增、法人買超、相對強勢、流動性佳、基本面改善、事件利多與技術面轉強。這些只作為觀察理由，不保證後續表現。
+- 大盤復盤：產生 `reports/market_recap_YYYYMMDD.csv`，顯示加權 / 櫃買指數欄位、上漲 / 下跌 / 平盤家數、漲停 / 跌停家數、market_regime_score 與市場概況摘要。若尚無正式指數資料，會明確標示使用本地 SQLite 全市場價量 fallback。
+- 配置說明：揭露 `auto_trading.enabled=false`、`can_place_real_orders=false`、`market_intel.affect_trading=false`、`multi_factor.affect_ranking=false`、pending order 有效期限、出場策略參數、交易成本、滑價假設與 `ai_enrichment.allow_external_ai=false`。
+
+每日流程會嘗試產生：
+
+```text
+reports/pnl_chart_data_YYYYMMDD.csv
+reports/market_recap_YYYYMMDD.csv
+reports/enrichment_evidence_YYYYMMDD.csv
+```
+
+若補充報表失敗，主流程不應直接崩潰，會在 `daily_summary_YYYYMMDD.csv` 內記錄 `pnl_chart_status`、`market_recap_status`、`decision_dashboard_status`、`config_summary_status` 與 `enrichment_evidence_status`。
+
+股票卡片會補強資料脈絡：
+
+- 估值脈絡：`valuation_context` 會說明 PE、PB、殖利率、同產業或全市場中位數比較。PE 偏高只代表評價風險需要人工確認，不等同不能買或一定會跌。
+- 融資 / 籌碼脈絡：`margin_credit_context` 會說明融資餘額變化、股價同期變化、法人承接與注意 / 處置股狀態。融資連增但股價不漲只是籌碼壓力提示。
+- 相對強弱脈絡：`sector_context` 會說明比較基準是同產業、全市場 fallback 或未知。若缺少產業分類，報表會明確寫出「只能視為全市場相對強勢，不能直接推論為同產業強勢」。
+- 資料來源依據：`reports/enrichment_evidence_YYYYMMDD.csv` 會列出來源名稱、來源類型、來源日期、欄位、欄位值與 fallback 狀態；HTML 卡片中預設收合顯示。
+
+Discord 每日通知會同步顯示今日損益摘要、決策摘要、大盤復盤摘要、主要風險警報、利好催化與 enrichment 狀態，並明確標示「僅供人工確認」、「未自動下單」、「資料不足時不做強結論」。
+
+風險聲明：不保證獲利；過去績效不代表未來；資料可能延遲、缺漏或錯誤；AI / rule-based enrichment 只解釋既有資料，不會直接控制交易；任何實盤交易都需要人工確認與額外券商 API 風控，而本專案目前不提供真實下單能力。
+## 官方資料來源穩定性說明
 
 本專案的官方資料來源仍採分階段接入，資料源失敗時不會中斷每日流程，也不會覆寫既有有效 CSV。
 

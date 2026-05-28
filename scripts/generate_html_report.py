@@ -16,6 +16,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from tw_quant.config import load_config
+from tw_quant.reporting.position_review import generate_position_review_summary
 from tw_quant.reporting.data_quality import write_data_quality_health
 
 
@@ -430,6 +431,36 @@ COLUMN_LABELS.update(
         "health_status": "健康狀態",
         "data_issue": "資料問題",
         "investment_risk": "投資風險",
+        "actual_data_date": "實際資料日",
+        "cache_age_days": "快取 / 資料年齡天數",
+        "is_stale_data": "是否快取或非當日資料",
+        "positive_signals": "正向訊號",
+        "warning_signals": "警示訊號",
+        "blocking_risks": "阻擋風險",
+        "momentum_signal": "動能訊號",
+        "market_type": "市場類型",
+        "tracking_index": "追蹤指數",
+        "fund_size": "基金規模",
+        "expense_ratio": "總費用率",
+        "discount_premium": "折溢價",
+        "top_holdings_available": "是否有前十大持股",
+        "etf_data_quality_flags": "ETF 資料品質旗標",
+        "is_etf": "是否 ETF",
+        "has_industry": "有產業分類",
+        "has_valuation": "有估值資料",
+        "has_financials": "有財報資料",
+        "has_revenue": "有營收資料",
+        "has_institutional": "有法人資料",
+        "has_margin": "有融資融券資料",
+        "has_event_data": "有事件資料",
+        "has_etf_metadata": "有 ETF metadata",
+        "missing_fields": "缺失欄位",
+        "hold": "持倉續抱",
+        "reduce": "降低風險檢查",
+        "exit_review": "出場檢查",
+        "near_stop_loss": "接近停損",
+        "near_take_profit": "接近停利",
+        "data_quality_warning": "資料品質警示",
     }
 )
 
@@ -661,6 +692,7 @@ DATE_COLUMNS = {
     "summary_trade_date",
     "decision_date",
     "validation_date",
+    "actual_data_date",
 }
 AMOUNT_COLUMNS.add("summary_total_equity_after_cost")
 SCORE_COLUMNS.update(
@@ -704,6 +736,8 @@ PERCENT_COLUMNS.update(
     }
 )
 AMOUNT_COLUMNS.update({"monthly_revenue", "avg_turnover_20d", "latest_turnover"})
+AMOUNT_COLUMNS.update({"fund_size"})
+PERCENT_COLUMNS.update({"expense_ratio", "discount_premium"})
 INTEGER_COLUMNS.update(
     {
         "latest_volume",
@@ -742,6 +776,7 @@ INTEGER_COLUMNS.update(
         "unchanged",
         "limit_up_count",
         "limit_down_count",
+        "cache_age_days",
     }
 )
 STATUS_COLUMNS.update(
@@ -761,6 +796,23 @@ STATUS_COLUMNS.update(
         "decision_dashboard_status",
         "config_summary_status",
         "enrichment_evidence_status",
+        "is_stale_data",
+        "top_holdings_available",
+        "is_etf",
+        "has_industry",
+        "has_valuation",
+        "has_financials",
+        "has_revenue",
+        "has_institutional",
+        "has_margin",
+        "has_event_data",
+        "has_etf_metadata",
+        "hold",
+        "reduce",
+        "exit_review",
+        "near_stop_loss",
+        "near_take_profit",
+        "data_quality_warning",
     }
 )
 DATE_COLUMNS.update({"disposition_start_date", "disposition_end_date"})
@@ -790,6 +842,8 @@ def generate_html_report(
     enrichment_evidence = _read_latest_csv(report_dir, "enrichment_evidence_*.csv")
     pnl_chart_data = _read_latest_csv(report_dir, "pnl_chart_data_*.csv")
     market_recap = _read_latest_csv(report_dir, "market_recap_*.csv")
+    candidate_coverage = _read_latest_csv(report_dir, "candidate_coverage_report_*.csv")
+    position_review = _read_latest_csv(report_dir, "position_review_summary_*.csv")
     active_config = load_config(ROOT / "config.yaml")
     trading_cost = active_config.get("trading_cost", {})
 
@@ -812,6 +866,8 @@ def generate_html_report(
         enrichment_evidence=enrichment_evidence,
         pnl_chart_data=pnl_chart_data,
         market_recap=market_recap,
+        candidate_coverage=candidate_coverage,
+        position_review=position_review,
         trading_cost=trading_cost,
         config=active_config,
     )
@@ -844,6 +900,8 @@ def _render_page(
     enrichment_evidence: pd.DataFrame,
     pnl_chart_data: pd.DataFrame,
     market_recap: pd.DataFrame,
+    candidate_coverage: pd.DataFrame,
+    position_review: pd.DataFrame,
     trading_cost: dict[str, object],
     config: dict[str, object] | None = None,
 ) -> str:
@@ -860,6 +918,16 @@ def _render_page(
     open_positions = _mark_missing_market_context(_enrich_with_fundamentals(open_positions, enrichment_source), enrichment_source)
     open_positions = _enrich_with_local_factor_csv(open_positions)
     open_positions = _apply_holding_risk_lights(open_positions, config or {})
+    if position_review.empty:
+        try:
+            generated_review = generate_position_review_summary(
+                report_dir,
+                config=config or {},
+                trade_date=latest_summary.get("trade_date") if latest_summary else None,
+            )
+            position_review = generated_review.review
+        except Exception:
+            position_review = pd.DataFrame()
     pending_orders = _enrich_with_fundamentals(pending_orders, enrichment_source)
     trading_decisions = _enrich_with_fundamentals(trading_decisions, enrichment_source)
     closed_trades = _enrich_with_fundamentals(closed_trades, enrichment_source)
@@ -887,9 +955,11 @@ def _render_page(
         "is_attention_stock",
         "is_disposition_stock",
         "review_level",
-        "risk_flags",
+        "positive_signals",
+        "warning_signals",
+        "blocking_risks",
         "data_quality_flags",
-        "investment_risk_flags",
+        "risk_flags",
         "final_comment",
     ]
     market_detail_columns = [
@@ -935,6 +1005,12 @@ def _render_page(
         "review_reason",
         "data_source_warning",
         "market_intel_warning",
+        "requested_date",
+        "actual_data_date",
+        "fallback_date",
+        "fallback_reason",
+        "cache_age_days",
+        "is_stale_data",
         "system_comment",
         "ai_summary",
         "manual_review_focus",
@@ -987,6 +1063,10 @@ def _render_page(
             "sector_strength_warning",
             "review_level",
             "review_reason",
+            "positive_signals",
+            "warning_signals",
+            "blocking_risks",
+            "momentum_signal",
             "data_quality_flags",
             "investment_risk_flags",
             "attention_reason",
@@ -1045,6 +1125,7 @@ def _render_page(
             _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status, trading_decisions), class_name="today-action-section"),
             _pnl_chart_section(latest_summary, pnl_chart_data, recent_summaries),
             _decision_dashboard(latest_summary, trading_decisions, candidates, open_positions),
+            _position_review_section(position_review, open_positions),
             _market_recap_section(market_recap, latest_summary),
             _guardrail_overview(latest_summary, market_regime, rejected_orders),
             _loss_attribution_overview(loss_attribution),
@@ -1066,6 +1147,7 @@ def _render_page(
             _market_intel_summary(candidates, market_intel, latest_summary),
             _multi_factor_summary(candidates, latest_summary),
             _fundamental_summary(candidates),
+            _candidate_coverage_section(candidate_coverage),
             _details_block("今日候選股詳細表", candidate_detail),
             _details_block("通過風控股票詳細表", risk_pass_detail),
             _details_block("資料來源依據", _evidence_table(enrichment_evidence)),
@@ -1463,6 +1545,105 @@ def _catalyst_list(candidates: pd.DataFrame, decisions: pd.DataFrame) -> list[st
         if len(items) >= 5:
             return items[:5]
     return items[:5] or ["目前尚無明確利好催化，請以候選股理由與風控檢查為主。"]
+
+
+def _position_review_section(position_review: pd.DataFrame, open_positions: pd.DataFrame) -> str:
+    total = len(position_review) if not position_review.empty else len(open_positions)
+    if position_review.empty:
+        content = '<div class="cards">' + _card("目前持倉", f"{total:,.0f}") + "</div>" + _empty("目前尚無 position_review_summary")
+        return _section("持倉狀態整理", content)
+
+    cards = [
+        ("目前持倉", f"{total:,.0f}"),
+        ("續抱", f"{_count_true(position_review, 'hold'):,.0f}"),
+        ("降低風險檢查", f"{_count_true(position_review, 'reduce'):,.0f}"),
+        ("出場檢查", f"{_count_true(position_review, 'exit_review'):,.0f}"),
+        ("接近停損", f"{_count_true(position_review, 'near_stop_loss'):,.0f}"),
+        ("接近停利", f"{_count_true(position_review, 'near_take_profit'):,.0f}"),
+        ("資料品質警示", f"{_count_true(position_review, 'data_quality_warning'):,.0f}"),
+    ]
+    table = _table(
+        position_review,
+        [
+            "trade_date",
+            "stock_id",
+            "stock_name",
+            "decision",
+            "hold",
+            "reduce",
+            "exit_review",
+            "near_stop_loss",
+            "near_take_profit",
+            "data_quality_warning",
+            "current_price",
+            "stop_loss_price",
+            "unrealized_pnl_pct",
+            "risk_light",
+            "review_reason",
+        ],
+        "目前尚無持倉狀態整理",
+        50,
+    )
+    note = f'<p class="note">目前 {total:,.0f} 檔持倉中各類數量如下；僅供人工檢查，不會自動賣出。</p>'
+    return _section(
+        "持倉狀態整理",
+        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        + note
+        + _details_block("position_review_summary 明細", table),
+    )
+
+
+def _candidate_coverage_section(candidate_coverage: pd.DataFrame) -> str:
+    if candidate_coverage.empty:
+        return _section("候選股資料覆蓋率", _empty("目前尚無 candidate_coverage_report"))
+
+    total = len(candidate_coverage)
+    missing = candidate_coverage["missing_fields"].fillna("").astype(str).str.strip() if "missing_fields" in candidate_coverage.columns else pd.Series([""] * total)
+    etf_missing = int(missing.str.contains("ETF_METADATA_MISSING", na=False).sum())
+    financial_missing = int(missing.str.contains("FINANCIAL_MISSING", na=False).sum())
+    cards = [
+        ("候選股檢查數", f"{total:,.0f}"),
+        ("資料完整候選", f"{int((missing == '').sum()):,.0f}"),
+        ("缺產業分類", f"{_coverage_missing_count(candidate_coverage, 'INDUSTRY_MISSING'):,.0f}"),
+        ("缺估值資料", f"{_coverage_missing_count(candidate_coverage, 'VALUATION_MISSING'):,.0f}"),
+        ("缺財報資料", f"{financial_missing:,.0f}"),
+        ("ETF metadata 缺失", f"{etf_missing:,.0f}"),
+    ]
+    table = _table(
+        candidate_coverage,
+        [
+            "trade_date",
+            "stock_id",
+            "stock_name",
+            "is_etf",
+            "decision",
+            "candidate_grade",
+            "has_industry",
+            "has_valuation",
+            "has_financials",
+            "has_revenue",
+            "has_institutional",
+            "has_margin",
+            "has_event_data",
+            "has_etf_metadata",
+            "missing_fields",
+        ],
+        "目前尚無候選股資料覆蓋率明細",
+        50,
+    )
+    note = '<p class="note">ETF 不以 EPS / ROE 缺失列為一般個股財報缺失；ETF metadata 未接來源時標示 ETF_METADATA_MISSING。</p>'
+    return _section(
+        "候選股資料覆蓋率",
+        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        + note
+        + _details_block("candidate_coverage_report 明細", table),
+    )
+
+
+def _coverage_missing_count(frame: pd.DataFrame, code: str) -> int:
+    if frame.empty or "missing_fields" not in frame.columns:
+        return 0
+    return int(frame["missing_fields"].fillna("").astype(str).str.contains(code, na=False).sum())
 
 
 def _market_recap_section(market_recap: pd.DataFrame, summary: dict[str, object]) -> str:
@@ -1972,6 +2153,10 @@ def _decision_engine_content(decisions: pd.DataFrame, validation: pd.DataFrame) 
         "current_status",
         "reason",
         "risk_flags",
+        "positive_signals",
+        "warning_signals",
+        "blocking_risks",
+        "momentum_signal",
         "data_quality_flags",
         "investment_risk_flags",
         "total_score",
@@ -2935,6 +3120,7 @@ def _source_display_name(value: object) -> str:
         "material_events": "重大訊息",
         "sector_strength": "產業 / 相對強弱",
         "liquidity": "流動性",
+        "market_intel": "市場情報",
     }
     if source in overrides:
         return overrides[source]
@@ -3176,10 +3362,14 @@ def _data_confidence_summary(
         str(summary.get("market_intel_status", "")).upper() == "CACHE"
         or (not data_fetch_status.empty and "status" in data_fetch_status.columns and data_fetch_status["status"].fillna("").astype(str).str.upper().eq("CACHE").any())
     )
+    stale_notice = _market_intel_stale_notice(summary, frame)
     cards = [
         ("市場情報來源", source or "-"),
         ("是否為 mock", "是" if is_mock else "否"),
         ("是否使用 cache", "是" if using_cache else "否"),
+        ("市場情報實際資料日", _market_intel_actual_data_date(summary, frame)),
+        ("市場情報快取 / 資料年齡", _market_intel_cache_age_text(frame)),
+        ("市場情報是否非當日資料", "是" if stale_notice else "否"),
         ("市場情報資料不足股票數", _format_cell("market_intel_warning_count", summary.get("market_intel_warning_count"))),
         ("基本面資料不足股票數", f"{_fundamental_missing_count(candidates):,.0f}"),
         ("估值資料不足股票數", f"{_reason_missing_count(candidates, 'valuation_score', 'valuation_reason'):,.0f}"),
@@ -3201,6 +3391,8 @@ def _data_confidence_summary(
     if is_mock:
         notes.append("目前為 mock / 中性資料，尚未接入正式新聞來源，不應視為完整新聞 / 財報分析。")
         notes.append("新聞來源狀態：尚未接入")
+    if stale_notice:
+        notes.append(stale_notice)
     if _fundamental_missing_is_majority(candidates):
         notes.append("目前基本面資料完整度不足，多數股票使用中性分數 50，請勿視為完整財報分析。")
     notes.append(
@@ -3222,6 +3414,64 @@ def _market_intel_source(summary: dict[str, object], frame: pd.DataFrame) -> str
         values = [str(value).strip() for value in frame["market_intel_source"] if not _is_blank(value)]
         if values:
             return values[0]
+    return "-"
+
+
+def _market_intel_stale_notice(summary: dict[str, object], frame: pd.DataFrame) -> str:
+    status = str(summary.get("market_intel_status", "") or "").strip().upper()
+    fallback_reason = str(summary.get("fallback_reason", "") or "").strip()
+    stale = status == "CACHE" or fallback_reason == "no trading data"
+    if not frame.empty:
+        if "market_intel_status" in frame.columns:
+            stale = stale or frame["market_intel_status"].fillna("").astype(str).str.upper().eq("CACHE").any()
+        if "is_stale_data" in frame.columns:
+            stale = stale or frame["is_stale_data"].apply(_truthy).any()
+        if "fallback_reason" in frame.columns:
+            stale = stale or frame["fallback_reason"].fillna("").astype(str).eq("no trading data").any()
+    if not stale:
+        return ""
+    requested = _market_intel_requested_date(summary, frame)
+    actual = _market_intel_actual_data_date(summary, frame)
+    reason = _market_intel_fallback_reason(summary, frame)
+    return f"使用快取 / 非當日資料：要求日期 {requested}，實際資料日 {actual}，原因 {reason}。"
+
+
+def _market_intel_requested_date(summary: dict[str, object], frame: pd.DataFrame) -> str:
+    return _first_non_blank(summary.get("requested_date"), _frame_first(frame, "requested_date"), summary.get("trade_date"))
+
+
+def _market_intel_actual_data_date(summary: dict[str, object], frame: pd.DataFrame) -> str:
+    return _first_non_blank(_frame_first(frame, "actual_data_date"), summary.get("trade_date"))
+
+
+def _market_intel_fallback_date(summary: dict[str, object], frame: pd.DataFrame) -> str:
+    return _first_non_blank(summary.get("fallback_date"), _frame_first(frame, "fallback_date"))
+
+
+def _market_intel_fallback_reason(summary: dict[str, object], frame: pd.DataFrame) -> str:
+    return _first_non_blank(summary.get("fallback_reason"), _frame_first(frame, "fallback_reason"), "-")
+
+
+def _market_intel_cache_age_text(frame: pd.DataFrame) -> str:
+    if frame.empty or "cache_age_days" not in frame.columns:
+        return "-"
+    values = pd.to_numeric(frame["cache_age_days"], errors="coerce").dropna()
+    if values.empty:
+        return "-"
+    return f"{int(values.max()):,.0f} 天"
+
+
+def _frame_first(frame: pd.DataFrame, column: str) -> object:
+    if frame.empty or column not in frame.columns:
+        return ""
+    values = [value for value in frame[column].tolist() if not _is_blank(value)]
+    return values[0] if values else ""
+
+
+def _first_non_blank(*values: object) -> str:
+    for value in values:
+        if not _is_blank(value):
+            return _format_cell("status", value)
     return "-"
 
 
@@ -3321,6 +3571,7 @@ def _market_intel_summary(
     warning_count = _count_non_empty(frame, "market_intel_warning")
     source = _market_intel_source(summary, frame)
     is_mock = source.lower() == "mock"
+    stale_notice = _market_intel_stale_notice(summary, frame)
     negative_news = 0
     if not is_mock and "news_sentiment_score" in frame.columns:
         negative_news = int((pd.to_numeric(frame["news_sentiment_score"], errors="coerce").fillna(0) < 0).sum())
@@ -3328,6 +3579,12 @@ def _market_intel_summary(
     cards = [
         ("市場判斷狀態", _format_cell("market_intel_status", summary.get("market_intel_status"))),
         ("市場判斷來源", source),
+        ("要求資料日", _market_intel_requested_date(summary, frame)),
+        ("實際資料日", _market_intel_actual_data_date(summary, frame)),
+        ("替代交易日", _market_intel_fallback_date(summary, frame)),
+        ("替代原因", _market_intel_fallback_reason(summary, frame)),
+        ("快取 / 資料年齡", _market_intel_cache_age_text(frame)),
+        ("是否快取或非當日資料", "是" if stale_notice else "否"),
         ("市場判斷最高分", top_score),
         ("市場情報資料不足股票數", f"{warning_count:,.0f}"),
         ("新聞來源狀態", "尚未接入" if is_mock else "已接入或可用"),
@@ -3363,11 +3620,19 @@ def _market_intel_summary(
         "data_source_warning",
         "system_comment",
         "market_intel_warning",
+        "requested_date",
+        "actual_data_date",
+        "fallback_date",
+        "fallback_reason",
+        "cache_age_days",
+        "is_stale_data",
     ]
     detail = _responsive_records(frame, columns, "今日無市場判斷資料", 20)
     note = ""
     if is_mock:
         note = '<div class="note">目前為 mock / 中性資料，尚未接入正式新聞來源，不應視為完整新聞 / 財報分析。</div>'
+    if stale_notice:
+        note += f'<div class="note">{escape(stale_notice)}</div>'
     return _section(
         "市場判斷摘要",
         '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"

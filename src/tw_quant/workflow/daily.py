@@ -17,6 +17,8 @@ from tw_quant.decision.engine import decision_counts, generate_trading_decisions
 from tw_quant.enrichment.industry import update_industry_map
 from tw_quant.enrichment.report import generate_ai_enrichment
 from tw_quant.reporting.dashboard_data import generate_market_recap, generate_pnl_chart_data
+from tw_quant.reporting.candidate_coverage import generate_candidate_coverage_report
+from tw_quant.reporting.position_review import generate_position_review_summary
 from tw_quant.reporting.export import export_latest_candidates
 from tw_quant.trading.paper import run_paper_trade
 from tw_quant.trading.paper_update import update_paper_positions
@@ -149,6 +151,8 @@ def run_all_daily(
     enrichment_func: Callable[..., Any] = generate_ai_enrichment,
     pnl_chart_func: Callable[..., Any] = generate_pnl_chart_data,
     market_recap_func: Callable[..., Any] = generate_market_recap,
+    candidate_coverage_func: Callable[..., Any] = generate_candidate_coverage_report,
+    position_review_func: Callable[..., Any] = generate_position_review_summary,
 ) -> DailyWorkflowResult:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -214,9 +218,19 @@ def run_all_daily(
         engine = create_db_engine(config["database"]["url"])
         init_db(engine)
         try:
-            export_result = export_func(engine, output_dir=report_dir, config=config)
+            export_result = export_func(
+                engine,
+                output_dir=report_dir,
+                config=config,
+                requested_date=summary_values.get("requested_date"),
+                fallback_date=summary_values.get("fallback_date"),
+                fallback_reason=summary_values.get("fallback_reason", ""),
+            )
         except TypeError:
-            export_result = export_func(engine, output_dir=report_dir)
+            try:
+                export_result = export_func(engine, output_dir=report_dir, config=config)
+            except TypeError:
+                export_result = export_func(engine, output_dir=report_dir)
         if getattr(export_result, "warning", ""):
             messages.append(f"export_candidates warning {export_result.warning}")
         else:
@@ -506,6 +520,37 @@ def run_all_daily(
         except Exception as exc:
             summary_values["trading_decisions_status"] = "FAILED"
             messages.append(f"trading_decisions warning {type(exc).__name__}: {exc}")
+
+    try:
+        candidate_coverage_result = candidate_coverage_func(
+            reports_dir=report_dir,
+            trade_date=summary_values["trade_date"],
+        )
+        if getattr(candidate_coverage_result, "output_path", None):
+            messages.append(
+                "candidate_coverage_report OK "
+                f"rows={len(getattr(candidate_coverage_result, 'coverage', pd.DataFrame()))}"
+            )
+        if getattr(candidate_coverage_result, "warning", ""):
+            messages.append(f"candidate_coverage_report warning {candidate_coverage_result.warning}")
+    except Exception as exc:
+        messages.append(f"candidate_coverage_report warning {type(exc).__name__}: {exc}")
+
+    try:
+        position_review_result = position_review_func(
+            reports_dir=report_dir,
+            config=config if "config" in locals() else {},
+            trade_date=summary_values["trade_date"],
+        )
+        if getattr(position_review_result, "output_path", None):
+            messages.append(
+                "position_review_summary OK "
+                f"rows={len(getattr(position_review_result, 'review', pd.DataFrame()))}"
+            )
+        if getattr(position_review_result, "warning", ""):
+            messages.append(f"position_review_summary warning {position_review_result.warning}")
+    except Exception as exc:
+        messages.append(f"position_review_summary warning {type(exc).__name__}: {exc}")
 
     try:
         data_dir = Path(config_path).resolve().parent / "data"

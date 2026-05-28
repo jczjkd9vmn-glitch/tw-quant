@@ -140,7 +140,11 @@ def _make_grade(
 def _investment_risk_parts(row: pd.Series) -> list[str]:
     if _text(row.get("investment_risk_flags")):
         return _risk_flag_parts(row.get("investment_risk_flags"))
-    return [part for part in _risk_flag_parts(row.get("risk_flags")) if not _is_data_issue(part)]
+    return [
+        part
+        for part in _risk_flag_parts(row.get("risk_flags"))
+        if not _is_data_issue(part) and not _is_positive_signal(part)
+    ]
 
 
 def _data_quality_parts(row: pd.Series) -> list[str]:
@@ -184,6 +188,10 @@ def _review_reason(risk_flags: list[str], data_flags: list[str]) -> str:
 
 def _is_data_issue(value: str) -> bool:
     return any(keyword in str(value) for keyword in ["資料不足", "資料可信度偏低", "缺少產業分類", "採中性"])
+
+
+def _is_positive_signal(value: str) -> bool:
+    return any(keyword in str(value) for keyword in ["相對強勢", "動能分數偏強", "流動性佳", "正向"])
 
 
 def _text(value: object) -> str:

@@ -122,6 +122,17 @@ EXPORT_COLUMNS = [
     "intraday_trading_ratio",
     "liquidity_warning",
     "slippage_risk_score",
+    "market_type",
+    "tracking_index",
+    "fund_size",
+    "expense_ratio",
+    "discount_premium",
+    "top_holdings_available",
+    "etf_data_quality_flags",
+    "positive_signals",
+    "warning_signals",
+    "blocking_risks",
+    "momentum_signal",
     "risk_flags",
     "data_quality_flags",
     "investment_risk_flags",
@@ -169,6 +180,9 @@ def export_latest_candidates(
     sector_strength_path: str | Path | None = None,
     liquidity_path: str | Path | None = None,
     config: dict | None = None,
+    requested_date: str | pd.Timestamp | None = None,
+    fallback_date: str | pd.Timestamp | None = None,
+    fallback_reason: str = "",
 ) -> CandidateExportResult:
     scores = load_candidate_scores(engine)
     if scores.empty:
@@ -219,6 +233,9 @@ def export_latest_candidates(
         reports_dir=report_dir,
         trade_date=latest_date,
         config=active_config.get("market_intel", {}),
+        requested_date=requested_date,
+        fallback_date=fallback_date,
+        fallback_reason=fallback_reason,
     )
     if not market_intel.empty:
         candidates = candidates.drop(columns=[column for column in MARKET_INTEL_COLUMNS if column in candidates.columns])

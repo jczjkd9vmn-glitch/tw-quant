@@ -83,6 +83,54 @@ def test_generate_html_report_translates_fallback_status(tmp_path: Path) -> None
     assert "已有持倉，略過重複進場" in html
 
 
+def test_generate_html_report_shows_market_intel_cache_warning(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "source_name": "market_intel",
+                "status": "CACHE",
+                "rows": 1,
+                "warning": "使用快取 / 非當日資料",
+                "requested_period": "2026-05-28",
+                "actual_period": "2026-05-27",
+                "latest_available_period": "2026-05-27",
+                "is_real_data": True,
+                "is_mock": False,
+                "is_stale": True,
+                "data_age_days": 1,
+                "affected_symbols_count": 1,
+            }
+        ]
+    ).to_csv(tmp_path / "data_fetch_status_20260527.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "market_intel_status": "CACHE",
+                "requested_date": "2026-05-28",
+                "actual_data_date": "2026-05-27",
+                "fallback_date": "2026-05-27",
+                "fallback_reason": "no trading data",
+                "cache_age_days": 1,
+                "is_stale_data": True,
+                "market_intel_source": "mixed",
+                "market_intel_warning": "使用快取 / 非當日資料",
+                "final_market_score": 60,
+                "confidence_score": 70,
+            }
+        ]
+    ).to_csv(tmp_path / "market_intel_20260527.csv", index=False, encoding="utf-8-sig")
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "使用快取 / 非當日資料" in html
+    assert "實際資料日" in html
+    assert "2026-05-27" in html
+
+
 def test_generate_html_report_does_not_show_raw_english_field_names(tmp_path: Path) -> None:
     _write_reports(tmp_path)
 

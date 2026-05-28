@@ -16,6 +16,12 @@ from tw_quant.market_intel.scoring import build_market_context
 
 MARKET_INTEL_COLUMNS = [
     "market_intel_status",
+    "requested_date",
+    "actual_data_date",
+    "fallback_date",
+    "fallback_reason",
+    "cache_age_days",
+    "is_stale_data",
     "market_intel_source",
     "market_intel_warning",
     "market_close",
@@ -52,6 +58,9 @@ def build_market_intel_report(
     reports_dir: str | Path = "reports",
     trade_date: str | pd.Timestamp | None = None,
     config: dict | None = None,
+    requested_date: str | pd.Timestamp | None = None,
+    fallback_date: str | pd.Timestamp | None = None,
+    fallback_reason: str = "",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     if candidates.empty:
         return pd.DataFrame(columns=["stock_id"] + MARKET_INTEL_COLUMNS), _status("market_intel", "EMPTY", 0)
@@ -63,6 +72,9 @@ def build_market_intel_report(
 
     report_dir = Path(reports_dir)
     date_label = _date_label(trade_date or candidates.get("trade_date", pd.Series([""])).iloc[0])
+    requested_text = _date_text(requested_date or trade_date or candidates.get("trade_date", pd.Series([""])).iloc[0])
+    actual_text = _date_text(trade_date or date_label)
+    fallback_text = _date_text(fallback_date) if fallback_date is not None and str(fallback_date).strip() else ""
     cache_path = report_dir / "cache" / f"market_intel_{date_label}.json"
     cache_enabled = bool(active_config.get("cache_enabled", True))
     if cache_enabled and cache_path.exists():
@@ -70,7 +82,27 @@ def build_market_intel_report(
         provider_name = str(active_config.get("provider", "real")).strip().lower()
         cache_is_mock = "market_intel_source" in frame.columns and frame["market_intel_source"].astype(str).str.lower().eq("mock").all()
         if not frame.empty and not (provider_name in {"real", "best_effort"} and cache_is_mock):
-            return frame, _status("market_intel", "CACHE", len(frame), warning=_warning_text(frame))
+            frame = _apply_freshness(
+                frame,
+                requested_date=requested_text,
+                actual_data_date=actual_text,
+                fallback_date=fallback_text,
+                fallback_reason=fallback_reason,
+                status="CACHE",
+            )
+            _write_csv(report_dir, date_label, frame)
+            return frame, _status(
+                "market_intel",
+                "CACHE",
+                len(frame),
+                warning=_warning_text(frame),
+                requested_period=requested_text,
+                actual_period=actual_text,
+                latest_available_period=fallback_text or actual_text,
+                is_stale=_has_stale_data(frame),
+                data_age_days=_max_cache_age(frame),
+                fallback_reason=fallback_reason,
+            )
 
     provider_name = str(active_config.get("provider", "real")).strip().lower()
     if provider_name == "yfinance":
@@ -92,17 +124,34 @@ def build_market_intel_report(
         context = _context_from_candidate(row, provider_contexts.get(symbol), date_label)
         rows.append(_flatten_context(context))
     frame = pd.DataFrame(rows)
+    frame = _apply_freshness(
+        frame,
+        requested_date=requested_text,
+        actual_data_date=actual_text,
+        fallback_date=fallback_text,
+        fallback_reason=fallback_reason,
+        status="",
+    )
     if cache_enabled:
         _write_cache(cache_path, frame)
-    csv_path = report_dir / f"market_intel_{date_label}.csv"
-    report_dir.mkdir(parents=True, exist_ok=True)
-    frame.to_csv(csv_path, index=False, encoding="utf-8-sig")
+    _write_csv(report_dir, date_label, frame)
     warning = _warning_text(frame)
     if "market_intel_source" in frame.columns and frame["market_intel_source"].astype(str).str.lower().eq("mock").all():
         status_value = "MOCK"
     else:
         status_value = "OK_WITH_WARNING" if warning else "OK"
-    return frame, _status("market_intel", status_value, len(frame), warning=warning)
+    return frame, _status(
+        "market_intel",
+        status_value,
+        len(frame),
+        warning=warning,
+        requested_period=requested_text,
+        actual_period=actual_text,
+        latest_available_period=fallback_text or actual_text,
+        is_stale=_has_stale_data(frame),
+        data_age_days=_max_cache_age(frame),
+        fallback_reason=fallback_reason,
+    )
 
 
 def _context_from_candidate(row: pd.Series, provider_context: MarketContext | None, date_label: str) -> MarketContext:
@@ -214,12 +263,82 @@ def _write_cache(path: Path, frame: pd.DataFrame) -> None:
     path.write_text(json.dumps(frame.to_dict(orient="records"), ensure_ascii=False, indent=2), encoding="utf-8")
 
 
+def _write_csv(report_dir: Path, date_label: str, frame: pd.DataFrame) -> None:
+    report_dir.mkdir(parents=True, exist_ok=True)
+    frame.to_csv(report_dir / f"market_intel_{date_label}.csv", index=False, encoding="utf-8-sig")
+
+
+def _apply_freshness(
+    frame: pd.DataFrame,
+    *,
+    requested_date: str,
+    actual_data_date: str,
+    fallback_date: str,
+    fallback_reason: str,
+    status: str,
+) -> pd.DataFrame:
+    output = frame.copy()
+    age = _date_age_days(requested_date, actual_data_date)
+    is_cache = status.upper() == "CACHE"
+    fallback_is_non_trading = str(fallback_reason or "").strip().lower() == "no trading data"
+    stale = bool(is_cache or fallback_is_non_trading or (age is not None and age > 0))
+    output["requested_date"] = requested_date
+    output["actual_data_date"] = actual_data_date
+    output["fallback_date"] = fallback_date
+    output["fallback_reason"] = fallback_reason
+    output["cache_age_days"] = age
+    output["is_stale_data"] = stale
+    if is_cache:
+        output["market_intel_status"] = "CACHE"
+    if stale:
+        output["market_intel_warning"] = output.get("market_intel_warning", pd.Series([""] * len(output))).apply(
+            lambda value: _append_warning(value, "使用快取 / 非當日資料")
+        )
+    output = _sanitize_legacy_risk_flags(output)
+    for column in ["stock_id"] + MARKET_INTEL_COLUMNS:
+        if column not in output.columns:
+            output[column] = None
+    return output[["stock_id"] + MARKET_INTEL_COLUMNS].copy()
+
+
+def _sanitize_legacy_risk_flags(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty or "risk_flags" not in frame.columns:
+        return frame
+    output = frame.copy()
+    output["risk_flags"] = output["risk_flags"].apply(_legacy_risk_flags_without_positive_or_data)
+    return output
+
+
+def _legacy_risk_flags_without_positive_or_data(value: object) -> str:
+    parts = [part.strip() for part in str(value or "").replace("|", "；").split("；") if part.strip()]
+    keep = []
+    for part in parts:
+        if _is_positive_signal_text(part) or _is_data_quality_text(part):
+            continue
+        keep.append(part)
+    return "；".join(dict.fromkeys(keep))
+
+
+def _is_positive_signal_text(value: str) -> bool:
+    return any(keyword in str(value) for keyword in ["相對強勢", "動能分數偏強", "流動性佳", "正向"])
+
+
+def _is_data_quality_text(value: str) -> bool:
+    return any(keyword in str(value) for keyword in ["資料不足", "缺少產業分類", "採中性", "ETF_METADATA_MISSING"])
+
+
 def _status(
     source_name: str,
     status: str,
     rows: int,
     warning: str = "",
     error_message: str = "",
+    requested_period: str = "",
+    actual_period: str = "",
+    latest_available_period: str = "",
+    is_stale: bool = False,
+    data_age_days: int | None = None,
+    fallback_reason: str = "",
 ) -> pd.DataFrame:
     return pd.DataFrame(
         [
@@ -229,16 +348,18 @@ def _status(
                 "rows": rows,
                 "warning": warning,
                 "error_message": error_message,
-                "requested_period": "",
-                "actual_period": "",
-                "latest_available_period": "",
+                "requested_period": requested_period,
+                "actual_period": actual_period,
+                "latest_available_period": latest_available_period,
                 "source_url_or_name": "market_intel provider",
                 "is_real_data": status not in {"MOCK", "DISABLED", "EMPTY"},
                 "is_mock": status == "MOCK",
-                "is_stale": False,
-                "data_age_days": None,
+                "is_stale": is_stale,
+                "data_age_days": data_age_days,
                 "coverage_ratio": None,
                 "affected_symbols_count": rows,
+                "fallback_reason": fallback_reason,
+                "fallback_action": "cache" if status == "CACHE" else "non_trading_day_fallback" if fallback_reason else "",
             }
         ]
     )
@@ -249,6 +370,38 @@ def _warning_text(frame: pd.DataFrame) -> str:
         return ""
     warnings = frame["market_intel_warning"].fillna("").astype(str).str.strip()
     return "；".join(sorted(set(warning for warning in warnings if warning)))[:300]
+
+
+def _append_warning(value: object, addition: str) -> str:
+    text = str(value or "").strip()
+    if text.lower() == "nan":
+        text = ""
+    if addition in text:
+        return text
+    return f"{text}；{addition}" if text else addition
+
+
+def _date_age_days(requested_date: str, actual_data_date: str) -> int | None:
+    requested = pd.to_datetime(requested_date, errors="coerce")
+    actual = pd.to_datetime(actual_data_date, errors="coerce")
+    if pd.isna(requested) or pd.isna(actual):
+        return None
+    return max(int((requested.normalize() - actual.normalize()).days), 0)
+
+
+def _has_stale_data(frame: pd.DataFrame) -> bool:
+    if frame.empty or "is_stale_data" not in frame.columns:
+        return False
+    return bool(frame["is_stale_data"].apply(_to_bool).any())
+
+
+def _max_cache_age(frame: pd.DataFrame) -> int | None:
+    if frame.empty or "cache_age_days" not in frame.columns:
+        return None
+    values = pd.to_numeric(frame["cache_age_days"], errors="coerce").dropna()
+    if values.empty:
+        return None
+    return int(values.max())
 
 
 def _first_valid(*values: object) -> object:
@@ -281,3 +434,11 @@ def _date_text(value: object) -> str:
     if pd.isna(parsed):
         return ""
     return parsed.strftime("%Y-%m-%d")
+
+
+def _to_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"true", "1", "yes", "y", "是"}

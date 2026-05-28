@@ -108,6 +108,17 @@ MULTI_FACTOR_COLUMNS = [
     "liquidity_score",
     "liquidity_warning",
     "slippage_risk_score",
+    "market_type",
+    "tracking_index",
+    "fund_size",
+    "expense_ratio",
+    "discount_premium",
+    "top_holdings_available",
+    "etf_data_quality_flags",
+    "positive_signals",
+    "warning_signals",
+    "blocking_risks",
+    "momentum_signal",
     "risk_flags",
     "data_quality_flags",
     "investment_risk_flags",
@@ -293,6 +304,10 @@ def apply_multi_factor_scores(
     frame["multi_factor_reason"] = frame.apply(_multi_factor_reason, axis=1)
     frame["data_quality_flags"] = frame.apply(_data_quality_flags, axis=1)
     frame["investment_risk_flags"] = frame.apply(_investment_risk_flags, axis=1)
+    frame["positive_signals"] = frame.apply(_positive_signals, axis=1)
+    frame["warning_signals"] = frame.apply(_warning_signals, axis=1)
+    frame["blocking_risks"] = frame.apply(_blocking_risks, axis=1)
+    frame["momentum_signal"] = frame.apply(_momentum_signal, axis=1)
     frame["risk_flags"] = frame.apply(_risk_flags, axis=1)
     frame["data_source_warning"] = _data_source_warning(statuses)
     frame["system_comment"] = frame.apply(_system_comment, axis=1)
@@ -386,36 +401,56 @@ def _relative_strength_score(row: pd.Series) -> float:
 
 
 def _multi_factor_reason(row: pd.Series) -> str:
-    parts = [
-        f"原始技術總分 {row.get('original_total_score')}",
-        str(row.get("revenue_reason", "")),
-        str(row.get("valuation_reason", "")),
-        str(row.get("financial_reason", "")),
-        str(row.get("event_reason", "")),
-        str(row.get("institutional_reason", "")),
-        str(row.get("credit_reason", "")),
-        str(row.get("sector_strength_reason", "")),
-        str(row.get("liquidity_warning", "")),
-    ]
+    parts = [f"原始技術總分 {row.get('original_total_score')}"]
+    if _is_etf(row):
+        parts.extend(
+            [
+                "ETF 不適用一般 EPS / ROE 公司財報檢查",
+                str(row.get("event_reason", "")),
+                str(row.get("institutional_reason", "")),
+                str(row.get("credit_reason", "")),
+                str(row.get("sector_strength_reason", "")),
+                str(row.get("liquidity_warning", "")),
+                str(row.get("etf_data_quality_flags", "")),
+            ]
+        )
+    else:
+        parts.extend(
+            [
+                str(row.get("revenue_reason", "")),
+                str(row.get("valuation_reason", "")),
+                str(row.get("financial_reason", "")),
+                str(row.get("event_reason", "")),
+                str(row.get("institutional_reason", "")),
+                str(row.get("credit_reason", "")),
+                str(row.get("sector_strength_reason", "")),
+                str(row.get("liquidity_warning", "")),
+            ]
+        )
     flags: list[str] = []
-    if ("資料不足" in str(row.get("fundamental_reason", ""))) or (
-        _number(row.get("revenue_score"), 50.0) == 50.0 and _is_blank(row.get("revenue_yoy"))
-    ):
-        flags.append("基本面資料不足")
-    if ("資料不足" in str(row.get("valuation_reason", ""))) or (
-        _number(row.get("valuation_score"), 50.0) == 50.0 and _is_blank(row.get("pe_ratio")) and _is_blank(row.get("pb_ratio"))
-    ):
-        flags.append("估值資料不足")
-    if ("資料不足" in str(row.get("financial_reason", ""))) or (
-        _number(row.get("financial_score"), 50.0) == 50.0 and _is_blank(row.get("eps")) and _is_blank(row.get("roe"))
-    ):
-        flags.append("財報資料不足")
+    if _is_etf(row):
+        if _missing_etf_metadata_fields(row):
+            flags.append("ETF_METADATA_MISSING")
+    else:
+        if ("資料不足" in str(row.get("fundamental_reason", ""))) or (
+            _number(row.get("revenue_score"), 50.0) == 50.0 and _is_blank(row.get("revenue_yoy"))
+        ):
+            flags.append("基本面資料不足")
+        if ("資料不足" in str(row.get("valuation_reason", ""))) or (
+            _number(row.get("valuation_score"), 50.0) == 50.0 and _is_blank(row.get("pe_ratio")) and _is_blank(row.get("pb_ratio"))
+        ):
+            flags.append("估值資料不足")
+        if ("資料不足" in str(row.get("financial_reason", ""))) or (
+            _number(row.get("financial_score"), 50.0) == 50.0 and _is_blank(row.get("eps")) and _is_blank(row.get("roe"))
+        ):
+            flags.append("財報資料不足")
     if _to_bool(row.get("is_attention_stock")):
         flags.append("注意股")
     if _to_bool(row.get("is_disposition_stock")):
         flags.append("處置股")
     if _to_bool(row.get("event_blocked")):
         parts.append("高風險事件或處置股，禁止新增進場")
+    parts.extend(flags)
     return "；".join(part for part in parts if part and part != "nan")
 
 
@@ -505,6 +540,17 @@ def _multi_factor_defaults() -> dict[str, object]:
         "turnover_ratio_20d": None,
         "liquidity_warning": "流動性資料不足，採中性分數",
         "slippage_risk_score": 50.0,
+        "market_type": "",
+        "tracking_index": "",
+        "fund_size": None,
+        "expense_ratio": None,
+        "discount_premium": None,
+        "top_holdings_available": None,
+        "etf_data_quality_flags": "",
+        "positive_signals": "",
+        "warning_signals": "",
+        "blocking_risks": "",
+        "momentum_signal": "",
         "risk_flags": "",
         "data_quality_flags": "",
         "investment_risk_flags": "",
@@ -685,33 +731,24 @@ def _neutral_liquidity(symbols: list[str]) -> pd.DataFrame:
 
 
 def _risk_flags(row: pd.Series) -> str:
-    flags = _flag_parts(row.get("data_quality_flags")) + _flag_parts(row.get("investment_risk_flags"))
-    if _number(row.get("relative_strength_20d"), 0.0) > 0.0:
-        flags.append("相對強勢")
-    for column in [
-        "credit_risk_flags",
-        "event_risk_flags",
-        "liquidity_risk_flags",
-        "sector_strength_warning",
-        "valuation_warning",
-        "financial_warning",
-        "institutional_warning",
-        "revenue_warning",
-    ]:
-        text = str(row.get(column, "") or "").strip()
-        if text and text != "nan":
-            flags.extend(part.strip() for part in text.replace("；", "|").split("|") if part.strip())
+    flags = _flag_parts(row.get("warning_signals")) + _flag_parts(row.get("blocking_risks"))
     return _join_flags(flags)
 
 
 def _data_quality_flags(row: pd.Series) -> str:
     flags: list[str] = []
-    if _number(row.get("revenue_score"), 50.0) == 50.0 and _is_blank(row.get("revenue_yoy")):
-        flags.append("基本面資料不足")
-    if _number(row.get("valuation_score"), 50.0) == 50.0 and _is_blank(row.get("pe_ratio")) and _is_blank(row.get("pb_ratio")):
-        flags.append("估值資料不足")
-    if _number(row.get("financial_score"), 50.0) == 50.0 and _is_blank(row.get("eps")) and _is_blank(row.get("roe")):
-        flags.append("財報資料不足")
+    if _is_etf(row):
+        missing = _missing_etf_metadata_fields(row)
+        if missing:
+            flags.append("ETF_METADATA_MISSING")
+            flags.append("ETF metadata 資料不足")
+    else:
+        if _number(row.get("revenue_score"), 50.0) == 50.0 and _is_blank(row.get("revenue_yoy")):
+            flags.append("基本面資料不足")
+        if _number(row.get("valuation_score"), 50.0) == 50.0 and _is_blank(row.get("pe_ratio")) and _is_blank(row.get("pb_ratio")):
+            flags.append("估值資料不足")
+        if _number(row.get("financial_score"), 50.0) == 50.0 and _is_blank(row.get("eps")) and _is_blank(row.get("roe")):
+            flags.append("財報資料不足")
     if _number(row.get("liquidity_score"), 50.0) == 50.0 and _is_blank(row.get("avg_turnover_20d")):
         flags.append("流動性資料不足")
     if _number(row.get("sector_strength_score"), 50.0) == 50.0 and _is_blank(row.get("relative_strength_20d")):
@@ -740,14 +777,6 @@ def _investment_risk_flags(row: pd.Series) -> str:
         flags.append("滑價風險偏高")
     if _number(row.get("sector_strength_score"), 50.0) < 45.0:
         flags.append("產業弱勢")
-    if _to_bool(row.get("is_attention_stock")):
-        flags.append("注意股")
-    if _to_bool(row.get("is_disposition_stock")):
-        flags.append("處置股")
-    if str(row.get("event_risk_level", "") or "").upper() == "HIGH":
-        flags.append("高風險事件")
-    if _to_bool(row.get("event_blocked")):
-        flags.append("禁止新增進場")
     for column in [
         "credit_risk_flags",
         "event_risk_flags",
@@ -758,9 +787,70 @@ def _investment_risk_flags(row: pd.Series) -> str:
         "revenue_warning",
     ]:
         for part in _flag_parts(row.get(column)):
-            if part and not _is_data_issue_text(part):
+            if part and not _is_data_issue_text(part) and not _is_blocking_text(part) and not _is_positive_signal_text(part):
                 flags.append(part)
     return _join_flags(flags)
+
+
+def _positive_signals(row: pd.Series) -> str:
+    flags: list[str] = []
+    if _number(row.get("relative_strength_20d"), 0.0) > 0.0:
+        flags.append("相對強勢")
+    if _number(row.get("relative_strength_5d"), 0.0) > 0.0:
+        flags.append("短線相對強勢")
+    if _number(row.get("sector_strength_score"), 50.0) >= 65.0:
+        flags.append("產業 / 相對強弱偏強")
+    if _number(row.get("revenue_score"), 50.0) > 50.0 and not _is_etf(row):
+        flags.append("營收動能正向")
+    if _number(row.get("institutional_score"), 50.0) > 50.0:
+        flags.append("法人籌碼正向")
+    if _number(row.get("liquidity_score"), 50.0) >= 70.0:
+        flags.append("流動性佳")
+    return _join_flags(flags)
+
+
+def _warning_signals(row: pd.Series) -> str:
+    flags = _flag_parts(row.get("investment_risk_flags"))
+    for column in [
+        "credit_risk_flags",
+        "event_risk_flags",
+        "liquidity_risk_flags",
+        "sector_strength_warning",
+        "valuation_warning",
+        "financial_warning",
+        "institutional_warning",
+        "revenue_warning",
+    ]:
+        for part in _flag_parts(row.get(column)):
+            if part and not _is_data_issue_text(part) and not _is_blocking_text(part) and not _is_positive_signal_text(part):
+                flags.append(part)
+    return _join_flags(flags)
+
+
+def _blocking_risks(row: pd.Series) -> str:
+    flags: list[str] = []
+    if not _to_bool(row.get("risk_pass")):
+        flags.append("未通過既有風控")
+    if _to_bool(row.get("is_attention_stock")):
+        flags.append("注意股")
+    if _to_bool(row.get("is_disposition_stock")):
+        flags.append("處置股")
+    if str(row.get("event_risk_level", "") or "").upper() == "HIGH":
+        flags.append("重大事件")
+    if _to_bool(row.get("event_blocked")):
+        flags.append("未通過事件風控")
+    return _join_flags(flags)
+
+
+def _momentum_signal(row: pd.Series) -> str:
+    parts = []
+    if _number(row.get("relative_strength_20d"), 0.0) > 0.0:
+        parts.append("20 日相對強勢")
+    if _number(row.get("relative_strength_5d"), 0.0) > 0.0:
+        parts.append("5 日相對強勢")
+    if _number(row.get("momentum_score"), 50.0) >= 70.0:
+        parts.append("動能分數偏強")
+    return _join_flags(parts)
 
 
 def _system_comment(row: pd.Series) -> str:
@@ -818,7 +908,43 @@ def _flag_parts(value: object) -> list[str]:
 
 def _is_data_issue_text(value: str) -> bool:
     text = str(value or "")
-    return any(keyword in text for keyword in ["資料不足", "缺少產業分類", "採中性", "無法產生"])
+    return any(keyword in text for keyword in ["資料不足", "缺少產業分類", "採中性", "無法產生", "ETF_METADATA_MISSING"])
+
+
+def _is_blocking_text(value: str) -> bool:
+    text = str(value or "")
+    return any(keyword in text for keyword in ["處置股", "注意股", "重大事件", "高風險事件", "禁止新增進場", "未通過"])
+
+
+def _is_positive_signal_text(value: str) -> bool:
+    text = str(value or "")
+    return any(keyword in text for keyword in ["相對強勢", "動能分數偏強", "流動性佳", "正向"])
+
+
+def _is_etf(row: pd.Series) -> bool:
+    stock_id = str(row.get("stock_id", "") or "").strip()
+    market_type = str(row.get("market_type", "") or "").strip().upper()
+    return stock_id.startswith("00") or market_type == "ETF"
+
+
+def _missing_etf_metadata_fields(row: pd.Series) -> list[str]:
+    fields = [
+        "liquidity_score",
+        "tracking_index",
+        "fund_size",
+        "expense_ratio",
+        "discount_premium",
+        "top_holdings_available",
+    ]
+    missing: list[str] = []
+    for field in fields:
+        value = row.get(field)
+        if field == "top_holdings_available":
+            if not _to_bool(value):
+                missing.append(field)
+        elif _is_blank(value):
+            missing.append(field)
+    return missing
 
 
 def _join_flags(parts: list[str]) -> str:

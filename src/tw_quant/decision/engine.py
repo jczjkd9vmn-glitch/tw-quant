@@ -29,6 +29,10 @@ DECISION_COLUMNS = [
     "candidate_grade",
     "reason",
     "risk_flags",
+    "positive_signals",
+    "warning_signals",
+    "blocking_risks",
+    "momentum_signal",
     "confidence_score",
     "total_score",
     "multi_factor_score",
@@ -209,7 +213,13 @@ def _base_row(
         "reason": reason + _reason_suffix(getter("grade_reason", "")),
         "risk_flags": _text(getter("grade_risk_flags", ""))
         or _text(getter("investment_risk_flags", ""))
+        or _text(getter("blocking_risks", ""))
+        or _text(getter("warning_signals", ""))
         or _text(getter("risk_flags", "")),
+        "positive_signals": _text(getter("positive_signals", "")),
+        "warning_signals": _text(getter("warning_signals", "")),
+        "blocking_risks": _text(getter("blocking_risks", "")),
+        "momentum_signal": _text(getter("momentum_signal", "")),
         "confidence_score": _num(getter("confidence_score"), 50.0),
         "total_score": _num(getter("total_score"), 0.0),
         "multi_factor_score": _num(getter("multi_factor_score"), 50.0),

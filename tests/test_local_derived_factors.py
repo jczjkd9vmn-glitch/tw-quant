@@ -168,7 +168,8 @@ def test_multi_factor_uses_liquidity_and_sector_without_changing_trade_flags(tmp
     assert result["rank"].tolist() == [1, 2]
     assert result["risk_pass"].tolist() == [1, 1]
     assert "流動性偏低" in result.loc[result["stock_id"] == "9999", "risk_flags"].iloc[0]
-    assert "相對強勢" in result.loc[result["stock_id"] == "2330", "risk_flags"].iloc[0]
+    assert "相對強勢" in result.loc[result["stock_id"] == "2330", "positive_signals"].iloc[0]
+    assert "相對強勢" not in result.loc[result["stock_id"] == "2330", "blocking_risks"].iloc[0]
     assert "缺少產業分類" in result.loc[result["stock_id"] == "2330", "data_quality_flags"].iloc[0]
     assert "流動性偏低" in result.loc[result["stock_id"] == "9999", "investment_risk_flags"].iloc[0]
 

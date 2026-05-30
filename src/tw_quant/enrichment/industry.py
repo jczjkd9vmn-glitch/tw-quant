@@ -63,18 +63,29 @@ def update_industry_map(
 ) -> tuple[Path, str, int]:
     config = load_config(config_path)
     industry_config = config.get("industry_enrichment", {})
+    data_path = Path(data_dir)
     target = _resolve_map_path(
-        industry_config.get("industry_map_path", Path(data_dir) / "industry_map.csv"),
-        Path(data_dir),
+        industry_config.get("industry_map_path", data_path / "industry_map.csv"),
+        data_path,
+        config_path,
+    )
+    reference_path = _resolve_map_path(
+        industry_config.get("reference_map_path", "data/reference/stock_industry_map.csv"),
+        data_path,
         config_path,
     )
     target.parent.mkdir(parents=True, exist_ok=True)
     existing = _read_industry_map(target)
-    derived = _derive_from_local_files(Path(data_dir))
+    reference = _read_industry_map(reference_path)
+    derived = _derive_from_local_files(data_path)
+    curated = _merge(existing, reference)
     if not derived.empty:
-        merged = _merge(existing, derived)
+        merged = _merge(curated, derived)
         merged.to_csv(target, index=False, encoding="utf-8-sig")
         return target, "OK", len(merged)
+    if not reference.empty:
+        curated.to_csv(target, index=False, encoding="utf-8-sig")
+        return target, "OK", len(curated)
     if not existing.empty:
         existing.to_csv(target, index=False, encoding="utf-8-sig")
         return target, "OK_WITH_FALLBACK", len(existing)

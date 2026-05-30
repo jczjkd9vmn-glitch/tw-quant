@@ -95,7 +95,7 @@ def build_candidate_coverage_report(
         decision = decision_lookup.get(symbol, {})
         is_etf = _is_etf(row)
 
-        has_industry = _has_any_text(row, ["industry", "industry_main", "sub_industry"])
+        has_industry = _has_industry(row)
         has_valuation = True if is_etf else _has_valuation(row)
         has_financials = True if is_etf else _has_financials(row)
         has_revenue = True if is_etf else _has_revenue(row)
@@ -165,6 +165,20 @@ def _is_etf(row: pd.Series | dict[str, object]) -> bool:
     stock_id = str(row.get("stock_id", "") or "").strip()
     market_type = str(row.get("market_type", "") or "").strip().upper()
     return stock_id.startswith("00") or market_type == "ETF"
+
+
+def _has_industry(row: pd.Series) -> bool:
+    industry = str(row.get("industry", "") or row.get("industry_main", "") or "").strip()
+    sub_industry = str(row.get("sub_industry", "") or "").strip()
+    if not industry and not sub_industry:
+        return False
+    if industry == "全市場":
+        return False
+    mode = str(row.get("sector_strength_mode", "") or "").strip().lower()
+    warning = str(row.get("sector_strength_warning", "") or "")
+    if mode == "market_relative_fallback" or "缺少產業分類" in warning:
+        return False
+    return True
 
 
 def _has_valuation(row: pd.Series) -> bool:

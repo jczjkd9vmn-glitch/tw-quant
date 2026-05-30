@@ -80,6 +80,32 @@ def test_candidate_coverage_report_is_generated(tmp_path: Path) -> None:
     assert result.coverage.iloc[0]["decision"] == "BUY_CANDIDATE"
 
 
+def test_candidate_coverage_treats_market_relative_fallback_as_missing_industry() -> None:
+    coverage = build_candidate_coverage_report(
+        pd.DataFrame(
+            [
+                {
+                    "trade_date": "2026-05-27",
+                    "stock_id": "2330",
+                    "stock_name": "台積電",
+                    "industry": "全市場",
+                    "sector_strength_mode": "market_relative_fallback",
+                    "sector_strength_warning": "缺少產業分類，使用全市場相對強弱",
+                    "pe_ratio": 18,
+                    "eps": 8,
+                    "revenue_yoy": 15,
+                    "foreign_net_buy": 1000,
+                    "margin_balance": 5000,
+                    "event_risk_level": "LOW",
+                }
+            ]
+        )
+    )
+
+    assert bool(coverage.iloc[0]["has_industry"]) is False
+    assert "INDUSTRY_MISSING" in str(coverage.iloc[0]["missing_fields"])
+
+
 def test_relative_strength_is_positive_not_blocking_risk() -> None:
     candidates = pd.DataFrame(
         [

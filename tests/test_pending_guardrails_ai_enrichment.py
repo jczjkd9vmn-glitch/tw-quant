@@ -158,6 +158,34 @@ def test_generate_ai_enrichment_and_industry_map_use_rule_based_fallback(tmp_pat
     assert bool(result.enrichment.iloc[0]["ai_used"]) is False
 
 
+def test_update_industry_map_uses_reference_map_when_no_local_industry(tmp_path: Path) -> None:
+    data = tmp_path / "data"
+    reference = data / "reference"
+    reference.mkdir(parents=True)
+    pd.DataFrame(
+        [
+            {
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "industry": "半導體業",
+                "sub_industry": "半導體業",
+                "market_type": "TWSE",
+                "source": "manual",
+                "updated_at": "2026-05-28",
+            }
+        ]
+    ).to_csv(reference / "stock_industry_map.csv", index=False, encoding="utf-8-sig")
+
+    path, status, rows = update_industry_map(data_dir=data, config_path=tmp_path / "missing.yaml")
+
+    result = pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8-sig")
+    assert status == "OK"
+    assert rows == 1
+    assert result.loc[0, "stock_id"] == "2330"
+    assert result.loc[0, "industry_main"] == "半導體業"
+    assert result.loc[0, "market"] == "TWSE"
+
+
 def test_html_report_shows_pending_distribution_and_enrichment(tmp_path: Path) -> None:
     pd.DataFrame(
         [

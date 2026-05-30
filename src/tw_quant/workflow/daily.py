@@ -77,8 +77,12 @@ class DailyWorkflowSummary:
     cancelled_by_max_position_count: int = 0
     entry_price_source_warnings: int = 0
     requested_date: str = ""
+    actual_data_date: str = ""
     fallback_date: str = ""
     fallback_reason: str = ""
+    cache_age_days: int | None = None
+    is_stale_data: bool = False
+    data_freshness_level: str = ""
     status: str = "OK"
     error_step: str = ""
     error_message: str = ""
@@ -281,6 +285,11 @@ def run_all_daily(
             )
             summary_values["market_intel_status"] = _market_intel_status(
                 getattr(export_result, "data_fetch_status", pd.DataFrame())
+            )
+            _apply_market_intel_freshness_summary(
+                summary_values,
+                export_result.candidates,
+                getattr(export_result, "data_fetch_status", pd.DataFrame()),
             )
             summary_values["market_intel_warning_count"] = _count_non_empty(
                 export_result.candidates, "market_intel_warning"
@@ -754,8 +763,12 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "cancelled_by_max_position_count": 0,
         "entry_price_source_warnings": 0,
         "requested_date": requested_date,
+        "actual_data_date": "",
         "fallback_date": "",
         "fallback_reason": "",
+        "cache_age_days": None,
+        "is_stale_data": False,
+        "data_freshness_level": "",
         "status": "OK",
         "error_step": "",
         "error_message": "",
@@ -1004,6 +1017,45 @@ def _market_intel_status(status: pd.DataFrame) -> str:
     return str(frame.iloc[-1].get("status", "")).strip()
 
 
+def _apply_market_intel_freshness_summary(
+    summary_values: dict[str, Any],
+    candidates: pd.DataFrame,
+    data_fetch_status: pd.DataFrame,
+) -> None:
+    status_row = _market_intel_status_row(data_fetch_status)
+    actual = _first_non_blank(
+        _frame_first_non_blank(candidates, "actual_data_date"),
+        status_row.get("actual_period", "") if status_row else "",
+        summary_values.get("trade_date", ""),
+    )
+    level = _first_non_blank(
+        _frame_first_non_blank(candidates, "data_freshness_level"),
+        status_row.get("data_freshness_level", "") if status_row else "",
+    )
+    cache_age = _first_non_blank(
+        _max_numeric_value(candidates, "cache_age_days"),
+        status_row.get("data_age_days", "") if status_row else "",
+    )
+    stale = _first_non_blank(
+        _any_true(candidates, "is_stale_data"),
+        status_row.get("is_stale", "") if status_row else "",
+    )
+    summary_values["actual_data_date"] = _date_text_or_blank(actual)
+    summary_values["data_freshness_level"] = str(level or "UNKNOWN")
+    parsed_age = _to_int_or_none(cache_age)
+    summary_values["cache_age_days"] = parsed_age
+    summary_values["is_stale_data"] = _to_bool(stale)
+
+
+def _market_intel_status_row(status: pd.DataFrame) -> dict[str, Any]:
+    if status is None or status.empty or "source_name" not in status.columns:
+        return {}
+    frame = status[status["source_name"].fillna("").astype(str) == "market_intel"].copy()
+    if frame.empty:
+        return {}
+    return frame.iloc[-1].to_dict()
+
+
 def _max_numeric(frame: pd.DataFrame, column: str) -> float:
     if frame.empty or column not in frame.columns:
         return 0.0
@@ -1011,6 +1063,49 @@ def _max_numeric(frame: pd.DataFrame, column: str) -> float:
     if values.empty:
         return 0.0
     return float(round(values.max(), 2))
+
+
+def _max_numeric_value(frame: pd.DataFrame, column: str) -> object:
+    if frame.empty or column not in frame.columns:
+        return ""
+    values = pd.to_numeric(frame[column], errors="coerce").dropna()
+    if values.empty:
+        return ""
+    return int(values.max())
+
+
+def _frame_first_non_blank(frame: pd.DataFrame, column: str) -> object:
+    if frame.empty or column not in frame.columns:
+        return ""
+    for value in frame[column].tolist():
+        if str(value).strip() and str(value).strip().lower() != "nan":
+            return value
+    return ""
+
+
+def _first_non_blank(*values: object) -> object:
+    for value in values:
+        if value is None:
+            continue
+        text = str(value).strip()
+        if text and text.lower() != "nan":
+            return value
+    return ""
+
+
+def _any_true(frame: pd.DataFrame, column: str) -> object:
+    if frame.empty or column not in frame.columns:
+        return ""
+    return bool(frame[column].apply(_to_bool).any())
+
+
+def _to_int_or_none(value: object) -> int | None:
+    if value is None or str(value).strip() == "":
+        return None
+    parsed = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    if pd.isna(parsed):
+        return None
+    return int(parsed)
 
 
 def _to_bool(value: object) -> bool:
@@ -1036,6 +1131,15 @@ def _date_text(value: str | date | pd.Timestamp | None) -> str:
     if value is None:
         return pd.Timestamp.today().strftime("%Y-%m-%d")
     return pd.to_datetime(value).strftime("%Y-%m-%d")
+
+
+def _date_text_or_blank(value: object) -> str:
+    if value is None or str(value).strip() == "":
+        return ""
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed):
+        return ""
+    return parsed.strftime("%Y-%m-%d")
 
 
 def _date_label(value: str) -> str:

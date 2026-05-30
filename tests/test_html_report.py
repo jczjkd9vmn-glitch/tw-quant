@@ -99,6 +99,7 @@ def test_generate_html_report_shows_market_intel_cache_warning(tmp_path: Path) -
                 "is_mock": False,
                 "is_stale": True,
                 "data_age_days": 1,
+                "data_freshness_level": "CACHE",
                 "affected_symbols_count": 1,
             }
         ]
@@ -115,6 +116,7 @@ def test_generate_html_report_shows_market_intel_cache_warning(tmp_path: Path) -
                 "fallback_reason": "no trading data",
                 "cache_age_days": 1,
                 "is_stale_data": True,
+                "data_freshness_level": "CACHE",
                 "market_intel_source": "mixed",
                 "market_intel_warning": "使用快取 / 非當日資料",
                 "final_market_score": 60,
@@ -127,6 +129,9 @@ def test_generate_html_report_shows_market_intel_cache_warning(tmp_path: Path) -
     html = output_path.read_text(encoding="utf-8")
 
     assert "使用快取 / 非當日資料" in html
+    assert "目前市場情報使用快取或非當日資料，不建議短線自動進場。" in html
+    assert "資料鮮度等級" in html
+    assert "CACHE" in html
     assert "實際資料日" in html
     assert "2026-05-27" in html
 

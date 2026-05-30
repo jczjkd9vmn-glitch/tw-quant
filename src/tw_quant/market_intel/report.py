@@ -14,6 +14,12 @@ from tw_quant.market_intel.providers.yfinance_provider import YFinanceMarketInte
 from tw_quant.market_intel.scoring import build_market_context
 
 
+_RECOMPUTED_DATA_GAP_WARNINGS = {
+    "基本面資料不足，採中性分數",
+    "估值資料不足，採中性分數",
+    "價格資料不足，動能採中性分數",
+}
+
 MARKET_INTEL_COLUMNS = [
     "market_intel_status",
     "requested_date",
@@ -22,6 +28,7 @@ MARKET_INTEL_COLUMNS = [
     "fallback_reason",
     "cache_age_days",
     "is_stale_data",
+    "data_freshness_level",
     "market_intel_source",
     "market_intel_warning",
     "market_close",
@@ -81,27 +88,35 @@ def build_market_intel_report(
         frame = _read_cache(cache_path)
         provider_name = str(active_config.get("provider", "real")).strip().lower()
         cache_is_mock = "market_intel_source" in frame.columns and frame["market_intel_source"].astype(str).str.lower().eq("mock").all()
-        if not frame.empty and not (provider_name in {"real", "best_effort"} and cache_is_mock):
+        if (
+            not frame.empty
+            and _cache_has_freshness_schema(frame)
+            and not _cache_has_recomputed_data_gap_warnings(frame)
+            and not (provider_name in {"real", "best_effort"} and cache_is_mock)
+        ):
             frame = _apply_freshness(
                 frame,
                 requested_date=requested_text,
                 actual_data_date=actual_text,
                 fallback_date=fallback_text,
                 fallback_reason=fallback_reason,
-                status="CACHE",
+                cache_used=True,
             )
+            status_value = _market_status_from_freshness(frame, cache_used=True, fallback_reason=fallback_reason)
             _write_csv(report_dir, date_label, frame)
             return frame, _status(
                 "market_intel",
-                "CACHE",
+                status_value,
                 len(frame),
-                warning=_warning_text(frame),
+                warning=_status_warning_text(frame, fallback_reason=fallback_reason),
                 requested_period=requested_text,
                 actual_period=actual_text,
                 latest_available_period=fallback_text or actual_text,
                 is_stale=_has_stale_data(frame),
                 data_age_days=_max_cache_age(frame),
                 fallback_reason=fallback_reason,
+                data_freshness_level=_frame_freshness_level(frame),
+                cache_used=True,
             )
 
     provider_name = str(active_config.get("provider", "real")).strip().lower()
@@ -130,7 +145,7 @@ def build_market_intel_report(
         actual_data_date=actual_text,
         fallback_date=fallback_text,
         fallback_reason=fallback_reason,
-        status="",
+        cache_used=False,
     )
     if cache_enabled:
         _write_cache(cache_path, frame)
@@ -144,13 +159,15 @@ def build_market_intel_report(
         "market_intel",
         status_value,
         len(frame),
-        warning=warning,
+        warning=_status_warning_text(frame, fallback_reason=fallback_reason, base_warning=warning),
         requested_period=requested_text,
         actual_period=actual_text,
         latest_available_period=fallback_text or actual_text,
         is_stale=_has_stale_data(frame),
         data_age_days=_max_cache_age(frame),
         fallback_reason=fallback_reason,
+        data_freshness_level=_frame_freshness_level(frame),
+        cache_used=False,
     )
 
 
@@ -165,7 +182,7 @@ def _context_from_candidate(row: pd.Series, provider_context: MarketContext | No
         for column in ["event_reason", "event_keywords", "multi_factor_reason", "reason"]
         if not _is_blank(row.get(column))
     )
-    warning = provider_context.warning_message
+    warning = _provider_warning_without_recomputed_data_gaps(provider_context.warning_message)
     return build_market_context(
         symbol=str(row.get("stock_id", provider_context.symbol)),
         date=_date_text(date_label),
@@ -192,6 +209,18 @@ def _context_from_candidate(row: pd.Series, provider_context: MarketContext | No
         data_source=provider_context.data_source,
         warning_message=warning,
     )
+
+
+def _provider_warning_without_recomputed_data_gaps(value: object) -> str:
+    parts = [part.strip() for part in str(value or "").replace("|", "；").split("；")]
+    keep = []
+    for part in parts:
+        if not part or part.lower() == "nan":
+            continue
+        if part in _RECOMPUTED_DATA_GAP_WARNINGS:
+            continue
+        keep.append(part)
+    return "；".join(dict.fromkeys(keep))
 
 
 def _flatten_context(context: MarketContext) -> dict[str, object]:
@@ -258,6 +287,26 @@ def _read_cache(path: Path) -> pd.DataFrame:
     return frame[["stock_id"] + MARKET_INTEL_COLUMNS].copy()
 
 
+def _cache_has_freshness_schema(frame: pd.DataFrame) -> bool:
+    if frame.empty or "data_freshness_level" not in frame.columns:
+        return False
+    values = frame["data_freshness_level"].fillna("").astype(str).str.strip()
+    return bool(values.ne("").any())
+
+
+def _cache_has_recomputed_data_gap_warnings(frame: pd.DataFrame) -> bool:
+    if frame.empty or "market_intel_warning" not in frame.columns:
+        return False
+    warning_rows = [
+        str(value).strip()
+        for value in frame["market_intel_warning"].fillna("").astype(str).tolist()
+        if str(value).strip()
+    ]
+    if not warning_rows:
+        return False
+    return all(any(part in warning for part in _RECOMPUTED_DATA_GAP_WARNINGS) for warning in warning_rows)
+
+
 def _write_cache(path: Path, frame: pd.DataFrame) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(frame.to_dict(orient="records"), ensure_ascii=False, indent=2), encoding="utf-8")
@@ -275,30 +324,113 @@ def _apply_freshness(
     actual_data_date: str,
     fallback_date: str,
     fallback_reason: str,
-    status: str,
+    cache_used: bool,
 ) -> pd.DataFrame:
     output = frame.copy()
     age = _date_age_days(requested_date, actual_data_date)
-    is_cache = status.upper() == "CACHE"
-    fallback_is_non_trading = str(fallback_reason or "").strip().lower() == "no trading data"
-    stale = bool(is_cache or fallback_is_non_trading or (age is not None and age > 0))
+    freshness_level = _data_freshness_level(
+        requested_date=requested_date,
+        actual_data_date=actual_data_date,
+        fallback_date=fallback_date,
+        fallback_reason=fallback_reason,
+        cache_used=cache_used,
+    )
+    stale = freshness_level in {"STALE", "CACHE"}
     output["requested_date"] = requested_date
     output["actual_data_date"] = actual_data_date
     output["fallback_date"] = fallback_date
     output["fallback_reason"] = fallback_reason
     output["cache_age_days"] = age
     output["is_stale_data"] = stale
-    if is_cache:
-        output["market_intel_status"] = "CACHE"
+    output["data_freshness_level"] = freshness_level
+    if cache_used:
+        output["market_intel_status"] = _market_status_from_freshness(
+            output,
+            cache_used=True,
+            fallback_reason=fallback_reason,
+        )
     if stale:
         output["market_intel_warning"] = output.get("market_intel_warning", pd.Series([""] * len(output))).apply(
-            lambda value: _append_warning(value, "使用快取 / 非當日資料")
+            lambda value: _append_warning(value, "資料來源缺失或快取資料，需人工確認。")
+        )
+    elif _is_non_trading_fallback(fallback_reason):
+        output["system_comment"] = output.get("system_comment", pd.Series([""] * len(output))).apply(
+            lambda value: _append_warning(value, "非交易日，使用最近交易日資料。")
         )
     output = _sanitize_legacy_risk_flags(output)
     for column in ["stock_id"] + MARKET_INTEL_COLUMNS:
         if column not in output.columns:
             output[column] = None
     return output[["stock_id"] + MARKET_INTEL_COLUMNS].copy()
+
+
+def _data_freshness_level(
+    *,
+    requested_date: str,
+    actual_data_date: str,
+    fallback_date: str,
+    fallback_reason: str,
+    cache_used: bool,
+) -> str:
+    age = _date_age_days(requested_date, actual_data_date)
+    if age is None:
+        return "CACHE" if cache_used else "UNKNOWN"
+    if age == 0:
+        return "CURRENT"
+    if age > 1:
+        return "STALE"
+    if _is_non_trading_fallback(fallback_reason) and _same_date(actual_data_date, fallback_date):
+        return "CURRENT"
+    return "RECENT"
+
+
+def _market_status_from_freshness(
+    frame: pd.DataFrame,
+    *,
+    cache_used: bool,
+    fallback_reason: str,
+) -> str:
+    level = _frame_freshness_level(frame)
+    if level in {"STALE", "CACHE"}:
+        return "CACHE" if cache_used else "OK_WITH_WARNING"
+    if cache_used or fallback_reason:
+        return "OK_WITH_FALLBACK"
+    return "OK"
+
+
+def _frame_freshness_level(frame: pd.DataFrame) -> str:
+    if frame.empty or "data_freshness_level" not in frame.columns:
+        return "UNKNOWN"
+    values = [str(value).strip().upper() for value in frame["data_freshness_level"] if not _is_blank(value)]
+    return values[0] if values else "UNKNOWN"
+
+
+def _status_warning_text(
+    frame: pd.DataFrame,
+    *,
+    fallback_reason: str,
+    base_warning: str = "",
+) -> str:
+    warnings = [base_warning or _warning_text(frame)]
+    level = _frame_freshness_level(frame)
+    if level in {"STALE", "CACHE"}:
+        warnings.append("資料來源缺失或快取資料，需人工確認。")
+    elif _is_non_trading_fallback(fallback_reason):
+        warnings.append("非交易日，使用最近交易日資料。")
+    parts = [warning for warning in warnings if warning]
+    return "；".join(dict.fromkeys(parts))[:300]
+
+
+def _is_non_trading_fallback(fallback_reason: str) -> bool:
+    return str(fallback_reason or "").strip().lower() == "no trading data"
+
+
+def _same_date(left: str, right: str) -> bool:
+    left_date = pd.to_datetime(left, errors="coerce")
+    right_date = pd.to_datetime(right, errors="coerce")
+    if pd.isna(left_date) or pd.isna(right_date):
+        return False
+    return left_date.normalize() == right_date.normalize()
 
 
 def _sanitize_legacy_risk_flags(frame: pd.DataFrame) -> pd.DataFrame:
@@ -339,6 +471,8 @@ def _status(
     is_stale: bool = False,
     data_age_days: int | None = None,
     fallback_reason: str = "",
+    data_freshness_level: str = "",
+    cache_used: bool = False,
 ) -> pd.DataFrame:
     return pd.DataFrame(
         [
@@ -356,10 +490,11 @@ def _status(
                 "is_mock": status == "MOCK",
                 "is_stale": is_stale,
                 "data_age_days": data_age_days,
+                "data_freshness_level": data_freshness_level,
                 "coverage_ratio": None,
                 "affected_symbols_count": rows,
                 "fallback_reason": fallback_reason,
-                "fallback_action": "cache" if status == "CACHE" else "non_trading_day_fallback" if fallback_reason else "",
+                "fallback_action": "cache" if cache_used or status == "CACHE" else "non_trading_day_fallback" if fallback_reason else "",
             }
         ]
     )

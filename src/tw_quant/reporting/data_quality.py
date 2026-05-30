@@ -115,7 +115,7 @@ def _source_health_rows(data_fetch_status: pd.DataFrame) -> list[dict[str, objec
         status = str(source.get("status", "") or "").strip().upper()
         fallback_action = str(source.get("fallback_action", "") or "").strip()
         row_count = int(_to_float(source.get("rows")) or 0)
-        health_status = _source_health_status(status, fallback_action, row_count)
+        health_status = _source_health_status(source, status, fallback_action, row_count)
         review_level = "DATA_REVIEW" if health_status != "OK" else "OK"
         rows.append(
             _row(
@@ -166,7 +166,12 @@ def _row(
     }
 
 
-def _source_health_status(status: str, fallback_action: str, rows: int) -> str:
+def _source_health_status(row: pd.Series, status: str, fallback_action: str, rows: int) -> str:
+    source = str(row.get("source_name", "") or "").strip()
+    fallback_reason = str(row.get("fallback_reason", "") or "").strip()
+    freshness_level = str(row.get("data_freshness_level", "") or "").strip().upper()
+    if source == "market_intel" and fallback_reason == "no trading data" and freshness_level in {"CURRENT", "RECENT"}:
+        return "OK"
     if status in {"FAILED", "MISSING"} and fallback_action != "kept_existing_csv":
         return "WARNING"
     if status in {"EMPTY", "CACHE", "OK_WITH_FALLBACK", "OK_WITH_WARNING"} or fallback_action == "kept_existing_csv" or rows == 0:
@@ -179,8 +184,12 @@ def _source_review_reason(row: pd.Series) -> str:
     status = str(row.get("status", "") or "").strip().upper()
     warning = str(row.get("warning", "") or "").strip()
     fallback_action = str(row.get("fallback_action", "") or "").strip()
+    fallback_reason = str(row.get("fallback_reason", "") or "").strip()
+    freshness_level = str(row.get("data_freshness_level", "") or "").strip().upper()
     if status == "OK":
         return "資料來源正常"
+    if source == "market_intel" and fallback_reason == "no trading data" and freshness_level in {"CURRENT", "RECENT"}:
+        return "非交易日，使用最近交易日資料。"
     if fallback_action == "kept_existing_csv" or status == "OK_WITH_FALLBACK":
         return f"{source} 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險"
     if status == "CACHE":

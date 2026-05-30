@@ -8,4 +8,4 @@ margin_short,OK,1271,,,,,,,False,False,False,,,,,,
 attention_disposition,OK,76,,,,,,,False,False,False,,,,,,
 sector_strength,OK,1433,,,,,,,False,False,False,,,,,,
 liquidity,OK,1433,,,,,,,False,False,False,,,,,,
-market_intel,OK_WITH_FALLBACK,20,市場事件資料不足，採中性處理；市場事件資料不足，採中性處理；估值資料不足，採中性分數；市場事件資料不足，採中性處理；基本面資料不足，採中性分數；估值資料不足，採中性分數；非交易日，使用最近交易日資料。,,2026-05-30,2026-05-29,2026-05-29,market_intel provider,True,False,False,1,,20,CURRENT,no trading data,cache
+market_intel,CACHE,20,市場事件資料不足，採中性處理；估值資料不足，採中性分數；資料來源缺失或快取資料，需人工確認。；市場事件資料不足，採中性處理；基本面資料不足，採中性分數；估值資料不足，採中性分數；資料來源缺失或快取資料，需人工確認。；市場事件資料不足，採中性處理；資料來源缺失或快取資料，需人工確認。；資料來源缺失或快取資料，需人工確認。；資料來源缺失或快取資料，需人工確認。,,2026-05-31,2026-05-29,2026-05-29,market_intel provider,True,False,True,2,,20,STALE,no trading data,cache

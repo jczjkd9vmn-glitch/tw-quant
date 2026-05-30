@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import warnings
 
 import pandas as pd
 
@@ -9,7 +10,7 @@ from scripts.send_daily_notification import build_notification_message
 from tw_quant.config import load_config
 from tw_quant.data.database import create_db_engine, init_db, save_daily_prices
 from tw_quant.enrichment.industry import update_industry_map
-from tw_quant.enrichment.report import generate_ai_enrichment
+from tw_quant.enrichment.report import _derive_context_columns, _merge_optional, generate_ai_enrichment
 from tw_quant.enrichment.rule_based_enricher import RuleBasedEnricher
 from tw_quant.trading.pending import execute_pending_orders
 
@@ -154,8 +155,47 @@ def test_generate_ai_enrichment_and_industry_map_use_rule_based_fallback(tmp_pat
     assert result.output_path is not None and result.output_path.exists()
     assert result.cache_path is not None and result.cache_path.exists()
     assert len(result.enrichment) == 1
+    for column in ["stock_id", "stock_name", "enrichment_provider", "source_evidence_json", "valuation_context"]:
+        assert column in result.enrichment.columns
     assert result.enrichment.iloc[0]["enrichment_provider"] == "rule_based"
     assert bool(result.enrichment.iloc[0]["ai_used"]) is False
+
+
+def test_enrichment_merge_preserves_stock_alignment_without_fragmentation_warning() -> None:
+    base = pd.DataFrame(
+        [
+            {"stock_id": "2330", "stock_name": "台積電", "pe_ratio": ""},
+            {"stock_id": "2317", "stock_name": "鴻海", "pe_ratio": 20},
+        ]
+    )
+    extra_rows = [
+        {"stock_id": "2317", "pe_ratio": 18, "industry_main": "電子代工", "stock_return_5d": 0.02},
+        {"stock_id": "2330", "pe_ratio": 35, "industry_main": "半導體", "stock_return_5d": 0.05},
+    ]
+    for index in range(140):
+        extra_rows[0][f"factor_{index}"] = f"foxconn_{index}"
+        extra_rows[1][f"factor_{index}"] = f"tsmc_{index}"
+    extra = pd.DataFrame(extra_rows)
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", pd.errors.PerformanceWarning)
+        merged = _merge_optional(base, extra)
+        derived = _derive_context_columns(merged)
+
+    performance_warnings = [warning for warning in caught if issubclass(warning.category, pd.errors.PerformanceWarning)]
+    assert performance_warnings == []
+    for column in ["factor_139", "industry_main", "price_return_5d", "sector_strength_mode"]:
+        assert column in derived.columns
+
+    tsmc = derived[derived["stock_id"] == "2330"].iloc[0]
+    foxconn = derived[derived["stock_id"] == "2317"].iloc[0]
+    assert tsmc["pe_ratio"] == 35
+    assert tsmc["factor_139"] == "tsmc_139"
+    assert tsmc["industry_main"] == "半導體"
+    assert tsmc["price_return_5d"] == 0.05
+    assert foxconn["pe_ratio"] == 20
+    assert foxconn["factor_139"] == "foxconn_139"
+    assert foxconn["industry_main"] == "電子代工"
 
 
 def test_update_industry_map_uses_reference_map_when_no_local_industry(tmp_path: Path) -> None:

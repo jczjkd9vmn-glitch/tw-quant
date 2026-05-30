@@ -154,35 +154,40 @@ def _load_universe(report_dir: Path, data_dir: Path, target_date: str, config_pa
 
 def _derive_context_columns(frame: pd.DataFrame) -> pd.DataFrame:
     result = frame.copy()
+    index = result.index
+    columns = {column: result[column] for column in result.columns}
+
+    def current(column: str, default: object = "") -> pd.Series:
+        if column in columns:
+            return columns[column]
+        if isinstance(default, pd.Series):
+            return default.reindex(index)
+        return pd.Series([default] * len(result), index=index)
+
     for column in ["margin_change_5d", "margin_change_20d", "price_return_5d", "price_return_20d", "institutional_net_buy_5d", "volume_change_5d"]:
-        if column not in result.columns:
-            result[column] = ""
-    if "margin_change_5d" in result.columns and result["margin_change_5d"].fillna("").astype(str).eq("").all():
-        result["margin_change_5d"] = result.get("margin_change", "")
-    if "price_return_5d" in result.columns and result["price_return_5d"].fillna("").astype(str).eq("").all():
-        result["price_return_5d"] = result.get("stock_return_5d", "")
-    if "price_return_20d" in result.columns and result["price_return_20d"].fillna("").astype(str).eq("").all():
-        result["price_return_20d"] = result.get("stock_return_20d", "")
-    if "institutional_net_buy_5d" in result.columns and result["institutional_net_buy_5d"].fillna("").astype(str).eq("").all():
-        result["institutional_net_buy_5d"] = result.get("institutional_5d_sum", result.get("total_institutional_net_buy", ""))
-    if "industry_source" not in result.columns:
-        result["industry_source"] = result.get("source", "")
-    if "industry" not in result.columns and "industry_main" in result.columns:
-        result["industry"] = result["industry_main"]
-    if "industry_main" not in result.columns and "industry" in result.columns:
-        result["industry_main"] = result["industry"]
-    if "industry_sub" not in result.columns and "sub_industry" in result.columns:
-        result["industry_sub"] = result["sub_industry"]
-    if "sector_strength_mode" not in result.columns:
-        warnings = (
-            result["sector_strength_warning"]
-            if "sector_strength_warning" in result.columns
-            else pd.Series([""] * len(result), index=result.index)
-        )
-        result["sector_strength_mode"] = warnings.apply(
+        columns.setdefault(column, pd.Series([""] * len(result), index=index))
+    if _series_is_blank(columns["margin_change_5d"]):
+        columns["margin_change_5d"] = current("margin_change")
+    if _series_is_blank(columns["price_return_5d"]):
+        columns["price_return_5d"] = current("stock_return_5d")
+    if _series_is_blank(columns["price_return_20d"]):
+        columns["price_return_20d"] = current("stock_return_20d")
+    if _series_is_blank(columns["institutional_net_buy_5d"]):
+        columns["institutional_net_buy_5d"] = current("institutional_5d_sum", current("total_institutional_net_buy"))
+    if "industry_source" not in columns:
+        columns["industry_source"] = current("source")
+    if "industry" not in columns and "industry_main" in columns:
+        columns["industry"] = columns["industry_main"]
+    if "industry_main" not in columns and "industry" in columns:
+        columns["industry_main"] = columns["industry"]
+    if "industry_sub" not in columns and "sub_industry" in columns:
+        columns["industry_sub"] = columns["sub_industry"]
+    if "sector_strength_mode" not in columns:
+        warnings = current("sector_strength_warning")
+        columns["sector_strength_mode"] = warnings.apply(
             lambda value: "market_relative_fallback" if "全市場" in str(value) else "industry_relative"
         )
-    return result
+    return pd.DataFrame(columns, index=index)
 
 
 def _combine_by_symbol(*frames: pd.DataFrame) -> pd.DataFrame:
@@ -201,18 +206,32 @@ def _merge_optional(base: pd.DataFrame, extra: pd.DataFrame) -> pd.DataFrame:
         return base
     result = base.copy()
     extra = extra.copy()
-    result["stock_id"] = result["stock_id"].astype(str).str.strip()
+    result = result.assign(stock_id=result["stock_id"].astype(str).str.strip())
     extra["stock_id"] = extra["stock_id"].astype(str).str.strip()
     lookup = extra.drop_duplicates("stock_id").set_index("stock_id")
+    extra_columns = [column for column in lookup.columns if column != "stock_id"]
+    if not extra_columns:
+        return result
+    aligned = result[["stock_id"]].merge(
+        lookup[extra_columns],
+        left_on="stock_id",
+        right_index=True,
+        how="left",
+        sort=False,
+    )
+    aligned.index = result.index
+    aligned = aligned.drop(columns=["stock_id"])
+    merged_columns: dict[str, pd.Series] = {}
     for column in lookup.columns:
-        if column == "stock_id":
-            continue
+        if column in result.columns and column in aligned.columns:
+            merged_columns[column] = result[column].where(~result[column].apply(_blank), aligned[column])
+    output_columns: dict[str, pd.Series] = {}
+    for column in result.columns:
+        output_columns[column] = merged_columns.get(column, result[column])
+    for column in extra_columns:
         if column not in result.columns:
-            result[column] = result["stock_id"].map(lookup[column])
-        else:
-            mapped = result["stock_id"].map(lookup[column])
-            result[column] = result[column].where(~result[column].apply(_blank), mapped)
-    return result
+            output_columns[column] = aligned[column]
+    return pd.DataFrame(output_columns, index=result.index)
 
 
 def _latest_date_label(report_dir: Path) -> str | None:
@@ -247,6 +266,10 @@ def _blank(value: object) -> bool:
     if isinstance(value, float) and pd.isna(value):
         return True
     return str(value).strip() == "" or str(value).strip().lower() in {"nan", "none", "-"}
+
+
+def _series_is_blank(series: pd.Series) -> bool:
+    return series.fillna("").astype(str).str.strip().str.lower().isin(["", "nan", "none", "-"]).all()
 
 
 def _date_label(value: str) -> str:

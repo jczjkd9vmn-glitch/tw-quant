@@ -1,4 +1,17 @@
 ﻿stock_id,stock_name,market,industry_main,industry_sub,source,updated_at,confidence,fallback_used
+02001L,富邦蘋果正二N,TWSE,ETN,特選大蘋果槓桿 ETN,twse_official_etn_list,2026-05-30,1.0,False
+1524,耿鼎,TWSE,汽車工業,汽車工業,twse_openapi_t187ap03_L,2026-05-30,1.0,False
+2317,鴻海,TWSE,其他電子業,其他電子業,twse_openapi_t187ap03_L,2026-05-30,1.0,False
+2324,仁寶,TWSE,電腦及週邊設備業,電腦及週邊設備業,twse_openapi_t187ap03_L,2026-05-30,1.0,False
+2369,菱生,TWSE,半導體業,半導體業,twse_openapi_t187ap03_L,2026-05-30,1.0,False
+3046,建碁,TWSE,電腦及週邊設備業,電腦及週邊設備業,twse_openapi_t187ap03_L,2026-05-30,1.0,False
+3528,安馳,TWSE,電子通路業,電子通路業,twse_openapi_t187ap03_L,2026-05-30,1.0,False
+3652,精聯,TWSE,電腦及週邊設備業,電腦及週邊設備業,twse_openapi_t187ap03_L,2026-05-30,1.0,False
+6141,柏承,TWSE,電子零組件業,電子零組件業,twse_openapi_t187ap03_L,2026-05-30,1.0,False
+8110,華東,TWSE,半導體業,半導體業,twse_openapi_t187ap03_L,2026-05-30,1.0,False
+8454,富邦媒,TWSE,數位雲端,數位雲端,twse_openapi_t187ap03_L,2026-05-30,1.0,False
+8473,山林水,TWSE,綠能環保,綠能環保,twse_openapi_t187ap03_L,2026-05-30,1.0,False
+9105,泰金寶-DR,TWSE,台灣存託憑證,台灣存託憑證,twse_openapi_t187ap03_L,2026-05-30,1.0,False
 00876,元大全球5G,ETF,ETF,全球5G ETF,manual,2026-05-28,,
 00901,永豐智能車供應鏈,ETF,ETF,智能車供應鏈 ETF,manual,2026-05-28,,
 00910,第一金太空衛星,ETF,ETF,太空衛星 ETF,manual,2026-05-28,,

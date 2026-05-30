@@ -26,6 +26,10 @@ COLUMN_LABELS = {
     "requested_date": "原始執行日期",
     "fallback_date": "使用替代交易日",
     "fallback_reason": "替代原因",
+    "actual_data_date": "實際資料日",
+    "cache_age_days": "快取 / 資料年齡天數",
+    "is_stale_data": "是否過期資料",
+    "data_freshness_level": "資料鮮度等級",
     "scored_rows": "已評分標的數",
     "candidate_rows": "候選股數",
     "risk_pass_rows": "通過風控數",
@@ -424,6 +428,7 @@ COLUMN_LABELS.update(
         "is_mock": "是否 mock",
         "is_stale": "是否過舊",
         "data_age_days": "資料年齡天數",
+        "data_freshness_level": "資料鮮度等級",
         "coverage_ratio": "覆蓋率",
         "affected_symbols_count": "影響股票數",
         "check_name": "檢查項目",
@@ -431,9 +436,7 @@ COLUMN_LABELS.update(
         "health_status": "健康狀態",
         "data_issue": "資料問題",
         "investment_risk": "投資風險",
-        "actual_data_date": "實際資料日",
-        "cache_age_days": "快取 / 資料年齡天數",
-        "is_stale_data": "是否快取或非當日資料",
+        "is_stale_data": "是否過期資料",
         "positive_signals": "正向訊號",
         "warning_signals": "警示訊號",
         "blocking_risks": "阻擋風險",
@@ -469,6 +472,10 @@ STATUS_LABELS = {
     "OK_WITH_FALLBACK": "成功，使用最近有效交易日",
     "OK_WITH_WARNING": "成功但有資料警告",
     "CACHE": "使用快取資料",
+    "CURRENT": "目前最新交易日資料",
+    "RECENT": "近一個交易日內",
+    "STALE": "資料過期",
+    "UNKNOWN": "無法判斷",
     "MISSING": "資料缺失",
     "EMPTY": "無資料",
     "DISABLED": "已停用",
@@ -653,6 +660,8 @@ INTEGER_COLUMNS = {
     "summary_closed_positions",
     "rows",
     "affected_symbols_count",
+    "cache_age_days",
+    "data_age_days",
 }
 STATUS_COLUMNS = {
     "status",
@@ -679,6 +688,8 @@ STATUS_COLUMNS = {
     "health_status",
     "data_issue",
     "investment_risk",
+    "is_stale_data",
+    "data_freshness_level",
 }
 DATE_COLUMNS = {
     "trade_date",
@@ -1011,6 +1022,7 @@ def _render_page(
         "fallback_reason",
         "cache_age_days",
         "is_stale_data",
+        "data_freshness_level",
         "system_comment",
         "ai_summary",
         "manual_review_focus",
@@ -2869,6 +2881,10 @@ def _data_quality_issues(summary: dict[str, object], data_fetch_status: pd.DataF
         issues.append(_humanize_top_error(error if error != "-" else "流程執行失敗"))
     if (_to_float(summary.get("market_intel_warning_count")) or 0) > 0:
         issues.append("市場情報資料不足，未影響流程")
+    if _market_intel_is_stale(summary, pd.DataFrame()):
+        issues.append("資料來源缺失或快取資料，需人工確認。")
+    elif str(summary.get("fallback_reason", "")).strip() == "no trading data" and _has_market_freshness_metadata(summary):
+        issues.append("非交易日，使用最近交易日資料。")
     if str(summary.get("market_intel_status", "")).upper() == "CACHE":
         issues.append("市場情報使用快取資料")
     if not data_fetch_status.empty and "status" in data_fetch_status.columns:
@@ -2899,8 +2915,15 @@ def _data_source_quality_issue(row: pd.Series) -> str:
     source = str(row.get("source_name", "")).strip()
     status = str(row.get("status", "")).strip().upper()
     fallback_action = str(row.get("fallback_action", "")).strip()
+    fallback_reason = str(row.get("fallback_reason", "")).strip()
+    freshness_level = str(row.get("data_freshness_level", "")).strip().upper()
     warning = str(row.get("warning", "")).strip()
     error_message = str(row.get("error_message", "")).strip()
+    if source == "market_intel":
+        if freshness_level in {"STALE", "CACHE"} or status == "CACHE":
+            return "資料來源缺失或快取資料，需人工確認。"
+        if fallback_reason == "no trading data":
+            return "非交易日，使用最近交易日資料。"
     if source == "monthly_revenue" and ("HTTPError: 404" in error_message or "404 Client Error" in error_message):
         return "月營收資料尚未取得，已保留既有資料，不影響今日流程"
     if status == "OK_WITH_FALLBACK" or fallback_action == "kept_existing_csv":
@@ -3358,18 +3381,18 @@ def _data_confidence_summary(
     frame = market_intel if not market_intel.empty else candidates
     source = _market_intel_source(summary, frame)
     is_mock = source.lower() == "mock"
-    using_cache = (
-        str(summary.get("market_intel_status", "")).upper() == "CACHE"
-        or (not data_fetch_status.empty and "status" in data_fetch_status.columns and data_fetch_status["status"].fillna("").astype(str).str.upper().eq("CACHE").any())
-    )
+    using_cache = _market_intel_using_cache(summary, frame, data_fetch_status)
     stale_notice = _market_intel_stale_notice(summary, frame)
     cards = [
         ("市場情報來源", source or "-"),
         ("是否為 mock", "是" if is_mock else "否"),
         ("是否使用 cache", "是" if using_cache else "否"),
+        ("市場情報要求資料日", _market_intel_requested_date(summary, frame)),
         ("市場情報實際資料日", _market_intel_actual_data_date(summary, frame)),
+        ("市場情報替代原因", _market_intel_fallback_reason(summary, frame)),
         ("市場情報快取 / 資料年齡", _market_intel_cache_age_text(frame)),
-        ("市場情報是否非當日資料", "是" if stale_notice else "否"),
+        ("市場情報資料鮮度", _market_intel_freshness_level(summary, frame)),
+        ("市場情報是否過期資料", "是" if _market_intel_is_stale(summary, frame) else "否"),
         ("市場情報資料不足股票數", _format_cell("market_intel_warning_count", summary.get("market_intel_warning_count"))),
         ("基本面資料不足股票數", f"{_fundamental_missing_count(candidates):,.0f}"),
         ("估值資料不足股票數", f"{_reason_missing_count(candidates, 'valuation_score', 'valuation_reason'):,.0f}"),
@@ -3420,20 +3443,77 @@ def _market_intel_source(summary: dict[str, object], frame: pd.DataFrame) -> str
 def _market_intel_stale_notice(summary: dict[str, object], frame: pd.DataFrame) -> str:
     status = str(summary.get("market_intel_status", "") or "").strip().upper()
     fallback_reason = str(summary.get("fallback_reason", "") or "").strip()
-    stale = status == "CACHE" or fallback_reason == "no trading data"
+    freshness_level = _market_intel_freshness_level(summary, frame)
+    stale = status == "CACHE" or freshness_level in {"STALE", "CACHE"}
     if not frame.empty:
         if "market_intel_status" in frame.columns:
             stale = stale or frame["market_intel_status"].fillna("").astype(str).str.upper().eq("CACHE").any()
         if "is_stale_data" in frame.columns:
             stale = stale or frame["is_stale_data"].apply(_truthy).any()
-        if "fallback_reason" in frame.columns:
-            stale = stale or frame["fallback_reason"].fillna("").astype(str).eq("no trading data").any()
-    if not stale:
-        return ""
     requested = _market_intel_requested_date(summary, frame)
     actual = _market_intel_actual_data_date(summary, frame)
     reason = _market_intel_fallback_reason(summary, frame)
-    return f"使用快取 / 非當日資料：要求日期 {requested}，實際資料日 {actual}，原因 {reason}。"
+    age = _market_intel_cache_age_text(frame)
+    if stale:
+        return (
+            "目前市場情報使用快取或非當日資料，不建議短線自動進場。"
+            f"要求日期 {requested}，實際資料日 {actual}，原因 {reason}，資料年齡 {age}。"
+        )
+    if fallback_reason == "no trading data" or (
+        not frame.empty
+        and "fallback_reason" in frame.columns
+        and frame["fallback_reason"].fillna("").astype(str).eq("no trading data").any()
+    ):
+        return f"非交易日，使用最近交易日資料。要求日期 {requested}，實際資料日 {actual}。"
+    return ""
+
+
+def _market_intel_is_stale(summary: dict[str, object], frame: pd.DataFrame) -> bool:
+    if _truthy(summary.get("is_stale_data")):
+        return True
+    if _market_intel_freshness_level(summary, frame) in {"STALE", "CACHE"}:
+        return True
+    if frame.empty or "is_stale_data" not in frame.columns:
+        return False
+    return bool(frame["is_stale_data"].apply(_truthy).any())
+
+
+def _market_intel_freshness_level(summary: dict[str, object], frame: pd.DataFrame) -> str:
+    for value in [summary.get("data_freshness_level"), _frame_first(frame, "data_freshness_level")]:
+        if _is_blank(value):
+            continue
+        text = str(value).strip().upper()
+        if text and text != "-":
+            return text
+    return "UNKNOWN"
+
+
+def _market_intel_using_cache(
+    summary: dict[str, object],
+    frame: pd.DataFrame,
+    data_fetch_status: pd.DataFrame,
+) -> bool:
+    if str(summary.get("market_intel_status", "")).upper() == "CACHE":
+        return True
+    if not frame.empty and "market_intel_status" in frame.columns:
+        if frame["market_intel_status"].fillna("").astype(str).str.upper().eq("CACHE").any():
+            return True
+    if data_fetch_status.empty:
+        return False
+    market_rows = data_fetch_status
+    if "source_name" in market_rows.columns:
+        market_rows = market_rows[market_rows["source_name"].fillna("").astype(str) == "market_intel"]
+    if market_rows.empty:
+        return False
+    if "status" in market_rows.columns and market_rows["status"].fillna("").astype(str).str.upper().eq("CACHE").any():
+        return True
+    if "fallback_action" in market_rows.columns and market_rows["fallback_action"].fillna("").astype(str).eq("cache").any():
+        return True
+    return False
+
+
+def _has_market_freshness_metadata(summary: dict[str, object]) -> bool:
+    return not _is_blank(summary.get("data_freshness_level")) or not _is_blank(summary.get("actual_data_date"))
 
 
 def _market_intel_requested_date(summary: dict[str, object], frame: pd.DataFrame) -> str:
@@ -3584,7 +3664,8 @@ def _market_intel_summary(
         ("替代交易日", _market_intel_fallback_date(summary, frame)),
         ("替代原因", _market_intel_fallback_reason(summary, frame)),
         ("快取 / 資料年齡", _market_intel_cache_age_text(frame)),
-        ("是否快取或非當日資料", "是" if stale_notice else "否"),
+        ("資料鮮度等級", _market_intel_freshness_level(summary, frame)),
+        ("是否過期資料", "是" if _market_intel_is_stale(summary, frame) else "否"),
         ("市場判斷最高分", top_score),
         ("市場情報資料不足股票數", f"{warning_count:,.0f}"),
         ("新聞來源狀態", "尚未接入" if is_mock else "已接入或可用"),
@@ -3626,6 +3707,7 @@ def _market_intel_summary(
         "fallback_reason",
         "cache_age_days",
         "is_stale_data",
+        "data_freshness_level",
     ]
     detail = _responsive_records(frame, columns, "今日無市場判斷資料", 20)
     note = ""

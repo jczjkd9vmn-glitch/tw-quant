@@ -188,6 +188,36 @@ def test_run_all_daily_adds_dashboard_status_fields(tmp_path: Path) -> None:
     assert "pnl_chart_data OK" in "\n".join(result.messages)
 
 
+def test_run_all_daily_preserves_fallback_date_for_no_trading_data(tmp_path: Path) -> None:
+    result = run_all_daily(
+        config_path=_config(tmp_path),
+        trade_date="20260530",
+        reports_dir=tmp_path / "reports",
+        run_daily_func=_fake_run_daily_with_fallback,
+        export_func=_fake_export_with_market_freshness,
+        paper_func=_fake_paper,
+        execute_func=_fake_execute,
+        update_func=_fake_update,
+        validation_func=lambda **kwargs: SimpleNamespace(validation=pd.DataFrame(), warning=""),
+        decision_func=lambda **kwargs: SimpleNamespace(decisions=pd.DataFrame(), warning=""),
+        loss_attribution_func=lambda **kwargs: SimpleNamespace(attribution=pd.DataFrame(), warning=""),
+        industry_map_func=lambda **kwargs: (tmp_path / "data" / "industry_map.csv", "EMPTY", 0),
+        enrichment_func=lambda **kwargs: SimpleNamespace(enrichment=pd.DataFrame(), warning=""),
+        pnl_chart_func=lambda **kwargs: SimpleNamespace(status="OK", frame=pd.DataFrame(), warning=""),
+        market_recap_func=lambda **kwargs: SimpleNamespace(status="OK", frame=pd.DataFrame(), warning=""),
+    )
+
+    row = pd.read_csv(result.summary_path).iloc[0]
+    assert row["requested_date"] == "2026-05-30"
+    assert row["trade_date"] == "2026-05-29"
+    assert row["fallback_date"] == "2026-05-29"
+    assert row["fallback_reason"] == "no trading data"
+    assert row["actual_data_date"] == "2026-05-29"
+    assert row["cache_age_days"] == 1
+    assert row["data_freshness_level"] == "CURRENT"
+    assert str(row["is_stale_data"]).lower() == "false"
+
+
 def _write_dashboard_reports(path: Path) -> None:
     pd.DataFrame(
         [
@@ -364,11 +394,53 @@ def _fake_run_daily(**_kwargs):
     return SimpleNamespace(trade_date=date(2026, 5, 20), fetched_rows=0, scored_rows=1, candidate_rows=1, message="")
 
 
+def _fake_run_daily_with_fallback(**_kwargs):
+    return SimpleNamespace(
+        trade_date=date(2026, 5, 29),
+        fetched_rows=0,
+        scored_rows=1,
+        candidate_rows=1,
+        fallback_date=date(2026, 5, 29),
+        fallback_reason="no trading data",
+        message="",
+    )
+
+
 def _fake_export(*_args, **_kwargs):
     return SimpleNamespace(
         trade_date=pd.Timestamp("2026-05-20"),
         candidates=pd.DataFrame({"stock_id": ["2330"]}),
         risk_pass_candidates=pd.DataFrame({"stock_id": ["2330"]}),
+        warning="",
+    )
+
+
+def _fake_export_with_market_freshness(*_args, **_kwargs):
+    return SimpleNamespace(
+        trade_date=pd.Timestamp("2026-05-29"),
+        candidates=pd.DataFrame(
+            {
+                "stock_id": ["2330"],
+                "actual_data_date": ["2026-05-29"],
+                "cache_age_days": [1],
+                "is_stale_data": [False],
+                "data_freshness_level": ["CURRENT"],
+            }
+        ),
+        risk_pass_candidates=pd.DataFrame({"stock_id": ["2330"]}),
+        data_fetch_status=pd.DataFrame(
+            [
+                {
+                    "source_name": "market_intel",
+                    "status": "OK_WITH_FALLBACK",
+                    "actual_period": "2026-05-29",
+                    "data_age_days": 1,
+                    "is_stale": False,
+                    "data_freshness_level": "CURRENT",
+                    "fallback_reason": "no trading data",
+                }
+            ]
+        ),
         warning="",
     )
 

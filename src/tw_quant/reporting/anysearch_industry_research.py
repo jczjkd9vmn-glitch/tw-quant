@@ -67,34 +67,13 @@ def generate_anysearch_industry_research_report(
 
     config = load_anysearch_config(config_path)
     if not bool(config.get("enabled", False)):
-        frame = _empty_candidates()
-        _write_candidates(output_path, frame)
-        return AnySearchIndustryResearchResult(
-            candidates=frame,
-            output_path=output_path,
-            status="SKIPPED",
-            warning="disabled",
-        )
+        return _skipped_result(output_path, "disabled")
 
     if str(config.get("write_mode", "")).strip().lower() != "proposal_only":
-        frame = _empty_candidates()
-        _write_candidates(output_path, frame)
-        return AnySearchIndustryResearchResult(
-            candidates=frame,
-            output_path=output_path,
-            status="SKIPPED",
-            warning="write_mode must be proposal_only",
-        )
+        return _skipped_result(output_path, "write_mode must be proposal_only")
 
     if not os.getenv("ANYSEARCH_API_KEY", "").strip():
-        frame = _empty_candidates()
-        _write_candidates(output_path, frame)
-        return AnySearchIndustryResearchResult(
-            candidates=frame,
-            output_path=output_path,
-            status="SKIPPED",
-            warning="missing ANYSEARCH_API_KEY",
-        )
+        return _skipped_result(output_path, "missing ANYSEARCH_API_KEY")
 
     priority = _read_csv(report_dir / "missing_industry_priority.csv")
     targets = _select_targets(
@@ -151,6 +130,20 @@ def generate_anysearch_industry_research_report(
         api_calls=api_calls,
         cache_hits=cache_hits,
         warning="; ".join(warnings),
+    )
+
+
+def _skipped_result(output_path: Path, warning: str) -> AnySearchIndustryResearchResult:
+    if output_path.exists():
+        frame = _read_csv(output_path)
+    else:
+        frame = _empty_candidates()
+        _write_candidates(output_path, frame)
+    return AnySearchIndustryResearchResult(
+        candidates=frame,
+        output_path=output_path,
+        status="SKIPPED",
+        warning=warning,
     )
 
 

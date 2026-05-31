@@ -701,6 +701,7 @@ STATUS_COLUMNS = {
     "summary_data_status",
     "strategy_validation_status",
     "trading_decisions_status",
+    "industry_map_status",
     "decision",
     "decision_level",
     "action",

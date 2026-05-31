@@ -80,9 +80,7 @@ class RuleBasedEnricher(BaseEnricher):
             opportunity = self._opportunity_explanation(row)
             data_quality = "資料完整度可供輔助判斷" if not missing else "資料不足：" + "、".join(missing)
             focus = self._manual_focus(row, valuation, margin, missing)
-            summary = self._sanitize(
-                f"{risk_explanation}；{opportunity}。此為紙上交易輔助說明，需人工確認。"
-            )
+            summary = self._sanitize(f"{risk_explanation}；{opportunity}。")
             outputs.append(
                 {
                     "trade_date": trade_date,

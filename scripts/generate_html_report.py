@@ -351,6 +351,20 @@ COLUMN_LABELS.update(
         "sector_strength_mode": "相對強弱模式",
         "sector_strength_reason": "產業強弱理由",
         "sector_strength_warning": "產業強弱警告",
+        "latest_relative_mode": "最新相對強弱模式",
+        "fallback_reason": "Fallback 原因",
+        "appear_in_candidates_count": "候選股出現次數",
+        "appear_in_trading_decisions_count": "決策表出現次數",
+        "appear_in_risk_pass_count": "風控通過出現次數",
+        "appear_in_position_review_count": "持倉檢查出現次數",
+        "appear_in_ai_enrichment_count": "Enrichment 出現次數",
+        "recent_appearance_count": "近期出現總次數",
+        "avg_volume": "平均成交量",
+        "turnover_value": "成交金額",
+        "last_seen_date": "最後出現日期",
+        "priority_score": "優先分數",
+        "priority_level": "優先等級",
+        "suggested_action": "建議動作",
         "avg_volume_20d": "20 日均量",
         "avg_turnover_20d": "20 日均成交金額",
         "latest_volume": "最新成交量",
@@ -855,6 +869,7 @@ def generate_html_report(
     market_recap = _read_latest_csv(report_dir, "market_recap_*.csv")
     candidate_coverage = _read_latest_csv(report_dir, "candidate_coverage_report_*.csv")
     position_review = _read_latest_csv(report_dir, "position_review_summary_*.csv")
+    missing_industry_priority = _read_csv(report_dir / "missing_industry_priority.csv")
     active_config = load_config(ROOT / "config.yaml")
     trading_cost = active_config.get("trading_cost", {})
 
@@ -879,6 +894,7 @@ def generate_html_report(
         market_recap=market_recap,
         candidate_coverage=candidate_coverage,
         position_review=position_review,
+        missing_industry_priority=missing_industry_priority,
         trading_cost=trading_cost,
         config=active_config,
     )
@@ -913,6 +929,7 @@ def _render_page(
     market_recap: pd.DataFrame,
     candidate_coverage: pd.DataFrame,
     position_review: pd.DataFrame,
+    missing_industry_priority: pd.DataFrame,
     trading_cost: dict[str, object],
     config: dict[str, object] | None = None,
 ) -> str:
@@ -1169,6 +1186,7 @@ def _render_page(
         [
             _health_summary_cards(health_items),
             _data_quality_health_section(data_quality_health),
+            _missing_industry_priority_section(missing_industry_priority),
             _data_source_summary_section(data_fetch_status),
             _details_block("資料來源技術細節", _data_source_technical_details(data_fetch_status)),
             _details_block("系統健康檢查詳細項目", _health_section(_non_data_source_health_items(health_items))),
@@ -1656,6 +1674,77 @@ def _coverage_missing_count(frame: pd.DataFrame, code: str) -> int:
     if frame.empty or "missing_fields" not in frame.columns:
         return 0
     return int(frame["missing_fields"].fillna("").astype(str).str.contains(code, na=False).sum())
+
+
+def _missing_industry_priority_section(priority: pd.DataFrame) -> str:
+    title = "缺產業分類優先補資料清單"
+    if priority.empty:
+        cards = [
+            ("缺分類總數", "0"),
+            ("HIGH", "0"),
+            ("MEDIUM", "0"),
+            ("LOW", "0"),
+        ]
+        return _section(
+            title,
+            '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+            + _empty("目前尚無 missing_industry_priority.csv"),
+        )
+
+    frame = priority.copy()
+    frame["_priority_score"] = pd.to_numeric(frame.get("priority_score"), errors="coerce").fillna(0)
+    frame["_recent_appearance_count"] = pd.to_numeric(frame.get("recent_appearance_count"), errors="coerce").fillna(0)
+    frame = frame.sort_values(
+        ["_priority_score", "_recent_appearance_count", "stock_id"],
+        ascending=[False, False, True],
+    )
+    high = frame[frame.get("priority_level", pd.Series([""] * len(frame))).fillna("").astype(str).str.upper() == "HIGH"]
+    top = high if not high.empty else frame
+    top = top.drop(columns=["_priority_score", "_recent_appearance_count"], errors="ignore")
+    cards = [
+        ("缺分類總數", f"{len(priority):,.0f}"),
+        ("HIGH", f"{_priority_level_count(priority, 'HIGH'):,.0f}"),
+        ("MEDIUM", f"{_priority_level_count(priority, 'MEDIUM'):,.0f}"),
+        ("LOW", f"{_priority_level_count(priority, 'LOW'):,.0f}"),
+    ]
+    table = _table(
+        top,
+        [
+            "stock_id",
+            "stock_name",
+            "market_type",
+            "latest_relative_mode",
+            "fallback_reason",
+            "appear_in_candidates_count",
+            "appear_in_trading_decisions_count",
+            "appear_in_risk_pass_count",
+            "appear_in_position_review_count",
+            "appear_in_ai_enrichment_count",
+            "recent_appearance_count",
+            "liquidity_score",
+            "avg_volume",
+            "turnover_value",
+            "last_seen_date",
+            "priority_score",
+            "priority_level",
+            "suggested_action",
+        ],
+        "目前尚無缺產業分類優先補資料明細",
+        20,
+    )
+    note = '<p class="note">此清單只列出仍使用 market_relative_fallback 的股票；不會移除缺產業分類警告，也不會自動補分類。</p>'
+    return _section(
+        title,
+        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        + note
+        + _details_block("前 20 檔優先補資料標的", table, open_by_default=True),
+    )
+
+
+def _priority_level_count(frame: pd.DataFrame, level: str) -> int:
+    if frame.empty or "priority_level" not in frame.columns:
+        return 0
+    return int((frame["priority_level"].fillna("").astype(str).str.upper() == level).sum())
 
 
 def _market_recap_section(market_recap: pd.DataFrame, summary: dict[str, object]) -> str:

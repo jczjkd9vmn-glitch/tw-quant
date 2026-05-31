@@ -10,7 +10,10 @@ from tw_quant.reporting.anysearch_industry_research import generate_anysearch_in
 from tw_quant.workflow.daily import run_all_daily
 
 
-def test_anysearch_disabled_workflow_skips_without_error(tmp_path: Path) -> None:
+def test_anysearch_disabled_workflow_skips_without_error(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("ANYSEARCH_ENABLED", raising=False)
+    monkeypatch.delenv("ANYSEARCH_API_KEY", raising=False)
+
     result = run_all_daily(
         config_path=_config(tmp_path),
         trade_date="20260508",
@@ -29,8 +32,9 @@ def test_anysearch_disabled_workflow_skips_without_error(tmp_path: Path) -> None
 
 
 def test_missing_api_key_skips_without_calling_client(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ANYSEARCH_ENABLED", "true")
     monkeypatch.delenv("ANYSEARCH_API_KEY", raising=False)
-    _write_anysearch_config(tmp_path, enabled=True)
+    _write_anysearch_config(tmp_path, enabled=False)
     _write_priority(tmp_path / "reports")
     client = _FakeAnySearchClient(raise_on_call=True)
 
@@ -47,7 +51,46 @@ def test_missing_api_key_skips_without_calling_client(tmp_path: Path, monkeypatc
     assert result.output_path.exists()
 
 
+def test_anysearch_enabled_env_true_overrides_config_false(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ANYSEARCH_ENABLED", "true")
+    monkeypatch.setenv("ANYSEARCH_API_KEY", "present")
+    _write_anysearch_config(tmp_path, enabled=False)
+    _write_priority(tmp_path / "reports")
+    client = _FakeAnySearchClient()
+
+    result = generate_anysearch_industry_research_report(
+        reports_dir=tmp_path / "reports",
+        config_path=tmp_path / "config" / "anysearch.yml",
+        cache_dir=tmp_path / "data" / "cache" / "anysearch",
+        client=client,
+    )
+
+    assert result.status == "OK"
+    assert result.api_calls == 1
+    assert len(client.calls) == 1
+
+
+def test_anysearch_enabled_env_false_overrides_config_true(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ANYSEARCH_ENABLED", "false")
+    monkeypatch.setenv("ANYSEARCH_API_KEY", "present")
+    _write_anysearch_config(tmp_path, enabled=True)
+    _write_priority(tmp_path / "reports")
+    client = _FakeAnySearchClient(raise_on_call=True)
+
+    result = generate_anysearch_industry_research_report(
+        reports_dir=tmp_path / "reports",
+        config_path=tmp_path / "config" / "anysearch.yml",
+        cache_dir=tmp_path / "data" / "cache" / "anysearch",
+        client=client,
+    )
+
+    assert result.status == "SKIPPED"
+    assert result.warning == "disabled"
+    assert client.calls == []
+
+
 def test_only_high_priority_is_processed_and_candidates_csv_is_written(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("ANYSEARCH_ENABLED", raising=False)
     monkeypatch.setenv("ANYSEARCH_API_KEY", "present")
     _write_anysearch_config(tmp_path, enabled=True)
     _write_priority(tmp_path / "reports")
@@ -69,6 +112,7 @@ def test_only_high_priority_is_processed_and_candidates_csv_is_written(tmp_path:
 
 
 def test_anysearch_research_does_not_modify_stock_industry_map(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("ANYSEARCH_ENABLED", raising=False)
     monkeypatch.setenv("ANYSEARCH_API_KEY", "present")
     _write_anysearch_config(tmp_path, enabled=True)
     _write_priority(tmp_path / "reports")
@@ -88,6 +132,7 @@ def test_anysearch_research_does_not_modify_stock_industry_map(tmp_path: Path, m
 
 
 def test_anysearch_cache_prevents_repeated_api_calls(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.delenv("ANYSEARCH_ENABLED", raising=False)
     monkeypatch.setenv("ANYSEARCH_API_KEY", "present")
     _write_anysearch_config(tmp_path, enabled=True)
     _write_priority(tmp_path / "reports")

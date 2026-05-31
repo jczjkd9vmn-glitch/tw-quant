@@ -139,6 +139,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "pause_new_entries_days": 5,
         "max_open_positions": 8,
         "max_daily_new_positions": 2,
+        "allow_legacy_missing_grade": False,
     },
     "pending_order": {
         "expire_after_trading_days": 1,

@@ -27,6 +27,7 @@ class GuardrailContext:
     pause_new_entries_days: int
     max_open_positions: int
     max_daily_new_positions: int
+    allow_legacy_missing_grade: bool
     min_market_regime_score: float
     market_regime_score: float
     total_drawdown_pct: float
@@ -83,6 +84,7 @@ def build_guardrail_context(
     pause_days = int(guard_config.get("pause_new_entries_days", 5))
     max_open = int(guard_config.get("max_open_positions", 8))
     max_daily_new = int(guard_config.get("max_daily_new_positions", 2))
+    allow_legacy_missing_grade = bool(guard_config.get("allow_legacy_missing_grade", False))
     min_regime = float(regime_config.get("min_score_for_new_entries", 60))
 
     open_positions = _open_position_count(trades)
@@ -113,6 +115,7 @@ def build_guardrail_context(
         pause_new_entries_days=pause_days,
         max_open_positions=max_open,
         max_daily_new_positions=max_daily_new,
+        allow_legacy_missing_grade=allow_legacy_missing_grade,
         min_market_regime_score=min_regime,
         market_regime_score=round(market_score, 2),
         total_drawdown_pct=round(total_drawdown_pct, 6),
@@ -144,13 +147,15 @@ def evaluate_candidate_entry(
     if grade and _grade_value(grade) < _grade_value(context.min_grade_for_new_entry):
         return _blocked(f"候選分級 {grade} 低於新增紙上交易門檻 {context.min_grade_for_new_entry}", context)
     if not grade:
-        return GuardrailDecision(
-            True,
-            "legacy report missing candidate_grade; grade guardrail skipped",
-            context.guardrail_status,
-            context.market_regime_score,
-            context.new_entries_allowed,
-        )
+        if "candidate_grade" not in row.index and context.allow_legacy_missing_grade:
+            return GuardrailDecision(
+                True,
+                "legacy report missing candidate_grade; grade guardrail skipped",
+                context.guardrail_status,
+                context.market_regime_score,
+                context.new_entries_allowed,
+            )
+        return _blocked("缺少 candidate_grade，需人工確認", context)
     return GuardrailDecision(
         True,
         "符合 paper trading guardrails",
@@ -158,7 +163,6 @@ def evaluate_candidate_entry(
         context.market_regime_score,
         context.new_entries_allowed,
     )
-
 
 def _blocked(reason: str, context: GuardrailContext) -> GuardrailDecision:
     return GuardrailDecision(

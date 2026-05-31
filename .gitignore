@@ -11,6 +11,8 @@ data/*.db
 logs/*
 !logs/.gitkeep
 reports/cache/
+data/cache/anysearch/*
+!data/cache/anysearch/.gitkeep
 
 # Streamlit runtime logs
 streamlit*.log

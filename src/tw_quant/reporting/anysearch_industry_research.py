@@ -82,12 +82,15 @@ def generate_anysearch_industry_research_report(
         limit=int(config.get("max_requests_per_run", 30) or 30),
     )
     if targets.empty:
-        frame = _empty_candidates()
-        _write_candidates(output_path, frame)
+        if output_path.exists():
+            frame = _read_csv(output_path)
+        else:
+            frame = _empty_candidates()
+            _write_candidates(output_path, frame)
         return AnySearchIndustryResearchResult(
             candidates=frame,
             output_path=output_path,
-            status="OK",
+            status="SKIPPED",
             warning="no priority targets",
         )
 

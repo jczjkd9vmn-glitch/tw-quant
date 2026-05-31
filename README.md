@@ -8,6 +8,7 @@
 - 紙上交易限定：`auto_trading.enabled=false`、`can_place_real_orders=false`，目前沒有真實券商 API 或真實委託能力。
 - AI 不控制交易：AI / rule-based enrichment 只解釋既有資料與 evidence，不建立 pending order、不改出場策略、不執行下單。
 - 不保證獲利：回測、紙上交易、分級與決策引擎都只供研究與人工確認，過去績效不代表未來。
+- AI agent 工作規範以 `AGENTS.md` 為準；外部 API 與 AnySearch 僅能產生候選資料，正式 reference data 需人工確認後才可採用。
 
 ## 功能
 
@@ -264,6 +265,8 @@ GitHub Pages 報表已改為手機優先的帳務 / 庫存介面，首頁標題�
 手機版已改為更精簡的分頁式介面，預設先顯示損益總覽；持倉、待進場、已出場、基本面與健康檢查可由上方分頁切換。持倉與已出場交易優先用卡片呈現，未實現 / 已實現損益會放大顯示。今日候選股詳細表、通過風控股票詳細表、最近每日 summary、健康檢查明細與原始資料表格預設收合，需要檢查時再展開。
 
 桌機版仍保留表格作為詳細檢查，但手機版以卡片與收合資訊為主，避免首頁過長。GitHub Actions 每日流程會在 `run_all_daily.py` 後自動產生此報表，並將 `reports/index.html` 與 `docs/index.html` 一併提交回 repo。
+
+`docs/index.html` 是 GitHub Pages 發佈來源，由 `scripts/generate_html_report.py` 從 `reports/` 最新 CSV 產生；不要手動維護 Pages HTML。最新版報表包含「AnySearch 產業分類候選資料」與「缺產業分類優先補資料清單」區塊，分別讀取 `reports/anysearch_industry_candidates.csv` 與 `reports/missing_industry_priority.csv`。
 
 ### 多面向資料與輔助評分
 
@@ -576,7 +579,7 @@ python -m pytest
 
 ## 報表、出場策略與市場情報概覽
 
-- GitHub Pages 報表由 `scripts/generate_html_report.py` 產生 `reports/index.html` 與 `docs/index.html`；最新版內容包含損益圖、決策儀表盤、大盤復盤、配置說明、持倉風險燈號、資料來源健康檢查與 enrichment evidence。
+- GitHub Pages 報表由 `scripts/generate_html_report.py` 產生 `reports/index.html` 與 `docs/index.html`；最新版內容包含損益圖、決策儀表盤、大盤復盤、配置說明、持倉風險燈號、資料來源健康檢查、AnySearch 產業分類候選資料、缺產業分類優先補資料清單與 enrichment evidence。
 - 出場策略由 `config.yaml` 的 `exit_strategy` 控制，預設啟用停損、分段停利、移動停利、20 日均線出場與持有過久出場；舊版 `paper_trades.csv` 缺欄位時會做 dtype 與欄位相容處理。
 - Market intelligence 預設使用 `real` provider，優先整合公開重大訊息、注意 / 處置股與既有多因子資料；只有完全沒有可用事件或 fallback 資料時才退回 `mock`。
 - `yfinance` provider 仍保留為可替換範例與歷史相容設計；目前主流程只專注台股，不把 yfinance 當作台股正式資料來源。
@@ -648,7 +651,7 @@ python scripts/fetch_multi_factor_data.py
 - `TPEXProvider`：目前是 `placeholder`，不是完整正式資料來源，保留給後續櫃買官方資料接入。
 - `valuation`：TWSE OpenAPI best-effort，失敗時使用既有 CSV 或中性分數。
 - `financials`：TWSE OpenAPI best-effort，EPS 與損益表衍生欄位較穩定；ROE、負債比與現金流仍可能缺資料。
-- `sector_strength`：已由 SQLite 本地價格資料衍生；若缺少產業分類，會使用全市場相對強弱 fallback。
+- `sector_strength`：已由 SQLite 本地價格資料衍生；若缺少產業分類，會使用全市場相對強弱 fallback。目前正式產業分類已大量補強，但全市場仍約有 339 檔使用 `market_relative_fallback`。
 - `liquidity`：已由 SQLite 本地價量資料衍生，仍受 SQLite 價量資料完整度影響。
 
 `reports/data_fetch_status_YYYYMMDD.csv` 會包含 `provider_maturity` 欄位：
@@ -688,7 +691,9 @@ python scripts/fetch_multi_factor_data.py
 `scripts/fetch_multi_factor_data.py` 會從 SQLite 既有每日價量資料衍生兩個本地資料源，不依賴外部 API：
 
 - `data/liquidity.csv`：輸出 `avg_volume_20d`、`avg_turnover_20d`、`latest_turnover`、`turnover_ratio_20d`、`liquidity_score`、`slippage_risk_score` 與 `liquidity_warning`。若資料沒有成交金額，會用 `close * volume` 估算。
-- `data/sector_strength.csv`：輸出 `stock_return_5d`、`stock_return_20d`、`market_return_5d`、`market_return_20d`、`relative_strength_5d`、`relative_strength_20d`、`sector_strength_score` 與 `sector_strength_rank`。目前 SQLite 價格表若沒有 `industry` 欄位，會使用全市場相對強弱 fallback，並在 warning 標示「缺少產業分類，使用全市場相對強弱」。
+- `data/sector_strength.csv`：輸出 `stock_return_5d`、`stock_return_20d`、`market_return_5d`、`market_return_20d`、`relative_strength_5d`、`relative_strength_20d`、`sector_strength_score` 與 `sector_strength_rank`。目前正式產業分類來自 `data/reference/stock_industry_map.csv`，daily workflow 會產生 runtime `data/industry_map.csv`；若仍缺少產業分類，會使用全市場相對強弱 fallback，並在 warning 標示「缺少產業分類，使用全市場相對強弱」。
+
+產業分類目前已大量補強：正式 `data/reference/stock_industry_map.csv` 為人工確認來源，runtime `data/industry_map.csv` 約 1,981 rows；candidate coverage 已可達 20/20，全市場 `data/sector_strength.csv` 仍約有 339 檔缺少產業分類而使用 `market_relative_fallback`。`reports/missing_industry_priority.csv` 會列出剩餘缺產業分類股票、近期出現次數、流動性與 HIGH / MEDIUM / LOW 優先級，作為後續人工補資料依據。
 
 這兩個分數會納入 `multi_factor_score` 與 `final_market_score` 的觀察用分數，也會顯示在 HTML 報表與 data fetch status。預設仍不改候選股排序、不改 `risk_pass`、不產生買單，也不改 pending order 隔日進場邏輯。
 
@@ -846,11 +851,27 @@ ai_enrichment:
 產業分類補強使用：
 
 ```text
+data/reference/stock_industry_map.csv
 data/industry_map.csv
+reports/missing_industry_priority.csv
 scripts/update_industry_map.py
 ```
 
-系統會優先使用既有 SQLite / CSV 內的 `industry` 欄位，其次使用本地 `industry_map.csv`。若沒有產業分類，sector strength 仍會 fallback 成全市場相對強弱，並在報表揭露。
+系統會以 `data/reference/stock_industry_map.csv` 作為正式人工確認資料來源，再產生 runtime `data/industry_map.csv`。若沒有產業分類，sector strength 仍會 fallback 成全市場相對強弱，並在報表揭露。剩餘缺分類股票會彙整到 `reports/missing_industry_priority.csv`，讓後續補資料能優先處理近期候選股、交易決策、risk pass、持倉與 AI enrichment 重複出現的股票。
+
+### AnySearch 產業分類候選資料
+
+AnySearch 只用來查找公開來源並產生候選資料，不會直接採用成正式 reference data。
+
+- 預設 disabled；`config/anysearch.yml` 維持 `enabled: false`。
+- 只有設定 `ANYSEARCH_ENABLED=true` 且環境變數 `ANYSEARCH_API_KEY` 存在時才會啟用。
+- `ANYSEARCH_ENABLED=false` 會強制關閉；未設定 `ANYSEARCH_ENABLED` 時才採用 config 的 `enabled`。
+- `ANYSEARCH_API_KEY` 只從環境變數讀取，不得寫入程式碼、config、report、cache 或 commit。
+- 查詢結果輸出到 `reports/anysearch_industry_candidates.csv`，不直接修改 `data/reference/stock_industry_map.csv`。
+- 候選資料狀態只能是 `PENDING_REVIEW` 或 `NEEDS_MANUAL_CHECK`，正式採用前必須經人工確認。
+- AnySearch 整合需維持 timeout、retry limit、`max_requests_per_run`、cache 與 disabled mode，避免失敗時影響 daily workflow。
+
+目前 `00988A 主動統一全球創新` 已進入 `reports/anysearch_industry_candidates.csv`，狀態為 `PENDING_REVIEW`；尚未寫入正式 `data/reference/stock_industry_map.csv`，正式採用前仍需人工確認官方來源與分類。
 
 估值脈絡會補充 PE、PB、殖利率、同產業或全市場中位數比較，並輸出 `valuation_context` 與 `valuation_risk_level`。PE 偏高只是風險脈絡，不等同交易指令。
 
@@ -903,7 +924,7 @@ market_regime:
 - `coverage_ratio`
 - `affected_symbols_count`
 
-目前限制：財報仍是 best_effort，ROE、負債比、營業現金流不一定能從免費公開端點完整取得；一般新聞來源尚未接入正式新聞 API；sector strength 目前因 SQLite 缺少 industry 欄位，使用全市場相對強弱 fallback；liquidity 已改由本地價量資料衍生，但仍受 SQLite 價量資料完整度影響。外部來源失敗時，流程會保留既有 CSV 或採中性分數，不會讓每日 pipeline 直接崩潰。
+目前限制：財報仍是 best_effort，ROE、負債比、營業現金流不一定能從免費公開端點完整取得；一般新聞來源尚未接入正式新聞 API；sector strength 雖已大量補強產業分類，但仍約有 339 檔缺少正式產業分類而使用全市場相對強弱 fallback；liquidity 已改由本地價量資料衍生，但仍受 SQLite 價量資料完整度影響。外部來源失敗時，流程會保留既有 CSV 或採中性分數，不會讓每日 pipeline 直接崩潰。
 
 ## 台股決策儀表盤與產品化報表
 
@@ -917,6 +938,8 @@ GitHub Pages 報表會整合以下產品化區塊：
 - 利好催化：整理月營收年增、法人買超、相對強勢、流動性佳、基本面改善、事件利多與技術面轉強。這些只作為觀察理由，不保證後續表現。
 - 大盤復盤：產生 `reports/market_recap_YYYYMMDD.csv`，顯示加權 / 櫃買指數欄位、上漲 / 下跌 / 平盤家數、漲停 / 跌停家數、market_regime_score 與市場概況摘要。若尚無正式指數資料，會明確標示使用本地 SQLite 全市場價量 fallback。
 - 配置說明：揭露 `auto_trading.enabled=false`、`can_place_real_orders=false`、`market_intel.affect_trading=false`、`multi_factor.affect_ranking=false`、pending order 有效期限、出場策略參數、交易成本、滑價假設與 `ai_enrichment.allow_external_ai=false`。
+- AnySearch 產業分類候選資料：顯示 `reports/anysearch_industry_candidates.csv` 的查詢筆數、狀態統計與候選清單，並提醒候選資料需人工確認後才可寫入正式產業分類。
+- 缺產業分類優先補資料清單：顯示 `reports/missing_industry_priority.csv` 的缺分類總數、HIGH / MEDIUM / LOW 數量與最高優先級股票。
 
 每日流程會嘗試產生：
 

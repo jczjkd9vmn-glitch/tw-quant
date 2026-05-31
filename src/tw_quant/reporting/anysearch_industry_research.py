@@ -209,14 +209,28 @@ def build_candidate_from_search(
 def load_anysearch_config(path: str | Path) -> dict[str, object]:
     config = dict(DEFAULT_ANYSEARCH_CONFIG)
     config_path = Path(path)
-    if not config_path.exists():
-        return config
-    parsed = _parse_anysearch_yaml(config_path.read_text(encoding="utf-8"))
-    config.update(parsed.get("anysearch", {}))
+    if config_path.exists():
+        parsed = _parse_anysearch_yaml(config_path.read_text(encoding="utf-8"))
+        config.update(parsed.get("anysearch", {}))
+    enabled_override = _env_enabled_override()
+    if enabled_override is not None:
+        config["enabled"] = enabled_override
     config["max_requests_per_run"] = min(max(int(config.get("max_requests_per_run", 30) or 30), 0), 30)
     if not isinstance(config.get("only_priority_levels"), list):
         config["only_priority_levels"] = ["HIGH"]
     return config
+
+
+def _env_enabled_override() -> bool | None:
+    raw = os.getenv("ANYSEARCH_ENABLED")
+    if raw is None:
+        return None
+    value = raw.strip().lower()
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    return None
 
 
 def _select_targets(priority: pd.DataFrame, *, levels: list[str], limit: int) -> pd.DataFrame:

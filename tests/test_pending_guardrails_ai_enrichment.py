@@ -120,6 +120,7 @@ def test_rule_based_enrichment_generates_context_and_evidence(tmp_path: Path) ->
     assert row["margin_risk_level"] == "HIGH"
     assert "資料來源" not in row["ai_summary"]
     assert "保證獲利" not in row["ai_summary"]
+    assert "此為紙上交易輔助說明，需人工確認" not in row["ai_summary"]
     assert int(row["source_evidence_count"]) > 0
     assert "source_name" in row["source_evidence_json"]
 

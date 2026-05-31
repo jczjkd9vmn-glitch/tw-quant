@@ -89,6 +89,37 @@ def test_anysearch_enabled_env_false_overrides_config_true(tmp_path: Path, monke
     assert client.calls == []
 
 
+def test_anysearch_disabled_preserves_existing_candidate_csv(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ANYSEARCH_ENABLED", "false")
+    monkeypatch.setenv("ANYSEARCH_API_KEY", "present")
+    _write_anysearch_config(tmp_path, enabled=True)
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    existing = pd.DataFrame(
+        [
+            {
+                "stock_id": "00988A",
+                "stock_name": "主動統一全球創新",
+                "status": "PENDING_REVIEW",
+            }
+        ]
+    )
+    output_path = reports / "anysearch_industry_candidates.csv"
+    existing.to_csv(output_path, index=False, encoding="utf-8-sig")
+
+    result = generate_anysearch_industry_research_report(
+        reports_dir=reports,
+        config_path=tmp_path / "config" / "anysearch.yml",
+        cache_dir=tmp_path / "data" / "cache" / "anysearch",
+        client=_FakeAnySearchClient(raise_on_call=True),
+    )
+
+    exported = pd.read_csv(output_path, dtype={"stock_id": str})
+    assert result.status == "SKIPPED"
+    assert list(exported["stock_id"]) == ["00988A"]
+    assert exported.iloc[0]["status"] == "PENDING_REVIEW"
+
+
 def test_only_high_priority_is_processed_and_candidates_csv_is_written(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv("ANYSEARCH_ENABLED", raising=False)
     monkeypatch.setenv("ANYSEARCH_API_KEY", "present")

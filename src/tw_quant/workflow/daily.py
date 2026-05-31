@@ -19,6 +19,7 @@ from tw_quant.enrichment.industry import update_industry_map
 from tw_quant.enrichment.report import generate_ai_enrichment
 from tw_quant.reporting.dashboard_data import generate_market_recap, generate_pnl_chart_data
 from tw_quant.reporting.candidate_coverage import generate_candidate_coverage_report
+from tw_quant.reporting.missing_industry_priority import generate_missing_industry_priority_report
 from tw_quant.reporting.position_review import generate_position_review_summary
 from tw_quant.reporting.export import export_latest_candidates
 from tw_quant.trading.paper import run_paper_trade
@@ -132,6 +133,7 @@ class DailyWorkflowResult:
     decision_result: Any | None = None
     loss_attribution_result: Any | None = None
     enrichment_result: Any | None = None
+    missing_industry_priority_result: Any | None = None
     pnl_chart_result: Any | None = None
     market_recap_result: Any | None = None
 
@@ -158,6 +160,7 @@ def run_all_daily(
     market_recap_func: Callable[..., Any] = generate_market_recap,
     candidate_coverage_func: Callable[..., Any] = generate_candidate_coverage_report,
     position_review_func: Callable[..., Any] = generate_position_review_summary,
+    missing_industry_priority_func: Callable[..., Any] = generate_missing_industry_priority_report,
 ) -> DailyWorkflowResult:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -165,6 +168,7 @@ def run_all_daily(
     messages: list[str] = []
     daily_result = export_result = paper_result = execute_result = update_result = None
     validation_result = decision_result = loss_attribution_result = enrichment_result = None
+    missing_industry_priority_result = None
     pnl_chart_result = market_recap_result = None
 
     try:
@@ -621,6 +625,32 @@ def run_all_daily(
             messages.append(f"ai_enrichment warning {type(exc).__name__}: {exc}")
 
     try:
+        data_dir = Path(config_path).resolve().parent / "data"
+        try:
+            missing_industry_priority_result = missing_industry_priority_func(
+                data_dir=data_dir,
+                reports_dir=report_dir,
+                trade_date=summary_values["trade_date"],
+            )
+        except TypeError:
+            missing_industry_priority_result = missing_industry_priority_func(
+                reports_dir=report_dir,
+                trade_date=summary_values["trade_date"],
+            )
+        priority = getattr(missing_industry_priority_result, "priority", pd.DataFrame())
+        if getattr(missing_industry_priority_result, "output_path", None):
+            high_priority = _count_level(priority, "HIGH")
+            messages.append(
+                "missing_industry_priority OK "
+                f"rows={len(priority)} "
+                f"high_priority={high_priority}"
+            )
+        if getattr(missing_industry_priority_result, "warning", ""):
+            messages.append(f"missing_industry_priority warning {missing_industry_priority_result.warning}")
+    except Exception as exc:
+        messages.append(f"missing_industry_priority warning {type(exc).__name__}: {exc}")
+
+    try:
         try:
             pnl_chart_result = pnl_chart_func(
                 reports_dir=report_dir,
@@ -685,6 +715,7 @@ def run_all_daily(
         decision_result=decision_result,
         loss_attribution_result=loss_attribution_result,
         enrichment_result=enrichment_result,
+        missing_industry_priority_result=missing_industry_priority_result,
         pnl_chart_result=pnl_chart_result,
         market_recap_result=market_recap_result,
     )
@@ -959,6 +990,12 @@ def _count_status_value(frame: pd.DataFrame, column: str, values: set[str]) -> i
     if frame.empty or column not in frame.columns:
         return 0
     return int(frame[column].fillna("").astype(str).str.upper().isin(values).sum())
+
+
+def _count_level(frame: pd.DataFrame, level: str) -> int:
+    if frame.empty or "priority_level" not in frame.columns:
+        return 0
+    return int((frame["priority_level"].fillna("").astype(str).str.upper() == level).sum())
 
 
 def _count_entry_price_warnings(execute_result: Any) -> int:

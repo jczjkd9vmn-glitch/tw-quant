@@ -1,0 +1,9 @@
+anysearch:
+  enabled: false
+  max_requests_per_run: 30
+  cache_days: 14
+  timeout_seconds: 15
+  retry_count: 2
+  only_priority_levels:
+    - HIGH
+  write_mode: proposal_only

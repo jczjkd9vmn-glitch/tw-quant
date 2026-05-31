@@ -365,6 +365,14 @@ COLUMN_LABELS.update(
         "priority_score": "優先分數",
         "priority_level": "優先等級",
         "suggested_action": "建議動作",
+        "query": "查詢字串",
+        "proposed_market_type": "候選市場類型",
+        "proposed_industry": "候選產業",
+        "proposed_sub_industry": "候選子產業",
+        "source_title": "來源標題",
+        "source_url": "來源網址",
+        "confidence": "可信度",
+        "checked_at": "查詢時間",
         "avg_volume_20d": "20 日均量",
         "avg_turnover_20d": "20 日均成交金額",
         "latest_volume": "最新成交量",
@@ -870,6 +878,7 @@ def generate_html_report(
     candidate_coverage = _read_latest_csv(report_dir, "candidate_coverage_report_*.csv")
     position_review = _read_latest_csv(report_dir, "position_review_summary_*.csv")
     missing_industry_priority = _read_csv(report_dir / "missing_industry_priority.csv")
+    anysearch_industry_candidates = _read_csv(report_dir / "anysearch_industry_candidates.csv")
     active_config = load_config(ROOT / "config.yaml")
     trading_cost = active_config.get("trading_cost", {})
 
@@ -895,6 +904,7 @@ def generate_html_report(
         candidate_coverage=candidate_coverage,
         position_review=position_review,
         missing_industry_priority=missing_industry_priority,
+        anysearch_industry_candidates=anysearch_industry_candidates,
         trading_cost=trading_cost,
         config=active_config,
     )
@@ -930,6 +940,7 @@ def _render_page(
     candidate_coverage: pd.DataFrame,
     position_review: pd.DataFrame,
     missing_industry_priority: pd.DataFrame,
+    anysearch_industry_candidates: pd.DataFrame,
     trading_cost: dict[str, object],
     config: dict[str, object] | None = None,
 ) -> str:
@@ -1187,6 +1198,7 @@ def _render_page(
             _health_summary_cards(health_items),
             _data_quality_health_section(data_quality_health),
             _missing_industry_priority_section(missing_industry_priority),
+            _anysearch_industry_candidates_section(anysearch_industry_candidates),
             _data_source_summary_section(data_fetch_status),
             _details_block("資料來源技術細節", _data_source_technical_details(data_fetch_status)),
             _details_block("系統健康檢查詳細項目", _health_section(_non_data_source_health_items(health_items))),
@@ -1745,6 +1757,58 @@ def _priority_level_count(frame: pd.DataFrame, level: str) -> int:
     if frame.empty or "priority_level" not in frame.columns:
         return 0
     return int((frame["priority_level"].fillna("").astype(str).str.upper() == level).sum())
+
+
+def _anysearch_industry_candidates_section(candidates: pd.DataFrame) -> str:
+    title = "AnySearch 產業分類候選資料"
+    cards = [
+        ("查詢筆數", f"{len(candidates):,.0f}"),
+        ("PENDING_REVIEW", f"{_anysearch_status_count(candidates, 'PENDING_REVIEW'):,.0f}"),
+        ("NEEDS_MANUAL_CHECK", f"{_anysearch_status_count(candidates, 'NEEDS_MANUAL_CHECK'):,.0f}"),
+    ]
+    note = '<p class="note">此為候選資料，需人工確認後才可寫入正式產業分類。</p>'
+    if candidates.empty:
+        return _section(
+            title,
+            '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+            + note
+            + _empty("目前尚無 anysearch_industry_candidates.csv 候選資料"),
+        )
+
+    frame = candidates.copy()
+    frame["_confidence"] = pd.to_numeric(frame.get("confidence"), errors="coerce").fillna(0)
+    frame = frame.sort_values(["_confidence", "stock_id"], ascending=[False, True]).drop(columns=["_confidence"], errors="ignore")
+    table = _table(
+        frame,
+        [
+            "stock_id",
+            "stock_name",
+            "proposed_market_type",
+            "proposed_industry",
+            "proposed_sub_industry",
+            "source_title",
+            "source_url",
+            "source_type",
+            "confidence",
+            "reason",
+            "status",
+            "checked_at",
+        ],
+        "目前尚無 AnySearch 產業分類候選資料",
+        10,
+    )
+    return _section(
+        title,
+        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        + note
+        + _details_block("前 10 筆候選資料", table, open_by_default=True),
+    )
+
+
+def _anysearch_status_count(frame: pd.DataFrame, status: str) -> int:
+    if frame.empty or "status" not in frame.columns:
+        return 0
+    return int((frame["status"].fillna("").astype(str).str.upper() == status).sum())
 
 
 def _market_recap_section(market_recap: pd.DataFrame, summary: dict[str, object]) -> str:

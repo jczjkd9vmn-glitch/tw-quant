@@ -1,4 +1,5 @@
 stock_id,stock_name,industry,sub_industry,market_type,source,updated_at
+00861,元大全球未來通訊,ETF,全球通訊 ETF,ETF,manual_verified,2026-05-31
 00876,元大全球5G,ETF,全球5G ETF,ETF,manual,2026-05-28
 00901,永豐智能車供應鏈,ETF,智能車供應鏈 ETF,ETF,manual,2026-05-28
 00910,第一金太空衛星,ETF,太空衛星 ETF,ETF,manual,2026-05-28

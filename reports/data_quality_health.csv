@@ -2,13 +2,12 @@
 候選股資料完整度,candidate,ATTENTION,DATA_REVIEW,3 檔候選股有資料不足或 fallback 註記,True,False,20,3,,,
 候選股投資風險,candidate,ATTENTION,RISK_REVIEW,19 檔候選股有投資風險註記,False,True,20,19,,,
 產業分類覆蓋率,industry,OK,OK,0 檔缺少產業分類，使用全市場相對強弱 fallback,False,False,20,0,,,
-資料來源：monthly_revenue,source,OK,OK,資料來源正常,False,False,1078,0,monthly_revenue,OK,nan
-資料來源：valuation,source,OK,OK,資料來源正常,False,False,1077,0,valuation,OK,nan
-資料來源：financials,source,OK,OK,資料來源正常,False,False,1042,0,financials,OK,nan
-資料來源：material_events,source,OK,OK,資料來源正常,False,False,351,0,material_events,OK,nan
-資料來源：institutional,source,OK,OK,資料來源正常,False,False,1320,0,institutional,OK,nan
-資料來源：margin_short,source,OK,OK,資料來源正常,False,False,1271,0,margin_short,OK,nan
-資料來源：attention_disposition,source,OK,OK,資料來源正常,False,False,76,0,attention_disposition,OK,nan
-資料來源：sector_strength,source,OK,OK,資料來源正常,False,False,1433,0,sector_strength,OK,nan
-資料來源：liquidity,source,OK,OK,資料來源正常,False,False,1433,0,liquidity,OK,nan
-資料來源：market_intel,source,ATTENTION,DATA_REVIEW,market_intel 使用快取資料，需確認資料時效,True,False,20,20,market_intel,CACHE,cache
+資料來源：monthly_revenue,source,ATTENTION,DATA_REVIEW,monthly_revenue 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,True,False,1078,1078,monthly_revenue,OK_WITH_FALLBACK,wrote_new_data
+資料來源：valuation,source,OK,OK,資料來源正常,False,False,1078,1078,valuation,OK,wrote_new_data
+資料來源：financials,source,OK,OK,資料來源正常,False,False,1043,1043,financials,OK,wrote_new_data
+資料來源：material_events,source,OK,OK,資料來源正常,False,False,4,4,material_events,OK,wrote_new_data
+資料來源：institutional,source,ATTENTION,DATA_REVIEW,institutional 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,True,False,1320,0,institutional,OK_WITH_FALLBACK,kept_existing_csv
+資料來源：margin_short,source,ATTENTION,DATA_REVIEW,margin_short 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,True,False,1271,0,margin_short,OK_WITH_FALLBACK,kept_existing_csv
+資料來源：attention_disposition,source,OK,OK,資料來源正常,False,False,30,0,attention_disposition,OK,wrote_new_data
+資料來源：sector_strength,source,ATTENTION,DATA_REVIEW,sector_strength 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,True,False,1433,1433,sector_strength,OK_WITH_FALLBACK,used_local_fallback
+資料來源：liquidity,source,OK,OK,資料來源正常,False,False,1433,1433,liquidity,OK,wrote_new_data

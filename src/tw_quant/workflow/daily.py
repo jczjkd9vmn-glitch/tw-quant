@@ -17,6 +17,7 @@ from tw_quant.data_sources.local_derived_provider import LocalDerivedProvider
 from tw_quant.decision.engine import decision_counts, generate_trading_decisions
 from tw_quant.enrichment.industry import update_industry_map
 from tw_quant.enrichment.report import generate_ai_enrichment
+from tw_quant.reporting.anysearch_industry_research import generate_anysearch_industry_research_report
 from tw_quant.reporting.dashboard_data import generate_market_recap, generate_pnl_chart_data
 from tw_quant.reporting.candidate_coverage import generate_candidate_coverage_report
 from tw_quant.reporting.missing_industry_priority import generate_missing_industry_priority_report
@@ -134,6 +135,7 @@ class DailyWorkflowResult:
     loss_attribution_result: Any | None = None
     enrichment_result: Any | None = None
     missing_industry_priority_result: Any | None = None
+    anysearch_industry_research_result: Any | None = None
     pnl_chart_result: Any | None = None
     market_recap_result: Any | None = None
 
@@ -161,6 +163,7 @@ def run_all_daily(
     candidate_coverage_func: Callable[..., Any] = generate_candidate_coverage_report,
     position_review_func: Callable[..., Any] = generate_position_review_summary,
     missing_industry_priority_func: Callable[..., Any] = generate_missing_industry_priority_report,
+    anysearch_industry_research_func: Callable[..., Any] = generate_anysearch_industry_research_report,
 ) -> DailyWorkflowResult:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -169,6 +172,7 @@ def run_all_daily(
     daily_result = export_result = paper_result = execute_result = update_result = None
     validation_result = decision_result = loss_attribution_result = enrichment_result = None
     missing_industry_priority_result = None
+    anysearch_industry_research_result = None
     pnl_chart_result = market_recap_result = None
 
     try:
@@ -651,6 +655,38 @@ def run_all_daily(
         messages.append(f"missing_industry_priority warning {type(exc).__name__}: {exc}")
 
     try:
+        data_dir = Path(config_path).resolve().parent / "data"
+        anysearch_config_path = Path(config_path).resolve().parent / "config" / "anysearch.yml"
+        try:
+            anysearch_industry_research_result = anysearch_industry_research_func(
+                reports_dir=report_dir,
+                config_path=anysearch_config_path,
+                cache_dir=data_dir / "cache" / "anysearch",
+                trade_date=summary_values["trade_date"],
+            )
+        except TypeError:
+            anysearch_industry_research_result = anysearch_industry_research_func(
+                reports_dir=report_dir,
+                trade_date=summary_values["trade_date"],
+            )
+        status = str(getattr(anysearch_industry_research_result, "status", "") or "")
+        warning = str(getattr(anysearch_industry_research_result, "warning", "") or "")
+        candidates = getattr(anysearch_industry_research_result, "candidates", pd.DataFrame())
+        if status.upper() == "SKIPPED":
+            messages.append(f"anysearch_industry_research SKIPPED {warning}".rstrip())
+        else:
+            messages.append(
+                "anysearch_industry_research OK "
+                f"rows={len(candidates)} "
+                f"api_calls={int(getattr(anysearch_industry_research_result, 'api_calls', 0) or 0)} "
+                f"cache_hits={int(getattr(anysearch_industry_research_result, 'cache_hits', 0) or 0)}"
+            )
+            if warning:
+                messages.append(f"anysearch_industry_research warning {warning}")
+    except Exception as exc:
+        messages.append(f"anysearch_industry_research warning {type(exc).__name__}: {exc}")
+
+    try:
         try:
             pnl_chart_result = pnl_chart_func(
                 reports_dir=report_dir,
@@ -716,6 +752,7 @@ def run_all_daily(
         loss_attribution_result=loss_attribution_result,
         enrichment_result=enrichment_result,
         missing_industry_priority_result=missing_industry_priority_result,
+        anysearch_industry_research_result=anysearch_industry_research_result,
         pnl_chart_result=pnl_chart_result,
         market_recap_result=market_recap_result,
     )

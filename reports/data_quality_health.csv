@@ -6,7 +6,7 @@
 資料來源：valuation,source,OK,OK,資料來源正常,False,False,1078,1078,valuation,OK,wrote_new_data
 資料來源：financials,source,OK,OK,資料來源正常,False,False,1043,1043,financials,OK,wrote_new_data
 資料來源：material_events,source,OK,OK,資料來源正常,False,False,4,4,material_events,OK,wrote_new_data
-資料來源：institutional,source,ATTENTION,DATA_REVIEW,institutional 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,True,False,1320,0,institutional,OK_WITH_FALLBACK,kept_existing_csv
+資料來源：institutional,source,OK,OK,資料來源正常,False,False,908,0,institutional,OK,wrote_new_data
 資料來源：margin_short,source,ATTENTION,DATA_REVIEW,margin_short 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,True,False,1271,0,margin_short,OK_WITH_FALLBACK,kept_existing_csv
 資料來源：attention_disposition,source,OK,OK,資料來源正常,False,False,30,0,attention_disposition,OK,wrote_new_data
 資料來源：sector_strength,source,ATTENTION,DATA_REVIEW,sector_strength 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,True,False,1433,1433,sector_strength,OK_WITH_FALLBACK,used_local_fallback

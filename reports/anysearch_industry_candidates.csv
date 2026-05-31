@@ -1,1 +1,2 @@
 ﻿stock_id,stock_name,query,proposed_market_type,proposed_industry,proposed_sub_industry,source_title,source_url,source_type,confidence,reason,status,checked_at
+00988A,主動統一全球創新,00988A 主動統一全球創新 統一全球創新主動式ETF 統一投信 官方,ETF,ETF,全球創新主動式 ETF,TWSE ETF e添富 00988A 商品頁,https://www.twse.com.tw/zh/ETFortune/etfInfo/00988A,twse_official,0.9,TWSE ETF e添富確認證券代號00988A、證券簡稱主動統一全球創新、證券類別主動式ETF、發行公司統一證券投資信託股份有限公司；統一投信官方公開說明書亦可作為交叉來源；候選資料需人工確認後才可正式採用,PENDING_REVIEW,2026-05-31T11:35:22Z

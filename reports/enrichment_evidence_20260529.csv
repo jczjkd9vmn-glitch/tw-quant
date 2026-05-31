@@ -9,7 +9,7 @@
 2026-05-29,2881,富邦金,candidate,csv,2026-05-29,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-05-29,2881,富邦金,candidate,csv,2026-05-29,sector_strength_score,29.0,sector_strength_score=29.0,False,0.8
 2026-05-29,2881,富邦金,candidate,csv,2026-05-29,event_risk_level,HIGH,event_risk_level=HIGH,False,0.8
-2026-05-29,2881,富邦金,candidate,csv,2026-05-29,risk_flags,產業弱勢；融資連增但股價不漲；高風險事件,risk_flags=產業弱勢；融資連增但股價不漲；高風險事件,False,0.8
+2026-05-29,2881,富邦金,candidate,csv,2026-05-29,risk_flags,融資連增但股價不漲；高風險事件,risk_flags=融資連增但股價不漲；高風險事件,False,0.8
 2026-05-29,2317,鴻海,candidate,csv,2026-05-29,candidate_grade,B,candidate_grade=B,False,0.8
 2026-05-29,2317,鴻海,candidate,csv,2026-05-29,decision,WATCH_ONLY,decision=WATCH_ONLY,False,0.8
 2026-05-29,2317,鴻海,candidate,csv,2026-05-29,pe_ratio,18.68,pe_ratio=18.68,False,0.8
@@ -19,7 +19,7 @@
 2026-05-29,2317,鴻海,candidate,csv,2026-05-29,price_return_5d,0.1559999999999999,price_return_5d=0.1559999999999999,False,0.8
 2026-05-29,2317,鴻海,candidate,csv,2026-05-29,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-05-29,2317,鴻海,candidate,csv,2026-05-29,sector_strength_score,39.0,sector_strength_score=39.0,False,0.8
-2026-05-29,2317,鴻海,candidate,csv,2026-05-29,risk_flags,產業弱勢；融資連增但股價不漲；融資使用偏高,risk_flags=產業弱勢；融資連增但股價不漲；融資使用偏高,False,0.8
+2026-05-29,2317,鴻海,candidate,csv,2026-05-29,risk_flags,融資連增但股價不漲；融資使用偏高；產業弱勢,risk_flags=融資連增但股價不漲；融資使用偏高；產業弱勢,False,0.8
 2026-05-29,3046,建碁,candidate,csv,2026-05-29,candidate_grade,B,candidate_grade=B,False,0.8
 2026-05-29,3046,建碁,candidate,csv,2026-05-29,decision,WATCH_ONLY,decision=WATCH_ONLY,False,0.8
 2026-05-29,3046,建碁,candidate,csv,2026-05-29,pe_ratio,13.27,pe_ratio=13.27,False,0.8
@@ -29,7 +29,7 @@
 2026-05-29,3046,建碁,candidate,csv,2026-05-29,price_return_5d,0.0898876404494382,price_return_5d=0.0898876404494382,False,0.8
 2026-05-29,3046,建碁,candidate,csv,2026-05-29,liquidity_score,60.0,liquidity_score=60.0,False,0.8
 2026-05-29,3046,建碁,candidate,csv,2026-05-29,sector_strength_score,35.0,sector_strength_score=35.0,False,0.8
-2026-05-29,3046,建碁,candidate,csv,2026-05-29,risk_flags,產業弱勢；融資連增但股價不漲,risk_flags=產業弱勢；融資連增但股價不漲,False,0.8
+2026-05-29,3046,建碁,candidate,csv,2026-05-29,risk_flags,融資連增但股價不漲；產業弱勢,risk_flags=融資連增但股價不漲；產業弱勢,False,0.8
 2026-05-29,8473,山林水,candidate,csv,2026-05-29,candidate_grade,D,candidate_grade=D,False,0.8
 2026-05-29,8473,山林水,candidate,csv,2026-05-29,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-05-29,8473,山林水,candidate,csv,2026-05-29,pe_ratio,16.12,pe_ratio=16.12,False,0.8
@@ -60,7 +60,7 @@
 2026-05-29,8454,富邦媒,candidate,csv,2026-05-29,price_return_5d,0.206266318537859,price_return_5d=0.206266318537859,False,0.8
 2026-05-29,8454,富邦媒,candidate,csv,2026-05-29,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-05-29,8454,富邦媒,candidate,csv,2026-05-29,sector_strength_score,43.0,sector_strength_score=43.0,False,0.8
-2026-05-29,8454,富邦媒,candidate,csv,2026-05-29,risk_flags,產業弱勢；融資連增但股價不漲；PB 偏高,risk_flags=產業弱勢；融資連增但股價不漲；PB 偏高,False,0.8
+2026-05-29,8454,富邦媒,candidate,csv,2026-05-29,risk_flags,融資連增但股價不漲；PB 偏高；產業弱勢,risk_flags=融資連增但股價不漲；PB 偏高；產業弱勢,False,0.8
 2026-05-29,1563,巧新,candidate,csv,2026-05-29,candidate_grade,C,candidate_grade=C,False,0.8
 2026-05-29,1563,巧新,candidate,csv,2026-05-29,decision,WATCH_ONLY,decision=WATCH_ONLY,False,0.8
 2026-05-29,1563,巧新,candidate,csv,2026-05-29,pe_ratio,138.86,pe_ratio=138.86,False,0.8
@@ -81,7 +81,7 @@
 2026-05-29,3652,精聯,candidate,csv,2026-05-29,price_return_5d,0.1196172248803828,price_return_5d=0.1196172248803828,False,0.8
 2026-05-29,3652,精聯,candidate,csv,2026-05-29,liquidity_score,50.0,liquidity_score=50.0,False,0.8
 2026-05-29,3652,精聯,candidate,csv,2026-05-29,sector_strength_score,43.0,sector_strength_score=43.0,False,0.8
-2026-05-29,3652,精聯,candidate,csv,2026-05-29,risk_flags,產業弱勢；流動性偏低；未通過既有風控,risk_flags=產業弱勢；流動性偏低；未通過既有風控,False,0.8
+2026-05-29,3652,精聯,candidate,csv,2026-05-29,risk_flags,流動性偏低；未通過既有風控,risk_flags=流動性偏低；未通過既有風控,False,0.8
 2026-05-29,1524,耿鼎,candidate,csv,2026-05-29,candidate_grade,D,candidate_grade=D,False,0.8
 2026-05-29,1524,耿鼎,candidate,csv,2026-05-29,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-05-29,1524,耿鼎,candidate,csv,2026-05-29,pe_ratio,21.27,pe_ratio=21.27,False,0.8
@@ -91,7 +91,7 @@
 2026-05-29,1524,耿鼎,candidate,csv,2026-05-29,price_return_5d,0.1319796954314722,price_return_5d=0.1319796954314722,False,0.8
 2026-05-29,1524,耿鼎,candidate,csv,2026-05-29,liquidity_score,75.0,liquidity_score=75.0,False,0.8
 2026-05-29,1524,耿鼎,candidate,csv,2026-05-29,sector_strength_score,29.0,sector_strength_score=29.0,False,0.8
-2026-05-29,1524,耿鼎,candidate,csv,2026-05-29,risk_flags,產業弱勢；融資連增但股價不漲；未通過既有風控,risk_flags=產業弱勢；融資連增但股價不漲；未通過既有風控,False,0.8
+2026-05-29,1524,耿鼎,candidate,csv,2026-05-29,risk_flags,融資連增但股價不漲；未通過既有風控,risk_flags=融資連增但股價不漲；未通過既有風控,False,0.8
 2026-05-29,2438,翔耀,candidate,csv,2026-05-29,candidate_grade,D,candidate_grade=D,False,0.8
 2026-05-29,2438,翔耀,candidate,csv,2026-05-29,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-05-29,2438,翔耀,candidate,csv,2026-05-29,pb_ratio,4.48,pb_ratio=4.48,False,0.8
@@ -100,7 +100,7 @@
 2026-05-29,2438,翔耀,candidate,csv,2026-05-29,liquidity_score,50.0,liquidity_score=50.0,False,0.8
 2026-05-29,2438,翔耀,candidate,csv,2026-05-29,sector_strength_score,43.0,sector_strength_score=43.0,False,0.8
 2026-05-29,2438,翔耀,candidate,csv,2026-05-29,event_risk_level,MEDIUM,event_risk_level=MEDIUM,False,0.8
-2026-05-29,2438,翔耀,candidate,csv,2026-05-29,risk_flags,產業弱勢；流動性偏低；PE 為空或負值；EPS 為負；月營收 YoY 明顯衰退；未通過既有風控,risk_flags=產業弱勢；流動性偏低；PE 為空或負值；EPS 為負；月營收 YoY 明顯衰退；未通過既有風控,False,0.8
+2026-05-29,2438,翔耀,candidate,csv,2026-05-29,risk_flags,流動性偏低；PE 為空或負值；EPS 為負；月營收 YoY 明顯衰退；未通過既有風控,risk_flags=流動性偏低；PE 為空或負值；EPS 為負；月營收 YoY 明顯衰退；未通過既有風控,False,0.8
 2026-05-29,02001L,富邦蘋果正二N,candidate,csv,2026-05-29,candidate_grade,D,candidate_grade=D,False,0.8
 2026-05-29,02001L,富邦蘋果正二N,candidate,csv,2026-05-29,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-05-29,02001L,富邦蘋果正二N,candidate,csv,2026-05-29,price_return_5d,0.2315939957112223,price_return_5d=0.2315939957112223,False,0.8
@@ -116,7 +116,7 @@
 2026-05-29,3257,虹冠電,candidate,csv,2026-05-29,price_return_5d,0.303030303030303,price_return_5d=0.303030303030303,False,0.8
 2026-05-29,3257,虹冠電,candidate,csv,2026-05-29,liquidity_score,75.0,liquidity_score=75.0,False,0.8
 2026-05-29,3257,虹冠電,candidate,csv,2026-05-29,sector_strength_score,43.0,sector_strength_score=43.0,False,0.8
-2026-05-29,3257,虹冠電,candidate,csv,2026-05-29,risk_flags,產業弱勢；融資連增但股價不漲；月營收 YoY 明顯衰退；未通過既有風控,risk_flags=產業弱勢；融資連增但股價不漲；月營收 YoY 明顯衰退；未通過既有風控,False,0.8
+2026-05-29,3257,虹冠電,candidate,csv,2026-05-29,risk_flags,融資連增但股價不漲；月營收 YoY 明顯衰退；未通過既有風控,risk_flags=融資連增但股價不漲；月營收 YoY 明顯衰退；未通過既有風控,False,0.8
 2026-05-29,6141,柏承,candidate,csv,2026-05-29,candidate_grade,D,candidate_grade=D,False,0.8
 2026-05-29,6141,柏承,candidate,csv,2026-05-29,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-05-29,6141,柏承,candidate,csv,2026-05-29,pb_ratio,8.26,pb_ratio=8.26,False,0.8
@@ -125,7 +125,7 @@
 2026-05-29,6141,柏承,candidate,csv,2026-05-29,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-05-29,6141,柏承,candidate,csv,2026-05-29,sector_strength_score,43.0,sector_strength_score=43.0,False,0.8
 2026-05-29,6141,柏承,candidate,csv,2026-05-29,event_risk_level,MEDIUM,event_risk_level=MEDIUM,False,0.8
-2026-05-29,6141,柏承,candidate,csv,2026-05-29,risk_flags,產業弱勢；PE 為空或負值；PB 偏高；EPS 為負；未通過既有風控,risk_flags=產業弱勢；PE 為空或負值；PB 偏高；EPS 為負；未通過既有風控,False,0.8
+2026-05-29,6141,柏承,candidate,csv,2026-05-29,risk_flags,PE 為空或負值；PB 偏高；EPS 為負；未通過既有風控,risk_flags=PE 為空或負值；PB 偏高；EPS 為負；未通過既有風控,False,0.8
 2026-05-29,3528,安馳,candidate,csv,2026-05-29,candidate_grade,D,candidate_grade=D,False,0.8
 2026-05-29,3528,安馳,candidate,csv,2026-05-29,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-05-29,3528,安馳,candidate,csv,2026-05-29,pe_ratio,36.61,pe_ratio=36.61,False,0.8
@@ -136,7 +136,7 @@
 2026-05-29,3528,安馳,candidate,csv,2026-05-29,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-05-29,3528,安馳,candidate,csv,2026-05-29,sector_strength_score,43.0,sector_strength_score=43.0,False,0.8
 2026-05-29,3528,安馳,candidate,csv,2026-05-29,event_risk_level,MEDIUM,event_risk_level=MEDIUM,False,0.8
-2026-05-29,3528,安馳,candidate,csv,2026-05-29,risk_flags,產業弱勢；融資連增但股價不漲；未通過既有風控,risk_flags=產業弱勢；融資連增但股價不漲；未通過既有風控,False,0.8
+2026-05-29,3528,安馳,candidate,csv,2026-05-29,risk_flags,融資連增但股價不漲；未通過既有風控,risk_flags=融資連增但股價不漲；未通過既有風控,False,0.8
 2026-05-29,8110,華東,candidate,csv,2026-05-29,candidate_grade,D,candidate_grade=D,False,0.8
 2026-05-29,8110,華東,candidate,csv,2026-05-29,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-05-29,8110,華東,candidate,csv,2026-05-29,pe_ratio,22.71,pe_ratio=22.71,False,0.8
@@ -194,7 +194,7 @@
 2026-05-29,2369,菱生,candidate,csv,2026-05-29,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-05-29,2369,菱生,candidate,csv,2026-05-29,sector_strength_score,43.0,sector_strength_score=43.0,False,0.8
 2026-05-29,2369,菱生,candidate,csv,2026-05-29,event_risk_level,MEDIUM,event_risk_level=MEDIUM,False,0.8
-2026-05-29,2369,菱生,candidate,csv,2026-05-29,risk_flags,產業弱勢；融資連增但股價不漲；PE 為空或負值；未通過既有風控,risk_flags=產業弱勢；融資連增但股價不漲；PE 為空或負值；未通過既有風控,False,0.8
+2026-05-29,2369,菱生,candidate,csv,2026-05-29,risk_flags,融資連增但股價不漲；PE 為空或負值；未通過既有風控,risk_flags=融資連增但股價不漲；PE 為空或負值；未通過既有風控,False,0.8
 2026-05-29,2376,技嘉,position,csv,2026-05-29,decision,REDUCE,decision=REDUCE,False,0.8
 2026-05-29,2376,技嘉,position,csv,2026-05-29,pe_ratio,15.76,pe_ratio=15.76,False,0.8
 2026-05-29,2376,技嘉,position,csv,2026-05-29,pb_ratio,3.5,pb_ratio=3.5,False,0.8

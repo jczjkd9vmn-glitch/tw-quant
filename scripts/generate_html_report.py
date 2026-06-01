@@ -1162,6 +1162,14 @@ def _render_page(
 
     overview_content = "".join(
         [
+            _overview_dashboard(
+                latest_summary,
+                latest_paper_summary,
+                trading_decisions,
+                market_intel,
+                missing_industry_priority,
+                anysearch_industry_candidates,
+            ),
             _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
             _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status, trading_decisions), class_name="today-action-section"),
             _pnl_chart_section(latest_summary, pnl_chart_data, recent_summaries),
@@ -1189,7 +1197,7 @@ def _render_page(
             _multi_factor_summary(candidates, latest_summary),
             _fundamental_summary(candidates),
             _candidate_coverage_section(candidate_coverage),
-            _details_block("今日候選股詳細表", candidate_detail),
+            _section("候選股", _details_block("今日候選股詳細表", candidate_detail, open_by_default=True), section_id="candidate-detail-section", class_name="candidate-section"),
             _details_block("通過風控股票詳細表", risk_pass_detail),
             _details_block("資料來源依據", _evidence_table(enrichment_evidence)),
         ]
@@ -1197,7 +1205,7 @@ def _render_page(
     health_content = "".join(
         [
             _health_summary_cards(health_items),
-            _data_quality_health_section(data_quality_health),
+            _data_quality_health_section(data_quality_health, section_id="data-quality-section"),
             _missing_industry_priority_section(missing_industry_priority),
             _anysearch_industry_candidates_section(anysearch_industry_candidates),
             _data_source_summary_section(data_fetch_status),
@@ -1205,7 +1213,7 @@ def _render_page(
             _details_block("系統健康檢查詳細項目", _health_section(_non_data_source_health_items(health_items))),
             _details_block("最近每日 summary", recent_summary_brief),
             _details_block("完整每日 summary 原始資料", recent_summary_full),
-            _details_block("配置說明", _config_summary(config or {}), open_by_default=True),
+            _section("系統設定摘要", _details_block("配置說明", _config_summary(config or {}), open_by_default=True), section_id="config-summary-section", class_name="config-summary-section"),
         ]
     )
     decision_content = _decision_engine_content(trading_decisions, strategy_validation)
@@ -1225,6 +1233,7 @@ def _render_page(
             _account_header_v2(latest_summary, updated_at),
             alert,
             _nav_tabs_v2(),
+            _section_shortcuts(),
             _tab_panel("overview", "總覽", overview_content, active=True),
             _tab_panel("positions", "目前持倉", _position_cards(open_positions)),
             _tab_panel("pending", "待進場", _pending_cards(pending_orders)),
@@ -1306,12 +1315,12 @@ def _account_header_v2(summary: dict[str, object], updated_at: str) -> str:
 def _nav_tabs_v2() -> str:
     tabs = [
         ("overview", "總覽"),
-        ("positions", "持倉"),
+        ("positions", "紙上持倉"),
         ("pending", "待進場"),
         ("closed", "已出場"),
-        ("fundamental", "市場情報 / 多因子"),
-        ("decision", "決策引擎"),
-        ("health", "健康檢查"),
+        ("fundamental", "候選股 / 市場情報"),
+        ("decision", "今日交易決策"),
+        ("health", "資料品質"),
     ]
     buttons = []
     for index, (anchor, label) in enumerate(tabs):
@@ -1324,6 +1333,25 @@ def _nav_tabs_v2() -> str:
     return f'<nav class="section-tabs tab-nav" aria-label="報表區塊導覽">{"".join(buttons)}</nav>'
 
 
+def _section_shortcuts() -> str:
+    links = [
+        ("overview", "dashboard-overview", "總覽"),
+        ("decision", "decision-dashboard", "今日交易決策"),
+        ("positions", "tab-positions", "紙上持倉"),
+        ("fundamental", "candidate-detail-section", "候選股"),
+        ("health", "data-quality-section", "資料品質"),
+        ("health", "missing-industry-section", "產業分類缺口"),
+        ("health", "anysearch-candidates-section", "AnySearch 候選資料"),
+        ("health", "config-summary-section", "系統設定摘要"),
+    ]
+    buttons = "".join(
+        f'<button type="button" class="quick-nav-link" data-tab-jump="{escape(tab)}" '
+        f'data-section-target="{escape(target)}">{escape(label)}</button>'
+        for tab, target, label in links
+    )
+    return f'<nav class="quick-section-nav" aria-label="重點區塊導覽">{buttons}</nav>'
+
+
 def _tab_panel(panel_id: str, title: str, content: str, active: bool = False) -> str:
     classes = "tab-panel active" if active else "tab-panel"
     title = {
@@ -1332,13 +1360,182 @@ def _tab_panel(panel_id: str, title: str, content: str, active: bool = False) ->
         "pending": "待進場",
         "closed": "今日 / 最近已出場",
         "fundamental": "市場情報 / 多因子",
-        "decision": "決策引擎",
+        "decision": "今日交易決策 / 決策引擎",
         "health": "系統健康檢查",
     }.get(panel_id, title)
     return (
         f'<section id="tab-{escape(panel_id)}" class="{classes}" data-tab-panel="{escape(panel_id)}" '
         f'role="tabpanel"><h2>{escape(title)}</h2>{content}</section>'
     )
+
+
+def _overview_dashboard(
+    summary: dict[str, object],
+    paper_summary: dict[str, object],
+    decisions: pd.DataFrame,
+    market_intel: pd.DataFrame,
+    missing_industry_priority: pd.DataFrame,
+    anysearch_candidates: pd.DataFrame,
+) -> str:
+    data_frame = market_intel
+    requested = _format_cell("requested_date", summary.get("requested_date") or summary.get("trade_date"))
+    trade_date = _format_cell("trade_date", summary.get("trade_date"))
+    actual_data_date = _market_intel_actual_data_date(summary, data_frame)
+    freshness_level = _market_intel_freshness_level(summary, data_frame)
+    market_status = _first_raw(summary.get("market_intel_status"), _frame_first(data_frame, "market_intel_status"), summary.get("status"))
+    guardrail_status = _first_raw(summary.get("guardrail_status"), "UNKNOWN")
+    using_cache = str(summary.get("market_intel_status", "")).strip().upper() == "CACHE"
+    if not data_frame.empty and "market_intel_status" in data_frame.columns:
+        using_cache = using_cache or data_frame["market_intel_status"].fillna("").astype(str).str.upper().eq("CACHE").any()
+    stale = _market_intel_is_stale(summary, data_frame) or freshness_level in {"STALE", "CACHE"} or using_cache
+    freshness_note = (
+        "市場資料過期，不建議短線進場"
+        if stale
+        else "資料為最新或目前可用資料"
+    )
+
+    equity_source = paper_summary or summary
+    total_equity = _format_cell("total_equity", _first_raw(
+        equity_source.get("total_equity_after_cost"),
+        equity_source.get("total_equity"),
+        summary.get("total_equity_after_cost"),
+        summary.get("total_equity"),
+    ))
+    unrealized = _format_cell("unrealized_pnl", _first_raw(equity_source.get("unrealized_pnl"), summary.get("unrealized_pnl")))
+    realized = _format_cell("realized_pnl_after_cost", _first_raw(
+        equity_source.get("realized_pnl_after_cost"),
+        equity_source.get("realized_pnl"),
+        summary.get("realized_pnl_after_cost"),
+        summary.get("realized_pnl"),
+    ))
+
+    buy_count = _summary_or_decision_count(summary, decisions, "buy_candidate_count", "BUY_CANDIDATE")
+    watch_count = _summary_or_decision_count(summary, decisions, "watch_only_count", "WATCH_ONLY")
+    no_trade_count = _summary_or_decision_count(summary, decisions, "no_trade_count", "NO_TRADE")
+    hold_count = _summary_or_decision_count(summary, decisions, "hold_count", "HOLD")
+    reduce_count = _summary_or_decision_count(summary, decisions, "reduce_count", "REDUCE")
+    exit_count = _summary_or_decision_count(summary, decisions, "exit_review_count", "EXIT")
+
+    high_priority = _priority_level_count(missing_industry_priority, "HIGH")
+    medium_priority = _priority_level_count(missing_industry_priority, "MEDIUM")
+    low_priority = _priority_level_count(missing_industry_priority, "LOW")
+    pending_review = _anysearch_status_count(anysearch_candidates, "PENDING_REVIEW")
+    manual_check = _anysearch_status_count(anysearch_candidates, "NEEDS_MANUAL_CHECK")
+
+    cards = [
+        _kpi_card(
+            "今日市場資料狀態",
+            _status_badge(market_status, "market_intel_status") + _status_badge(freshness_level, "data_freshness_level", "freshness-badge"),
+            [
+                ("報表日期", requested),
+                ("實際交易日", trade_date),
+                ("實際資料日", actual_data_date),
+                ("快取 / 資料年齡", _market_intel_cache_age_text(data_frame)),
+            ],
+            tone="danger" if stale else "ok",
+        ),
+        _kpi_card(
+            "交易安全狀態",
+            _status_badge(guardrail_status, "guardrail_status", "guardrail-badge"),
+            [
+                ("是否允許新增持倉", _format_cell("new_entries_allowed", summary.get("new_entries_allowed"))),
+                ("暫停新倉原因", _format_cell("pause_new_entries_reason", summary.get("pause_new_entries_reason"))),
+            ],
+            tone="danger" if str(summary.get("guardrail_status", "")).upper() == "BLOCKED" else "ok",
+        ),
+        _kpi_card(
+            "紙上交易資產",
+            escape(total_equity),
+            [
+                ("未實現損益", unrealized),
+                ("已實現損益", realized),
+            ],
+            tone="neutral",
+        ),
+        _kpi_card(
+            "今日決策統計",
+            escape(f"BUY {buy_count:,.0f} / WATCH {watch_count:,.0f} / NO_TRADE {no_trade_count:,.0f}"),
+            [
+                ("HOLD", f"{hold_count:,.0f}"),
+                ("REDUCE", f"{reduce_count:,.0f}"),
+                ("EXIT_REVIEW", f"{exit_count:,.0f}"),
+            ],
+            tone="warning" if buy_count and stale else "neutral",
+        ),
+        _kpi_card(
+            "產業分類缺口",
+            escape("高優先缺口已清空" if high_priority == 0 else f"HIGH {high_priority:,.0f}"),
+            [
+                ("缺分類總數", f"{len(missing_industry_priority):,.0f}"),
+                ("MEDIUM", f"{medium_priority:,.0f}"),
+                ("LOW", f"{low_priority:,.0f}"),
+            ],
+            tone="ok" if high_priority == 0 else "warning",
+        ),
+        _kpi_card(
+            "AnySearch 候選資料",
+            escape(f"{len(anysearch_candidates):,.0f} 筆"),
+            [
+                ("PENDING_REVIEW", f"{pending_review:,.0f}"),
+                ("NEEDS_MANUAL_CHECK", f"{manual_check:,.0f}"),
+                ("狀態", "候選資料，尚未正式採用"),
+            ],
+            tone="info" if len(anysearch_candidates) else "neutral",
+        ),
+    ]
+    alert_class = "dashboard-alert danger" if stale else "dashboard-alert ok"
+    return _section(
+        "總覽儀表板",
+        f'<div class="{alert_class}">{escape(freshness_note)}</div>'
+        + '<div class="kpi-grid">'
+        + "".join(cards)
+        + "</div>",
+        section_id="dashboard-overview",
+        class_name="dashboard-overview-section",
+    )
+
+
+def _summary_or_decision_count(summary: dict[str, object], decisions: pd.DataFrame, summary_key: str, decision_value: str) -> int:
+    summary_value = _to_float(summary.get(summary_key))
+    if summary_value is not None:
+        return int(summary_value)
+    return _decision_count(decisions, "decision", decision_value)
+
+
+def _kpi_card(title: str, primary_html: str, metrics: list[tuple[str, str]], tone: str = "neutral") -> str:
+    metric_items = "".join(
+        f'<span><b>{escape(label)}</b><em>{escape(value)}</em></span>'
+        for label, value in metrics
+    )
+    return (
+        f'<article class="kpi-card {escape(tone)}">'
+        f"<h3>{escape(title)}</h3>"
+        f'<div class="kpi-primary">{primary_html}</div>'
+        f'<div class="kpi-meta">{metric_items}</div>'
+        "</article>"
+    )
+
+
+def _status_badge(value: object, column: str = "status", extra_class: str = "") -> str:
+    raw = "-" if _is_blank(value) else str(value).strip()
+    normalized = raw.upper().replace(" ", "_")
+    label = _format_cell(column, raw)
+    css_class = _badge_class(normalized)
+    if extra_class:
+        css_class += f" {extra_class}"
+    return f'<span class="status-badge {escape(css_class)}">{escape(label)}</span>'
+
+
+def _badge_class(normalized: str) -> str:
+    if normalized in {"OK", "CURRENT", "OPEN", "HOLD"}:
+        return "badge-ok"
+    if normalized in {"RECENT", "PENDING_REVIEW", "WATCH_ONLY", "INFO", "WATCH"}:
+        return "badge-info"
+    if normalized in {"OK_WITH_FALLBACK", "OK_WITH_WARNING", "CACHE", "NEEDS_MANUAL_CHECK", "REDUCE", "MEDIUM", "ATTENTION", "WARNING"}:
+        return "badge-warning"
+    if normalized in {"STALE", "BLOCKED", "FAILED", "MISSING", "NO_TRADE", "EXIT", "HIGH", "HIGH_RISK"}:
+        return "badge-danger"
+    return "badge-neutral"
 
 
 def _pnl_overview(
@@ -1500,18 +1697,33 @@ def _decision_dashboard(
     candidates: pd.DataFrame,
     open_positions: pd.DataFrame,
 ) -> str:
+    decision_stats = [
+        ("BUY_CANDIDATE", "買進候選", _decision_count(decisions, "decision", "BUY_CANDIDATE"), "buy"),
+        ("WATCH_ONLY", "觀察名單", _decision_count(decisions, "decision", "WATCH_ONLY"), "watch"),
+        ("NO_TRADE", "不交易", _decision_count(decisions, "decision", "NO_TRADE"), "no-trade"),
+        ("HOLD", "持倉檢查", _decision_count(decisions, "decision", "HOLD"), "hold"),
+        ("REDUCE", "降低風險檢查", _decision_count(decisions, "decision", "REDUCE"), "reduce"),
+        ("EXIT_REVIEW", "出場檢查", _decision_count(decisions, "decision", "EXIT"), "exit"),
+    ]
     stats = [
-        ("BUY_CANDIDATE", _decision_count(decisions, "decision", "BUY_CANDIDATE")),
-        ("WATCH_ONLY", _decision_count(decisions, "decision", "WATCH_ONLY")),
-        ("NO_TRADE", _decision_count(decisions, "decision", "NO_TRADE")),
-        ("HOLD", _decision_count(decisions, "decision", "HOLD")),
-        ("REDUCE review", _decision_count(decisions, "decision", "REDUCE")),
-        ("EXIT review", _decision_count(decisions, "decision", "EXIT")),
+        (label, value)
+        for label, _, value, _ in decision_stats
+    ] + [
         ("A 級候選", _decision_count(decisions, "candidate_grade", "A") or int(_to_float(summary.get("grade_a_count")) or 0)),
         ("B 級候選", _decision_count(decisions, "candidate_grade", "B") or int(_to_float(summary.get("grade_b_count")) or 0)),
         ("C 級候選", _decision_count(decisions, "candidate_grade", "C") or int(_to_float(summary.get("grade_c_count")) or 0)),
         ("D 級候選", _decision_count(decisions, "candidate_grade", "D") or int(_to_float(summary.get("grade_d_count")) or 0)),
     ]
+    lanes = "".join(
+        '<div class="decision-lane decision-{}">'
+        '<span>{}</span><strong>{:,.0f}</strong><em>{}</em></div>'.format(
+            escape(tone),
+            escape(label),
+            value,
+            escape(caption),
+        )
+        for label, caption, value, tone in decision_stats
+    )
     stat_cards = '<div class="cards decision-stat-cards">' + "".join(_card(label, f"{value:,.0f}") for label, value in stats) + "</div>"
     top = decisions.copy()
     if not top.empty:
@@ -1528,7 +1740,8 @@ def _decision_dashboard(
     risks = _risk_alert_list(summary, candidates, decisions, open_positions)
     catalysts = _catalyst_list(candidates, decisions)
     content = (
-        stat_cards
+        '<div class="decision-lanes">' + lanes + "</div>"
+        + stat_cards
         + _details_block("分析結果摘要", top_table, open_by_default=True)
         + '<div class="dashboard-split">'
         + _section("風險警報", '<ul class="risk-list">' + "".join(f"<li>{escape(item)}</li>" for item in risks) + "</ul>")
@@ -1536,7 +1749,7 @@ def _decision_dashboard(
         + "</div>"
         + '<p class="note">買進候選需人工確認；出場訊號檢查需人工確認；本系統未自動下單。</p>'
     )
-    return _section("決策儀表盤", content)
+    return _section("決策儀表盤", content, section_id="decision-dashboard", class_name="decision-dashboard-section")
 
 
 def _risk_alert_list(
@@ -1701,7 +1914,10 @@ def _missing_industry_priority_section(priority: pd.DataFrame) -> str:
         return _section(
             title,
             '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+            + '<p class="note">高優先缺口已清空。</p>'
             + _empty("目前尚無 missing_industry_priority.csv"),
+            section_id="missing-industry-section",
+            class_name="missing-industry-section",
         )
 
     frame = priority.copy()
@@ -1712,6 +1928,8 @@ def _missing_industry_priority_section(priority: pd.DataFrame) -> str:
         ascending=[False, False, True],
     )
     high = frame[frame.get("priority_level", pd.Series([""] * len(frame))).fillna("").astype(str).str.upper() == "HIGH"]
+    medium = frame[frame.get("priority_level", pd.Series([""] * len(frame))).fillna("").astype(str).str.upper() == "MEDIUM"]
+    low = frame[frame.get("priority_level", pd.Series([""] * len(frame))).fillna("").astype(str).str.upper() == "LOW"]
     top = high if not high.empty else frame
     top = top.drop(columns=["_priority_score", "_recent_appearance_count"], errors="ignore")
     cards = [
@@ -1745,12 +1963,38 @@ def _missing_industry_priority_section(priority: pd.DataFrame) -> str:
         "目前尚無缺產業分類優先補資料明細",
         20,
     )
-    note = '<p class="note">此清單只列出仍使用 market_relative_fallback 的股票；不會移除缺產業分類警告，也不會自動補分類。</p>'
+    medium_table = _table(medium.drop(columns=["_priority_score", "_recent_appearance_count"], errors="ignore"), [
+        "stock_id",
+        "stock_name",
+        "market_type",
+        "latest_relative_mode",
+        "priority_score",
+        "priority_level",
+        "suggested_action",
+    ], "目前尚無 MEDIUM priority 缺口", 20)
+    low_table = _table(low.drop(columns=["_priority_score", "_recent_appearance_count"], errors="ignore"), [
+        "stock_id",
+        "stock_name",
+        "market_type",
+        "latest_relative_mode",
+        "priority_score",
+        "priority_level",
+        "suggested_action",
+    ], "目前尚無 LOW priority 缺口", 20)
+    high_note = "高優先缺口已清空。" if high.empty else "HIGH priority 缺口已置頂，優先人工查證。"
+    note = (
+        f'<p class="note">{escape(high_note)} 此清單只列出仍使用 market_relative_fallback 的股票；'
+        "不會移除缺產業分類警告，也不會自動補分類。</p>"
+    )
     return _section(
         title,
         '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
         + note
-        + _details_block("前 20 檔優先補資料標的", table, open_by_default=True),
+        + _details_block("前 20 檔優先補資料標的", table, open_by_default=True)
+        + _details_block("MEDIUM priority 缺口", medium_table)
+        + _details_block("LOW priority 低優先缺口", low_table),
+        section_id="missing-industry-section",
+        class_name="missing-industry-section",
     )
 
 
@@ -1767,13 +2011,22 @@ def _anysearch_industry_candidates_section(candidates: pd.DataFrame) -> str:
         ("PENDING_REVIEW", f"{_anysearch_status_count(candidates, 'PENDING_REVIEW'):,.0f}"),
         ("NEEDS_MANUAL_CHECK", f"{_anysearch_status_count(candidates, 'NEEDS_MANUAL_CHECK'):,.0f}"),
     ]
-    note = '<p class="note">此為候選資料，需人工確認後才可寫入正式產業分類。</p>'
+    status_badges = (
+        '<div class="status-strip">'
+        + _status_badge("PENDING_REVIEW", "status")
+        + _status_badge("NEEDS_MANUAL_CHECK", "status")
+        + "</div>"
+    )
+    note = '<p class="note">此為候選資料，需人工確認後才可寫入正式產業分類。候選資料，尚未正式採用。</p>'
     if candidates.empty:
         return _section(
             title,
             '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+            + status_badges
             + note
             + _empty("目前尚無 anysearch_industry_candidates.csv 候選資料"),
+            section_id="anysearch-candidates-section",
+            class_name="anysearch-candidates-section",
         )
 
     frame = candidates.copy()
@@ -1801,8 +2054,11 @@ def _anysearch_industry_candidates_section(candidates: pd.DataFrame) -> str:
     return _section(
         title,
         '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        + status_badges
         + note
         + _details_block("前 10 筆候選資料", table, open_by_default=True),
+        section_id="anysearch-candidates-section",
+        class_name="anysearch-candidates-section",
     )
 
 
@@ -2941,9 +3197,9 @@ def _refresh_data_quality_health(
     return _read_csv(report_dir / "data_quality_health.csv")
 
 
-def _data_quality_health_section(data_quality_health: pd.DataFrame) -> str:
+def _data_quality_health_section(data_quality_health: pd.DataFrame, section_id: str = "") -> str:
     if data_quality_health.empty:
-        return _section("資料健康檢查", _empty("目前尚無 data_quality_health.csv"), class_name="data-quality-health")
+        return _section("資料健康檢查", _empty("目前尚無 data_quality_health.csv"), section_id=section_id, class_name="data-quality-health")
     data_issues = _count_true(data_quality_health, "data_issue")
     investment_risks = _count_true(data_quality_health, "investment_risk")
     warning_count = _status_count(data_quality_health, "health_status", "WARNING")
@@ -2976,6 +3232,7 @@ def _data_quality_health_section(data_quality_health: pd.DataFrame) -> str:
     return _section(
         "資料健康檢查",
         '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + note + table,
+        section_id=section_id,
         class_name="data-quality-health",
     )
 
@@ -3713,6 +3970,13 @@ def _first_non_blank(*values: object) -> str:
         if not _is_blank(value):
             return _format_cell("status", value)
     return "-"
+
+
+def _first_raw(*values: object) -> object:
+    for value in values:
+        if not _is_blank(value):
+            return value
+    return ""
 
 
 def _source_status_summary(data_fetch_status: pd.DataFrame, source_name: str) -> str:
@@ -4546,6 +4810,22 @@ document.querySelectorAll('[data-tab-target]').forEach(function(button){
     });
   });
 });
+document.querySelectorAll('[data-section-target]').forEach(function(button){
+  button.addEventListener('click', function(){
+    var tab = button.getAttribute('data-tab-jump');
+    var sectionId = button.getAttribute('data-section-target');
+    var tabButton = document.querySelector('[data-tab-target="' + tab + '"]');
+    if (tabButton) {
+      tabButton.click();
+    }
+    window.setTimeout(function(){
+      var section = document.getElementById(sectionId);
+      if (section) {
+        section.scrollIntoView({block: 'start'});
+      }
+    }, 0);
+  });
+});
 """
 
 
@@ -4564,11 +4844,39 @@ body{margin:0;background:#080d18;color:#e5e7eb;font-family:-apple-system,BlinkMa
 .section-tabs{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;margin:10px -14px 12px;padding:9px 14px;background:rgba(8,13,24,.94);backdrop-filter:blur(10px);border-bottom:1px solid #1f2937}
 .tab-button{flex:0 0 auto;padding:8px 12px;border:1px solid #243244;border-radius:999px;background:#111827;color:#dbeafe;font:700 14px/1.2 inherit;cursor:pointer}
 .tab-button.active{background:#2563eb;border-color:#60a5fa;color:#fff}
+.quick-section-nav{position:sticky;top:54px;z-index:4;display:flex;gap:8px;overflow-x:auto;margin:0 -14px 12px;padding:8px 14px;background:rgba(11,18,32,.92);border-bottom:1px solid #243244;backdrop-filter:blur(10px)}
+.quick-nav-link{flex:0 0 auto;border:1px solid #243244;border-radius:999px;background:#0f172a;color:#cbd5e1;padding:7px 10px;font:700 12px/1.2 inherit;cursor:pointer}
+.quick-nav-link:hover{border-color:#60a5fa;color:#fff;background:#1e293b}
 .tab-panel{display:none}
 .tab-panel.active{display:block}
 section{margin:12px 0;padding:14px;background:#101827;border:1px solid #1f2937;border-radius:10px}
 h2{margin:0 0 12px;font-size:18px;letter-spacing:0}
 h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
+.dashboard-overview-section{background:linear-gradient(180deg,#111827,#0b1220);border-color:#334155}
+.dashboard-alert{margin:0 0 12px;padding:12px 14px;border-radius:10px;font-weight:800}
+.dashboard-alert.ok{background:#052e2b;border:1px solid #0f766e;color:#ccfbf1}
+.dashboard-alert.danger{background:#4c1d14;border:1px solid #f97316;color:#ffedd5}
+.kpi-grid{display:grid;grid-template-columns:1fr;gap:12px}
+.kpi-card{min-height:176px;padding:14px;border:1px solid #263244;border-radius:10px;background:#0b1220;display:flex;flex-direction:column;gap:10px}
+.kpi-card h3{margin:0;color:#cbd5e1;font-size:13px}
+.kpi-primary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#f8fafc;font-size:24px;font-weight:800;line-height:1.25}
+.kpi-meta{display:grid;gap:7px;margin-top:auto}
+.kpi-meta span{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-top:1px solid #1f2937;padding-top:7px}
+.kpi-meta b{color:#94a3b8;font-size:12px;font-weight:700}
+.kpi-meta em{color:#e5e7eb;font-style:normal;text-align:right;font-size:12px;max-width:62%;word-break:break-word}
+.kpi-card.ok{border-color:#0f766e}.kpi-card.warning{border-color:#b45309}.kpi-card.danger{border-color:#dc2626}.kpi-card.info{border-color:#2563eb}
+.status-badge{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid #334155;padding:5px 9px;font-size:12px;font-weight:900;line-height:1.1;white-space:nowrap}
+.badge-ok{background:#064e3b;border-color:#10b981;color:#d1fae5}
+.badge-info{background:#0c4a6e;border-color:#38bdf8;color:#e0f2fe}
+.badge-warning{background:#713f12;border-color:#f59e0b;color:#fef3c7}
+.badge-danger{background:#7f1d1d;border-color:#ef4444;color:#fee2e2}
+.badge-neutral{background:#334155;border-color:#475569;color:#e2e8f0}
+.status-strip{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.decision-lanes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
+.decision-lane{padding:12px;border:1px solid #243244;border-radius:10px;background:#0b1220}
+.decision-lane span,.decision-lane em{display:block;color:#94a3b8;font-size:12px;font-style:normal}
+.decision-lane strong{display:block;margin:5px 0;font-size:26px;color:#f8fafc}
+.decision-buy{border-color:#14b8a6}.decision-watch{border-color:#38bdf8}.decision-no-trade{border-color:#64748b}.decision-hold{border-color:#22c55e}.decision-reduce{border-color:#f59e0b}.decision-exit{border-color:#ef4444}
 .pnl-card{padding:14px;border:1px solid #334155;border-radius:12px;background:linear-gradient(180deg,#172033,#0f172a)}
 .pnl-primary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .pnl-secondary,.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
@@ -4652,7 +4960,7 @@ tr:last-child td{border-bottom:0}
 .health strong{display:inline-block;margin-right:8px;padding:2px 8px;border-radius:999px;font-size:12px}
 .health span,.health em{display:block;margin-top:5px;font-style:normal}
 .health.正常 strong{background:#065f46;color:#d1fae5}.health.注意 strong{background:#854d0e;color:#fef3c7}.health.警告 strong{background:#991b1b;color:#fee2e2}
-@media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.chart-grid,.dashboard-split{grid-template-columns:repeat(2,minmax(0,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards,.mobile-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}
+@media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.quick-section-nav{margin:0 0 16px;padding:8px 0}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.decision-lanes{grid-template-columns:repeat(6,minmax(0,1fr))}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.chart-grid,.dashboard-split{grid-template-columns:repeat(2,minmax(0,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards,.mobile-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}
 """
 
 

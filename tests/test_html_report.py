@@ -223,6 +223,32 @@ def test_generate_html_report_translates_all_exit_reasons(tmp_path: Path) -> Non
     assert "持有過久出場" in html
 
 
+def test_generate_html_report_has_modern_dashboard_sections_and_badges(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "總覽儀表板" in html
+    assert "今日市場資料狀態" in html
+    assert "交易安全狀態" in html
+    assert "紙上交易資產" in html
+    assert "今日決策統計" in html
+    assert "產業分類缺口" in html
+    assert "AnySearch 候選資料" in html
+    assert "資料為最新或目前可用資料" in html
+    assert 'class="status-badge badge-ok freshness-badge"' in html
+    assert 'class="status-badge badge-ok guardrail-badge"' in html
+    assert 'data-section-target="missing-industry-section"' in html
+    assert 'data-section-target="anysearch-candidates-section"' in html
+    assert "缺產業分類優先補資料清單" in html
+    assert "AnySearch 產業分類候選資料" in html
+    assert "PENDING_REVIEW" in html
+    assert "NEEDS_MANUAL_CHECK" in html
+    assert "候選資料，尚未正式採用" in html
+    assert "已正式採用" not in html
+
+
 def _write_reports(path: Path) -> None:
     pd.DataFrame(
         [
@@ -255,6 +281,20 @@ def _write_reports(path: Path) -> None:
                 "financial_warning_candidates": 1,
                 "institutional_positive_candidates": 1,
                 "status": "OK_WITH_FALLBACK",
+                "actual_data_date": "2026-05-08",
+                "cache_age_days": 0,
+                "is_stale_data": False,
+                "data_freshness_level": "CURRENT",
+                "market_intel_status": "OK",
+                "guardrail_status": "OK",
+                "new_entries_allowed": True,
+                "pause_new_entries_reason": "",
+                "buy_candidate_count": 1,
+                "watch_only_count": 0,
+                "no_trade_count": 0,
+                "hold_count": 1,
+                "reduce_count": 0,
+                "exit_review_count": 0,
             }
         ]
     ).to_csv(path / "daily_summary_20260510.csv", index=False, encoding="utf-8-sig")
@@ -600,6 +640,75 @@ def _write_reports(path: Path) -> None:
             }
         ]
     ).to_csv(path / "strategy_validation_20260508.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "stock_id": "1001",
+                "stock_name": "缺產業測試",
+                "market_type": "TWSE",
+                "latest_relative_mode": "market_relative_fallback",
+                "fallback_reason": "缺少產業分類，使用全市場相對強弱",
+                "appear_in_candidates_count": 1,
+                "appear_in_trading_decisions_count": 1,
+                "appear_in_risk_pass_count": 0,
+                "appear_in_position_review_count": 0,
+                "appear_in_ai_enrichment_count": 0,
+                "recent_appearance_count": 2,
+                "liquidity_score": 92,
+                "avg_volume": 100000,
+                "turnover_value": 2500000,
+                "last_seen_date": "2026-05-08",
+                "priority_score": 14,
+                "priority_level": "HIGH",
+                "suggested_action": "優先查證並補產業分類",
+            },
+            {
+                "stock_id": "1002",
+                "stock_name": "低優先測試",
+                "market_type": "TPEX",
+                "latest_relative_mode": "market_relative_fallback",
+                "fallback_reason": "缺少產業分類，使用全市場相對強弱",
+                "recent_appearance_count": 0,
+                "priority_score": 1,
+                "priority_level": "LOW",
+                "suggested_action": "暫緩補資料",
+            },
+        ]
+    ).to_csv(path / "missing_industry_priority.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "stock_id": "00999",
+                "stock_name": "測試 ETF",
+                "query": "00999 測試 ETF 官方",
+                "proposed_market_type": "ETF",
+                "proposed_industry": "ETF",
+                "proposed_sub_industry": "測試 ETF",
+                "source_title": "官方測試來源",
+                "source_url": "https://example.com/etf",
+                "source_type": "official",
+                "confidence": 0.8,
+                "reason": "候選資料，等待人工確認",
+                "status": "PENDING_REVIEW",
+                "checked_at": "2026-05-08T09:00:00",
+            },
+            {
+                "stock_id": "00998",
+                "stock_name": "需人工確認 ETF",
+                "query": "00998 ETF",
+                "proposed_market_type": "ETF",
+                "proposed_industry": "ETF",
+                "proposed_sub_industry": "",
+                "source_title": "待確認來源",
+                "source_url": "https://example.com/check",
+                "source_type": "web",
+                "confidence": 0.4,
+                "reason": "缺少官方來源",
+                "status": "NEEDS_MANUAL_CHECK",
+                "checked_at": "2026-05-08T09:00:00",
+            },
+        ]
+    ).to_csv(path / "anysearch_industry_candidates.csv", index=False, encoding="utf-8-sig")
 
 
 def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path) -> None:

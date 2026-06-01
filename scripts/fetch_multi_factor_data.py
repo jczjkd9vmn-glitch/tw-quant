@@ -53,7 +53,10 @@ def _ensure_schema(frame: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
 def _load_existing(path: Path, columns: list[str]) -> tuple[pd.DataFrame, str]:
     if not path.exists():
         return pd.DataFrame(columns=columns), "MISSING"
-    frame = pd.read_csv(path)
+    frame = pd.read_csv(path, dtype={"stock_id": str, "symbol": str})
+    for id_column in ["stock_id", "symbol"]:
+        if id_column in frame.columns:
+            frame[id_column] = frame[id_column].astype("string").str.strip()
     if frame.empty:
         return _ensure_schema(frame, columns), "EMPTY"
     return _ensure_schema(frame, columns), "OK"

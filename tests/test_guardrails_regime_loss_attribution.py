@@ -7,6 +7,7 @@ import pandas as pd
 from tw_quant.data.database import create_db_engine, init_db, save_daily_prices
 from tw_quant.market_regime import evaluate_market_regime
 from tw_quant.trading.paper import run_paper_trade
+from tw_quant.trading.guardrails import build_guardrail_context, evaluate_candidate_entry
 from tw_quant.validation.loss_attribution import generate_loss_attribution
 
 
@@ -99,6 +100,35 @@ def test_paper_guardrails_block_low_market_regime(tmp_path: Path) -> None:
     assert result.market_regime_score < 60
     assert result.pending_orders.empty
     assert "market_regime_score" in result.pause_new_entries_reason
+
+
+def test_guardrail_blocks_missing_candidate_grade_by_default(tmp_path: Path) -> None:
+    context = build_guardrail_context(tmp_path, capital=1_000_000, config=_config())
+
+    decision = evaluate_candidate_entry(
+        pd.Series({"stock_id": "2330", "stock_name": "台積電", "event_blocked": False}),
+        context,
+        created_today=0,
+    )
+
+    assert decision.allowed is False
+    assert decision.status == "BLOCKED"
+    assert decision.reason == "缺少 candidate_grade，需人工確認"
+
+
+def test_guardrail_allows_legacy_missing_grade_only_when_enabled(tmp_path: Path) -> None:
+    config = _config()
+    config["paper_trading_guardrails"]["allow_legacy_missing_grade"] = True
+    context = build_guardrail_context(tmp_path, capital=1_000_000, config=config)
+
+    decision = evaluate_candidate_entry(
+        pd.Series({"stock_id": "2330", "stock_name": "台積電", "event_blocked": False}),
+        context,
+        created_today=0,
+    )
+
+    assert decision.allowed is True
+    assert decision.reason == "legacy report missing candidate_grade; grade guardrail skipped"
 
 
 def test_loss_attribution_outputs_loss_reason_fields(tmp_path: Path) -> None:

@@ -107,6 +107,7 @@ def _write_risk_report(path, date_label: str) -> None:
                 "reason": "收盤價高於 20 日均線",
                 "stop_loss_price": 32.27,
                 "suggested_position_pct": 0.1,
+                "candidate_grade": "A",
             },
             {
                 "rank": 2,
@@ -126,6 +127,7 @@ def _write_risk_report(path, date_label: str) -> None:
                 "reason": "收盤價高於 20 日均線",
                 "stop_loss_price": 85.39,
                 "suggested_position_pct": 0.1,
+                "candidate_grade": "A",
             },
         ]
     )

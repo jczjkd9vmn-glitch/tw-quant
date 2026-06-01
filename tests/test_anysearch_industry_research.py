@@ -120,6 +120,48 @@ def test_anysearch_disabled_preserves_existing_candidate_csv(tmp_path: Path, mon
     assert exported.iloc[0]["status"] == "PENDING_REVIEW"
 
 
+def test_anysearch_no_priority_targets_preserves_existing_candidate_csv(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv("ANYSEARCH_ENABLED", "true")
+    monkeypatch.setenv("ANYSEARCH_API_KEY", "present")
+    _write_anysearch_config(tmp_path, enabled=False)
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    pd.DataFrame(
+        [
+            {
+                "stock_id": "00988A",
+                "stock_name": "主動統一全球創新",
+                "status": "PENDING_REVIEW",
+            }
+        ]
+    ).to_csv(reports / "anysearch_industry_candidates.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "stock_id": "00400A",
+                "stock_name": "主動國泰動能高息",
+                "priority_level": "LOW",
+                "priority_score": 3,
+            }
+        ]
+    ).to_csv(reports / "missing_industry_priority.csv", index=False, encoding="utf-8-sig")
+    client = _FakeAnySearchClient(raise_on_call=True)
+
+    result = generate_anysearch_industry_research_report(
+        reports_dir=reports,
+        config_path=tmp_path / "config" / "anysearch.yml",
+        cache_dir=tmp_path / "data" / "cache" / "anysearch",
+        client=client,
+    )
+
+    exported = pd.read_csv(reports / "anysearch_industry_candidates.csv", dtype={"stock_id": str})
+    assert result.status in {"OK", "SKIPPED"}
+    assert result.warning == "no priority targets"
+    assert client.calls == []
+    assert list(exported["stock_id"]) == ["00988A"]
+    assert exported.iloc[0]["status"] == "PENDING_REVIEW"
+
+
 def test_only_high_priority_is_processed_and_candidates_csv_is_written(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv("ANYSEARCH_ENABLED", raising=False)
     monkeypatch.setenv("ANYSEARCH_API_KEY", "present")

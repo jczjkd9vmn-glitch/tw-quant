@@ -92,6 +92,7 @@ def test_auto_trading_defaults_are_safe() -> None:
     assert config["decision_engine"]["min_grade_for_buy_candidate"] == "A"
     assert config["paper_trading_guardrails"]["enabled"] is True
     assert config["paper_trading_guardrails"]["min_grade_for_new_entry"] == "A"
+    assert config["paper_trading_guardrails"]["allow_legacy_missing_grade"] is False
     assert config["market_regime"]["enabled"] is True
 
 

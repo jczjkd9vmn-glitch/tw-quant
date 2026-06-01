@@ -119,6 +119,22 @@ def test_provider_failed_keeps_existing_csv(tmp_path: Path, monkeypatch) -> None
     assert after == before
 
 
+def test_load_existing_preserves_leading_zero_stock_ids_and_symbols(tmp_path: Path) -> None:
+    path = tmp_path / "existing.csv"
+    pd.DataFrame(
+        [
+            {"stock_id": "00861", "symbol": "0050", "value": 1},
+            {"stock_id": "006208", "symbol": "006208", "value": 2},
+        ]
+    ).to_csv(path, index=False)
+
+    frame, status = module._load_existing(path, ["stock_id", "symbol", "value"])
+
+    assert status == "OK"
+    assert list(frame["stock_id"]) == ["00861", "006208"]
+    assert list(frame["symbol"]) == ["0050", "006208"]
+
+
 def test_provider_empty_keeps_existing_csv(tmp_path: Path, monkeypatch) -> None:
     data_dir, _reports_dir = _patch_dirs_and_providers(tmp_path, monkeypatch)
     data_dir.mkdir(parents=True)

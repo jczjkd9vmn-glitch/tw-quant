@@ -146,6 +146,7 @@ def _write_risk_report(path: Path, stop_loss: float) -> None:
                 "reason": "趨勢向上",
                 "stop_loss_price": stop_loss,
                 "suggested_position_pct": 0.1,
+                "candidate_grade": "A",
             }
         ]
     ).to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8-sig")

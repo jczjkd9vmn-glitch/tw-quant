@@ -81,6 +81,34 @@ def test_decision_engine_outputs_advisory_decisions(tmp_path: Path) -> None:
     assert not list(tmp_path.glob("pending_orders_*.csv"))
 
 
+def test_decision_engine_downgrades_buy_candidate_when_market_data_stale(tmp_path: Path) -> None:
+    candidates = pd.DataFrame(
+        [
+            _candidate(
+                "2330",
+                "台積電",
+                confidence_score=85,
+                liquidity_score=85,
+                sector_strength_score=70,
+                data_freshness_level="STALE",
+                is_stale_data=True,
+                market_intel_status="OK_WITH_WARNING",
+            )
+        ]
+    )
+    candidates.to_csv(tmp_path / "candidates_20260515.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame().to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text("", encoding="utf-8")
+
+    result = generate_trading_decisions(tmp_path, config_path=config_path)
+    row = result.decisions.iloc[0]
+
+    assert row["decision"] == "WATCH_ONLY"
+    assert "市場資料過期，暫不建立買進候選" in row["reason"]
+    assert "BUY_CANDIDATE" not in set(result.decisions["decision"])
+
+
 def test_auto_trading_defaults_are_safe() -> None:
     config = load_config("missing-test-config.yaml")
 
@@ -90,6 +118,7 @@ def test_auto_trading_defaults_are_safe() -> None:
     assert config["decision_engine"]["output_advisory_only"] is True
     assert config["decision_engine"]["default_can_auto_trade"] is False
     assert config["decision_engine"]["min_grade_for_buy_candidate"] == "A"
+    assert config["decision_engine"]["block_buy_candidate_when_market_data_stale"] is True
     assert config["paper_trading_guardrails"]["enabled"] is True
     assert config["paper_trading_guardrails"]["min_grade_for_new_entry"] == "A"
     assert config["paper_trading_guardrails"]["allow_legacy_missing_grade"] is False

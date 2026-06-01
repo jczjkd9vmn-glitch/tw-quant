@@ -76,6 +76,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "provider_order": ["official_events", "material_events", "attention_disposition", "csv_fallback", "mock"],
         "allow_mock": True,
         "mock_only_when_no_real_data": True,
+        "stale_days_threshold": 2,
     },
     "data_sources": {
         "monthly_revenue": {
@@ -129,6 +130,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "min_grade_for_buy_candidate": "A",
         "block_high_event_risk": True,
         "block_disposition_stock": True,
+        "block_buy_candidate_when_market_data_stale": True,
     },
     "paper_trading_guardrails": {
         "enabled": True,

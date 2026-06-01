@@ -117,25 +117,49 @@ def test_market_intel_non_trading_fallback_is_current_not_stale(tmp_path: Path) 
     assert status.iloc[0]["data_freshness_level"] == "CURRENT"
 
 
-def test_market_intel_cache_age_over_one_day_is_stale(tmp_path: Path) -> None:
+def test_market_intel_non_trading_fallback_within_threshold_is_not_stale(tmp_path: Path) -> None:
     candidates = _candidates()
 
     result, status = build_market_intel_report(
         candidates,
         tmp_path,
-        "2026-05-28",
+        "2026-05-29",
         config={"cache_enabled": False},
-        requested_date="2026-05-30",
-        fallback_date="2026-05-28",
+        requested_date="2026-05-31",
+        fallback_date="2026-05-29",
         fallback_reason="no trading data",
     )
 
     row = result.iloc[0]
     assert row["cache_age_days"] == 2
+    assert row["data_freshness_level"] == "CURRENT"
+    assert bool(row["is_stale_data"]) is False
+    assert "非交易日，使用最近交易日資料" in row["system_comment"]
+    assert status.iloc[0]["data_freshness_level"] == "CURRENT"
+    assert bool(status.iloc[0]["is_stale"]) is False
+
+
+def test_market_intel_cache_age_over_threshold_is_stale(tmp_path: Path) -> None:
+    candidates = _candidates()
+
+    result, status = build_market_intel_report(
+        candidates,
+        tmp_path,
+        "2026-05-29",
+        config={"cache_enabled": False, "stale_days_threshold": 2},
+        requested_date="2026-06-01",
+        fallback_date="2026-05-29",
+        fallback_reason="no trading data",
+    )
+
+    row = result.iloc[0]
+    assert row["cache_age_days"] == 3
     assert row["data_freshness_level"] == "STALE"
     assert bool(row["is_stale_data"]) is True
-    assert "資料來源缺失或快取資料，需人工確認" in row["market_intel_warning"]
+    assert "資料來源缺失或快取資料" not in str(row["market_intel_warning"])
+    assert "市場資料過期，暫不建立買進候選" in row["system_comment"]
     assert bool(status.iloc[0]["is_stale"]) is True
+    assert "市場資料過期，不建議短線進場" in status.iloc[0]["warning"]
 
 
 def test_market_intel_non_trading_fallback_is_not_data_quality_warning() -> None:

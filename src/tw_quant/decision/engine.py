@@ -124,6 +124,7 @@ def _candidate_decisions(candidates: pd.DataFrame, config: dict, trade_date: pd.
     min_grade = str(decision_config.get("min_grade_for_buy_candidate", "A")).strip().upper() or "A"
     block_high_event = bool(decision_config.get("block_high_event_risk", True))
     block_disposition = bool(decision_config.get("block_disposition_stock", True))
+    block_stale_market_data = bool(decision_config.get("block_buy_candidate_when_market_data_stale", True))
     rows: list[dict] = []
     for _, row in candidates.iterrows():
         grade = str(row.get("candidate_grade", "") or grade_candidate(row).candidate_grade)
@@ -133,13 +134,18 @@ def _candidate_decisions(candidates: pd.DataFrame, config: dict, trade_date: pd.
         event_level = str(row.get("event_risk_level", "") or "").upper()
         disposition = _to_bool(row.get("is_disposition_stock"))
         blocked = _to_bool(row.get("event_blocked")) or (block_high_event and event_level == "HIGH") or (block_disposition and disposition)
-        if (
+        market_data_stale = block_stale_market_data and _market_data_is_stale(row)
+        buy_candidate_ready = (
             _grade_value(grade) >= _grade_value(min_grade)
             and risk_pass
             and confidence >= min_confidence
             and liquidity >= min_liquidity
             and not blocked
-        ):
+        )
+        if buy_candidate_ready and market_data_stale:
+            decision, level, action = "WATCH_ONLY", "CAUTION", "observe_only"
+            reason = "市場資料過期，暫不建立買進候選；原符合買進條件，降級為觀察名單"
+        elif buy_candidate_ready:
             decision, level, action = "BUY_CANDIDATE", "WATCH", "review_before_entry"
             reason = "買進候選，需人工確認；不會自動下單"
         elif grade == "B":
@@ -275,6 +281,16 @@ def _data_quality_note(row: pd.Series | dict) -> str:
         if _text(row.get(column, ""))
     )
     return text or "資料品質已檢查；仍需人工確認"
+
+
+def _market_data_is_stale(row: pd.Series | dict) -> bool:
+    freshness_level = _text(row.get("data_freshness_level", "")).upper()
+    if freshness_level in {"STALE", "CACHE"}:
+        return True
+    market_status = _text(row.get("market_intel_status", "")).upper()
+    if market_status == "CACHE":
+        return True
+    return _to_bool(row.get("is_stale_data"))
 
 
 def _reason_suffix(value: object) -> str:

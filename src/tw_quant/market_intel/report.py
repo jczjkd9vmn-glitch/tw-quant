@@ -19,6 +19,11 @@ _RECOMPUTED_DATA_GAP_WARNINGS = {
     "估值資料不足，採中性分數",
     "價格資料不足，動能採中性分數",
 }
+_DEFAULT_STALE_DAYS_THRESHOLD = 2
+_GLOBAL_FRESHNESS_WARNINGS = {
+    "資料來源缺失或快取資料，需人工確認。",
+    "使用快取 / 非當日資料",
+}
 
 MARKET_INTEL_COLUMNS = [
     "market_intel_status",
@@ -84,6 +89,7 @@ def build_market_intel_report(
     fallback_text = _date_text(fallback_date) if fallback_date is not None and str(fallback_date).strip() else ""
     cache_path = report_dir / "cache" / f"market_intel_{date_label}.json"
     cache_enabled = bool(active_config.get("cache_enabled", True))
+    stale_days_threshold = _stale_days_threshold(active_config)
     if cache_enabled and cache_path.exists():
         frame = _read_cache(cache_path)
         provider_name = str(active_config.get("provider", "real")).strip().lower()
@@ -101,6 +107,7 @@ def build_market_intel_report(
                 fallback_date=fallback_text,
                 fallback_reason=fallback_reason,
                 cache_used=True,
+                stale_days_threshold=stale_days_threshold,
             )
             status_value = _market_status_from_freshness(frame, cache_used=True, fallback_reason=fallback_reason)
             _write_csv(report_dir, date_label, frame)
@@ -146,6 +153,7 @@ def build_market_intel_report(
         fallback_date=fallback_text,
         fallback_reason=fallback_reason,
         cache_used=False,
+        stale_days_threshold=stale_days_threshold,
     )
     if cache_enabled:
         _write_cache(cache_path, frame)
@@ -325,6 +333,7 @@ def _apply_freshness(
     fallback_date: str,
     fallback_reason: str,
     cache_used: bool,
+    stale_days_threshold: int = _DEFAULT_STALE_DAYS_THRESHOLD,
 ) -> pd.DataFrame:
     output = frame.copy()
     age = _date_age_days(requested_date, actual_data_date)
@@ -334,8 +343,11 @@ def _apply_freshness(
         fallback_date=fallback_date,
         fallback_reason=fallback_reason,
         cache_used=cache_used,
+        stale_days_threshold=stale_days_threshold,
     )
     stale = freshness_level in {"STALE", "CACHE"}
+    if "market_intel_warning" in output.columns:
+        output["market_intel_warning"] = output["market_intel_warning"].apply(_remove_global_freshness_warnings)
     output["requested_date"] = requested_date
     output["actual_data_date"] = actual_data_date
     output["fallback_date"] = fallback_date
@@ -350,8 +362,8 @@ def _apply_freshness(
             fallback_reason=fallback_reason,
         )
     if stale:
-        output["market_intel_warning"] = output.get("market_intel_warning", pd.Series([""] * len(output))).apply(
-            lambda value: _append_warning(value, "資料來源缺失或快取資料，需人工確認。")
+        output["system_comment"] = output.get("system_comment", pd.Series([""] * len(output))).apply(
+            lambda value: _append_warning(value, "市場資料過期，暫不建立買進候選。")
         )
     elif _is_non_trading_fallback(fallback_reason):
         output["system_comment"] = output.get("system_comment", pd.Series([""] * len(output))).apply(
@@ -371,16 +383,17 @@ def _data_freshness_level(
     fallback_date: str,
     fallback_reason: str,
     cache_used: bool,
+    stale_days_threshold: int = _DEFAULT_STALE_DAYS_THRESHOLD,
 ) -> str:
     age = _date_age_days(requested_date, actual_data_date)
     if age is None:
         return "CACHE" if cache_used else "UNKNOWN"
     if age == 0:
         return "CURRENT"
-    if age > 1:
-        return "STALE"
-    if _is_non_trading_fallback(fallback_reason) and _same_date(actual_data_date, fallback_date):
+    if _is_non_trading_fallback(fallback_reason) and _same_date(actual_data_date, fallback_date) and age <= stale_days_threshold:
         return "CURRENT"
+    if age > stale_days_threshold:
+        return "STALE"
     return "RECENT"
 
 
@@ -414,7 +427,7 @@ def _status_warning_text(
     warnings = [base_warning or _warning_text(frame)]
     level = _frame_freshness_level(frame)
     if level in {"STALE", "CACHE"}:
-        warnings.append("資料來源缺失或快取資料，需人工確認。")
+        warnings.append("市場資料過期，不建議短線進場；資料來源缺失或快取資料，需人工確認。")
     elif _is_non_trading_fallback(fallback_reason):
         warnings.append("非交易日，使用最近交易日資料。")
     parts = [warning for warning in warnings if warning]
@@ -503,7 +516,7 @@ def _status(
 def _warning_text(frame: pd.DataFrame) -> str:
     if frame.empty or "market_intel_warning" not in frame.columns:
         return ""
-    warnings = frame["market_intel_warning"].fillna("").astype(str).str.strip()
+    warnings = frame["market_intel_warning"].fillna("").astype(str).apply(_remove_global_freshness_warnings).str.strip()
     return "；".join(sorted(set(warning for warning in warnings if warning)))[:300]
 
 
@@ -514,6 +527,26 @@ def _append_warning(value: object, addition: str) -> str:
     if addition in text:
         return text
     return f"{text}；{addition}" if text else addition
+
+
+def _remove_global_freshness_warnings(value: object) -> str:
+    parts = [part.strip() for part in str(value or "").replace("|", "；").split("；")]
+    keep = []
+    for part in parts:
+        if not part or part.lower() == "nan":
+            continue
+        if part in _GLOBAL_FRESHNESS_WARNINGS:
+            continue
+        keep.append(part)
+    return "；".join(dict.fromkeys(keep))
+
+
+def _stale_days_threshold(config: dict | None) -> int:
+    try:
+        threshold = int((config or {}).get("stale_days_threshold", _DEFAULT_STALE_DAYS_THRESHOLD))
+    except (TypeError, ValueError):
+        threshold = _DEFAULT_STALE_DAYS_THRESHOLD
+    return max(threshold, 0)
 
 
 def _date_age_days(requested_date: str, actual_data_date: str) -> int | None:

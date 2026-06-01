@@ -3036,7 +3036,7 @@ def _data_quality_issues(summary: dict[str, object], data_fetch_status: pd.DataF
     if (_to_float(summary.get("market_intel_warning_count")) or 0) > 0:
         issues.append("市場情報資料不足，未影響流程")
     if _market_intel_is_stale(summary, pd.DataFrame()):
-        issues.append("資料來源缺失或快取資料，需人工確認。")
+        issues.append("市場資料過期，不建議短線進場。")
     elif str(summary.get("fallback_reason", "")).strip() == "no trading data" and _has_market_freshness_metadata(summary):
         issues.append("非交易日，使用最近交易日資料。")
     if str(summary.get("market_intel_status", "")).upper() == "CACHE":
@@ -3075,7 +3075,7 @@ def _data_source_quality_issue(row: pd.Series) -> str:
     error_message = str(row.get("error_message", "")).strip()
     if source == "market_intel":
         if freshness_level in {"STALE", "CACHE"} or status == "CACHE":
-            return "資料來源缺失或快取資料，需人工確認。"
+            return "市場資料過期，不建議短線進場。"
         if fallback_reason == "no trading data":
             return "非交易日，使用最近交易日資料。"
     if source == "monthly_revenue" and ("HTTPError: 404" in error_message or "404 Client Error" in error_message):
@@ -3321,6 +3321,9 @@ def _data_source_plain_description(row: pd.Series) -> str:
     maturity = str(row.get("provider_maturity", "")).strip().lower()
     fallback_action = str(row.get("fallback_action", "")).strip()
     error_message = str(row.get("error_message", "")).strip()
+    freshness_level = str(row.get("data_freshness_level", "")).strip().upper()
+    if source == "market_intel" and (freshness_level in {"STALE", "CACHE"} or status == "CACHE"):
+        return "市場資料過期或使用快取資料"
     if maturity == "local_derived" and status in {"OK", "OK_WITH_FALLBACK"}:
         return "本地價量衍生資料，不依賴外部 API"
     if source == "monthly_revenue" and ("HTTPError: 404" in error_message or "404 Client Error" in error_message):
@@ -3344,6 +3347,9 @@ def _data_source_impact(row: pd.Series) -> str:
     status = str(row.get("status", "")).strip().upper()
     fallback_action = str(row.get("fallback_action", "")).strip()
     source = str(row.get("source_name", "")).strip()
+    freshness_level = str(row.get("data_freshness_level", "")).strip().upper()
+    if source == "market_intel" and (freshness_level in {"STALE", "CACHE"} or status == "CACHE"):
+        return "阻擋短線買進候選"
     if status == "OK" and fallback_action != "kept_existing_csv":
         return "正常"
     if source == "monthly_revenue" or fallback_action == "kept_existing_csv" or status in {"CACHE", "EMPTY", "OK_WITH_FALLBACK"}:
@@ -3610,7 +3616,7 @@ def _market_intel_stale_notice(summary: dict[str, object], frame: pd.DataFrame) 
     age = _market_intel_cache_age_text(frame)
     if stale:
         return (
-            "目前市場情報使用快取或非當日資料，不建議短線自動進場。"
+            "市場資料過期，不建議短線進場；目前市場情報使用快取或非當日資料，不建議短線自動進場。"
             f"要求日期 {requested}，實際資料日 {actual}，原因 {reason}，資料年齡 {age}。"
         )
     if fallback_reason == "no trading data" or (

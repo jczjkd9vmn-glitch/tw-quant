@@ -63,6 +63,7 @@ market_intel:
   provider_order: [official_events, material_events, attention_disposition, csv_fallback, mock]
   allow_mock: true
   mock_only_when_no_real_data: true
+  stale_days_threshold: 2
 
 data_sources:
   monthly_revenue:
@@ -120,6 +121,7 @@ decision_engine:
   min_grade_for_buy_candidate: A
   block_high_event_risk: true
   block_disposition_stock: true
+  block_buy_candidate_when_market_data_stale: true
 
 paper_trading_guardrails:
   enabled: true

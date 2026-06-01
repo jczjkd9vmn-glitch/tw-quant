@@ -299,9 +299,7 @@ def run_all_daily(
                 export_result.candidates,
                 getattr(export_result, "data_fetch_status", pd.DataFrame()),
             )
-            summary_values["market_intel_warning_count"] = _count_non_empty(
-                export_result.candidates, "market_intel_warning"
-            )
+            summary_values["market_intel_warning_count"] = _count_market_intel_warnings(export_result.candidates)
             summary_values["market_intel_top_score"] = _max_numeric(
                 export_result.candidates, "final_market_score"
             )
@@ -1067,6 +1065,30 @@ def _count_non_empty(frame: pd.DataFrame, column: str) -> int:
         return 0
     values = frame[column].fillna("").astype(str).str.strip()
     return int((values != "").sum())
+
+
+def _count_market_intel_warnings(frame: pd.DataFrame) -> int:
+    if frame.empty or "market_intel_warning" not in frame.columns:
+        return 0
+    values = frame["market_intel_warning"].fillna("").astype(str).apply(_remove_market_freshness_warning).str.strip()
+    return int(values.ne("").sum())
+
+
+def _remove_market_freshness_warning(value: object) -> str:
+    freshness_warnings = {
+        "資料來源缺失或快取資料，需人工確認。",
+        "市場資料過期，不建議短線進場",
+        "使用快取 / 非當日資料",
+    }
+    parts = [part.strip() for part in str(value or "").replace("|", "；").split("；")]
+    keep = []
+    for part in parts:
+        if not part or part.lower() == "nan":
+            continue
+        if part in freshness_warnings:
+            continue
+        keep.append(part)
+    return "；".join(dict.fromkeys(keep))
 
 
 def _count_institutional_positive(frame: pd.DataFrame) -> int:

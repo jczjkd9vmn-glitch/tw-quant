@@ -190,6 +190,8 @@ def _source_review_reason(row: pd.Series) -> str:
         return "資料來源正常"
     if source == "market_intel" and fallback_reason == "no trading data" and freshness_level in {"CURRENT", "RECENT"}:
         return "非交易日，使用最近交易日資料。"
+    if source == "market_intel" and freshness_level in {"STALE", "CACHE"}:
+        return "市場資料過期或使用快取資料，不建議短線進場，需人工確認。"
     if fallback_action == "kept_existing_csv" or status == "OK_WITH_FALLBACK":
         return f"{source} 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險"
     if status == "CACHE":

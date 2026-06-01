@@ -130,6 +130,7 @@ def test_generate_html_report_shows_market_intel_cache_warning(tmp_path: Path) -
 
     assert "使用快取 / 非當日資料" in html
     assert "目前市場情報使用快取或非當日資料，不建議短線自動進場。" in html
+    assert "市場資料過期，不建議短線進場" in html
     assert "資料鮮度等級" in html
     assert "CACHE" in html
     assert "實際資料日" in html

@@ -1,13 +1,13 @@
 ﻿check_name,category,health_status,review_level,review_reason,data_issue,investment_risk,rows,affected_symbols_count,source_name,status,fallback_action
 候選股資料完整度,candidate,ATTENTION,DATA_REVIEW,8 檔候選股有資料不足或 fallback 註記,True,False,20,8,,,
-候選股投資風險,candidate,ATTENTION,RISK_REVIEW,19 檔候選股有投資風險註記,False,True,20,19,,,
-產業分類覆蓋率,industry,ATTENTION,DATA_REVIEW,6 檔缺少產業分類，使用全市場相對強弱 fallback,True,False,20,6,,,
+候選股投資風險,candidate,ATTENTION,RISK_REVIEW,17 檔候選股有投資風險註記,False,True,20,17,,,
+產業分類覆蓋率,industry,ATTENTION,DATA_REVIEW,3 檔缺少產業分類，使用全市場相對強弱 fallback,True,False,20,3,,,
 資料來源：monthly_revenue,source,OK,OK,資料來源正常,False,False,1078,0,monthly_revenue,OK,nan
 資料來源：valuation,source,OK,OK,資料來源正常,False,False,1078,0,valuation,OK,nan
 資料來源：financials,source,OK,OK,資料來源正常,False,False,1043,0,financials,OK,nan
-資料來源：material_events,source,OK,OK,資料來源正常,False,False,2,0,material_events,OK,nan
-資料來源：institutional,source,OK,OK,資料來源正常,False,False,1326,0,institutional,OK,nan
-資料來源：margin_short,source,OK,OK,資料來源正常,False,False,1271,0,margin_short,OK,nan
+資料來源：material_events,source,OK,OK,資料來源正常,False,False,160,0,material_events,OK,nan
+資料來源：institutional,source,OK,OK,資料來源正常,False,False,1320,0,institutional,OK,nan
+資料來源：margin_short,source,OK,OK,資料來源正常,False,False,1273,0,margin_short,OK,nan
 資料來源：attention_disposition,source,OK,OK,資料來源正常,False,False,72,0,attention_disposition,OK,nan
 資料來源：sector_strength,source,OK,OK,資料來源正常,False,False,1433,0,sector_strength,OK,nan
 資料來源：liquidity,source,OK,OK,資料來源正常,False,False,1433,0,liquidity,OK,nan

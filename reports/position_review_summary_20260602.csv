@@ -1,0 +1,11 @@
+﻿trade_date,stock_id,stock_name,decision,hold,reduce,exit_review,near_stop_loss,near_take_profit,data_quality_warning,current_price,stop_loss_price,unrealized_pnl_pct,risk_light,review_reason
+2026-06-02,2376,技嘉,REDUCE,False,True,False,False,False,False,390.5,293.43,0.231861,,一般人工確認
+2026-06-02,6206,飛捷,REDUCE,False,True,False,False,False,False,142.0,110.93,0.193277,,一般人工確認
+2026-06-02,1256,鮮活果汁-KY,HOLD,True,False,False,False,False,False,203.0,175.07,0.019081,,一般人工確認
+2026-06-02,8926,台汽電,REDUCE,False,True,False,False,False,False,67.4,52.98,0.12785,,一般人工確認
+2026-06-02,2030,彰源,HOLD,True,False,False,False,False,False,18.25,16.67,-0.003729,,一般人工確認
+2026-06-02,2425,承啟,HOLD,True,False,False,False,False,False,36.05,32.45,0.017344,,一般人工確認
+2026-06-02,6579,研揚,REDUCE,False,True,False,False,False,False,169.5,138.46,0.136447,,一般人工確認
+2026-06-02,4562,穎漢,HOLD,True,False,False,False,False,False,41.7,39.51,-0.04672,,一般人工確認
+2026-06-02,2478,大毅,REDUCE,False,True,False,False,False,False,143.0,88.6,0.485001,,一般人工確認
+2026-06-02,6902,GOGOLOOK,REDUCE,False,True,False,False,False,False,141.5,116.84,0.095803,,一般人工確認

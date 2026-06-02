@@ -1,16 +1,22 @@
 ﻿stock_id,stock_name,market,industry_main,industry_sub,source,updated_at,confidence,fallback_used
 02001L,富邦蘋果正二N,TWSE,ETN,特選大蘋果槓桿 ETN,twse_official_etn_list,2026-05-30,1.0,False
 9105,泰金寶-DR,TWSE,台灣存託憑證,台灣存託憑證,twse_openapi_t187ap03_L,2026-05-30,1.0,False
+00735,國泰臺韓科技,ETF,ETF,臺韓科技 ETF,manual_verified,2026-06-01,,
+00757,統一FANG+,ETF,ETF,FANG+ 科技 ETF,manual_verified,2026-06-01,,
 00861,元大全球未來通訊,ETF,ETF,全球通訊 ETF,manual_verified,2026-05-31,,
 00876,元大全球5G,ETF,ETF,全球5G ETF,manual,2026-05-28,,
 00901,永豐智能車供應鏈,ETF,ETF,智能車供應鏈 ETF,manual,2026-05-28,,
 00910,第一金太空衛星,ETF,ETF,太空衛星 ETF,manual,2026-05-28,,
 00911,兆豐洲際半導體,ETF,ETF,全球半導體 ETF,manual,2026-05-28,,
 00913,兆豐台灣晶圓製造,ETF,ETF,晶圓製造 ETF,manual,2026-05-28,,
+00918,大華優利高填息30,ETF,ETF,高股息 ETF,manual_verified,2026-06-01,,
+00919,群益台灣精選高息,ETF,ETF,高股息 ETF,manual_verified,2026-06-01,,
 00923,群益台ESG低碳50,ETF,ETF,ESG低碳 ETF,manual,2026-05-28,,
 00927,群益半導體收益,ETF,ETF,半導體收益 ETF,manual,2026-05-28,,
 00930,永豐ESG低碳高息,ETF,ETF,ESG低碳高息 ETF,manual,2026-05-28,,
 00935,野村臺灣新科技50,ETF,ETF,臺灣新科技 ETF,manual,2026-05-28,,
+00946,群益科技高息成長,ETF,ETF,科技高息成長 ETF,manual_verified,2026-06-01,,
+00962,台新AI優息動能,ETF,ETF,AI 優息動能 ETF,manual_verified,2026-06-01,,
 00988A,主動統一全球創新,ETF,ETF,全球創新主動式 ETF,manual_verified,2026-06-01,,
 00991A,主動復華未來50,ETF,ETF,主動式臺股 ETF,manual,2026-05-28,,
 1256,鮮活果汁-KY,TWSE,食品工業,食品工業,manual,2026-05-28,,

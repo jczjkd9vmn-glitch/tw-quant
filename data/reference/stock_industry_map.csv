@@ -1,14 +1,20 @@
 stock_id,stock_name,industry,sub_industry,market_type,source,updated_at
+00735,國泰臺韓科技,ETF,臺韓科技 ETF,ETF,manual_verified,2026-06-01
+00757,統一FANG+,ETF,FANG+ 科技 ETF,ETF,manual_verified,2026-06-01
 00861,元大全球未來通訊,ETF,全球通訊 ETF,ETF,manual_verified,2026-05-31
 00876,元大全球5G,ETF,全球5G ETF,ETF,manual,2026-05-28
 00901,永豐智能車供應鏈,ETF,智能車供應鏈 ETF,ETF,manual,2026-05-28
 00910,第一金太空衛星,ETF,太空衛星 ETF,ETF,manual,2026-05-28
 00911,兆豐洲際半導體,ETF,全球半導體 ETF,ETF,manual,2026-05-28
 00913,兆豐台灣晶圓製造,ETF,晶圓製造 ETF,ETF,manual,2026-05-28
+00918,大華優利高填息30,ETF,高股息 ETF,ETF,manual_verified,2026-06-01
+00919,群益台灣精選高息,ETF,高股息 ETF,ETF,manual_verified,2026-06-01
 00923,群益台ESG低碳50,ETF,ESG低碳 ETF,ETF,manual,2026-05-28
 00927,群益半導體收益,ETF,半導體收益 ETF,ETF,manual,2026-05-28
 00930,永豐ESG低碳高息,ETF,ESG低碳高息 ETF,ETF,manual,2026-05-28
 00935,野村臺灣新科技50,ETF,臺灣新科技 ETF,ETF,manual,2026-05-28
+00946,群益科技高息成長,ETF,科技高息成長 ETF,ETF,manual_verified,2026-06-01
+00962,台新AI優息動能,ETF,AI 優息動能 ETF,ETF,manual_verified,2026-06-01
 00988A,主動統一全球創新,ETF,全球創新主動式 ETF,ETF,manual_verified,2026-06-01
 00991A,主動復華未來50,ETF,主動式臺股 ETF,ETF,manual,2026-05-28
 1256,鮮活果汁-KY,食品工業,食品工業,TWSE,manual,2026-05-28

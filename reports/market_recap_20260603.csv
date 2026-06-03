@@ -1,0 +1,2 @@
+﻿trade_date,market_regime_score,regime_label,twse_index,tpex_index,advancers,decliners,unchanged,limit_up_count,limit_down_count,market_breadth_summary,recap_summary,fallback_used,data_quality_note
+2026-06-03,63.0,大盤震盪,14.73,,939,358,51,61,1,上漲家數 939 高於下跌家數 358，市場廣度偏多,大盤震盪；上漲家數 939 高於下跌家數 358，市場廣度偏多；market_regime_score=63，市場環境未觸發新增持倉限制。,True,未接正式指數來源時，使用本地 SQLite 全市場價量 fallback

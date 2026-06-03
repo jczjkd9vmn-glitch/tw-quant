@@ -1,0 +1,8 @@
+﻿validation_date,trade_date,model_name,description,candidate_count,selected_count,simulated_trades,win_rate,avg_return_pct,median_return_pct,total_return_pct,max_drawdown_pct,avg_holding_days,stop_loss_count,take_profit_count,trailing_stop_count,ma_exit_count,max_holding_exit_count,profit_factor,expectancy,consecutive_loss_count,notes
+2026-06-03,2026-06-03,baseline_total_score,原始 total_score / risk_pass baseline,20,6,0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0.0,0.0,0,歷史交易樣本不足：0/10
+2026-06-03,2026-06-03,multi_factor_rank,以 multi_factor_score 作為排序參考,20,6,0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0.0,0.0,0,歷史交易樣本不足：0/10
+2026-06-03,2026-06-03,confidence_filter,排除 confidence_score < 60,20,2,0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0.0,0.0,0,歷史交易樣本不足：0/10
+2026-06-03,2026-06-03,liquidity_filter,排除 liquidity_score < 50 或 slippage_risk_score < 50,20,6,0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0.0,0.0,0,歷史交易樣本不足：0/10
+2026-06-03,2026-06-03,sector_strength_filter,排除 sector_strength_score < 45,20,6,0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0.0,0.0,0,歷史交易樣本不足：0/10
+2026-06-03,2026-06-03,event_risk_filter,排除 HIGH event、處置股或重大負面事件,20,6,0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0.0,0.0,0,歷史交易樣本不足：0/10
+2026-06-03,2026-06-03,combined_model,綜合多因子、市場情報、資料可信度與風險旗標,20,2,0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0.0,0.0,0,歷史交易樣本不足：0/10

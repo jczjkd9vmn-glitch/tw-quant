@@ -1,10 +1,4 @@
 ﻿stock_id,stock_name,market_type,latest_relative_mode,fallback_reason,appear_in_candidates_count,appear_in_trading_decisions_count,appear_in_risk_pass_count,appear_in_position_review_count,appear_in_ai_enrichment_count,recent_appearance_count,liquidity_score,avg_volume,turnover_value,last_seen_date,priority_score,priority_level,suggested_action
-00916,國泰全球品牌50,ETF,market_relative_fallback,缺少產業分類，使用全市場相對強弱,3,3,3,0,3,12,75.0,1867119.95,146065497.0,2026-06-04,24,HIGH,優先查證並補產業分類
-00961,FT臺灣永續高息,ETF,market_relative_fallback,缺少產業分類，使用全市場相對強弱,3,3,2,0,3,11,75.0,7317780.1,183050626.0,2026-06-04,24,HIGH,優先查證並補產業分類
-00896,中信綠能及電動車,ETF,market_relative_fallback,缺少產業分類，使用全市場相對強弱,2,2,0,0,2,6,92.0,5641880.15,561080549.0,2026-06-04,20,HIGH,優先查證並補產業分類
-00907,永豐優息存股,ETF,market_relative_fallback,缺少產業分類，使用全市場相對強弱,2,2,0,0,2,6,60.0,2140327.55,81055675.0,2026-06-04,18,HIGH,優先查證並補產業分類
-00915,凱基優選高股息30,ETF,market_relative_fallback,缺少產業分類，使用全市場相對強弱,1,1,0,0,1,3,92.0,9096960.5,170918344.0,2026-06-04,17,HIGH,優先查證並補產業分類
-00952,凱基台灣AI50,ETF,market_relative_fallback,缺少產業分類，使用全市場相對強弱,1,1,0,0,1,3,75.0,4473059.0,118441431.0,2026-06-04,16,HIGH,優先查證並補產業分類
 00400A,主動國泰動能高息,ETF,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,92.0,59284464.1,665987786.0,2026-06-04,3,LOW,暫緩補資料
 00401A,主動摩根台灣鑫收,ETF,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,92.0,9856290.9,54572166.0,2026-06-04,3,LOW,暫緩補資料
 00403A,主動統一升級50,ETF,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,92.0,1140325207.7,4322425816.0,2026-06-04,3,LOW,暫緩補資料

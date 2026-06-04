@@ -135,11 +135,82 @@ tr:last-child td{border-bottom:0}
 .health span,.health em{display:block;margin-top:5px;font-style:normal}
 .health.正常 strong{background:#065f46;color:#d1fae5}.health.注意 strong{background:#854d0e;color:#fef3c7}.health.警告 strong{background:#991b1b;color:#fee2e2}
 @media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.quick-section-nav{margin:0 0 16px;padding:8px 0}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.decision-lanes{grid-template-columns:repeat(6,minmax(0,1fr))}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.chart-grid,.dashboard-split{grid-template-columns:repeat(2,minmax(0,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards,.mobile-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}
+
+/* Brokerage-style dashboard refresh: distinct from any broker brand, focused on dense scanning. */
+body{background:#edf2f7;color:#182230;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}
+.page{width:min(1480px,100%);padding:14px 16px 28px}
+.brokerage-header{display:grid;gap:16px;margin:0 0 14px;padding:18px;background:#ffffff;border:1px solid #d9e2ec;border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.07)}
+.brokerage-title-block p{margin:0 0 5px;color:#0f766e;font-size:12px;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
+.brokerage-title-block h1{margin:0;color:#172033;font-size:28px;font-weight:900}
+.brokerage-title-block small{display:block;margin-top:8px;color:#667085;font-size:12px}
+.header-status-board{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;overflow:visible;padding:0}
+.header-status-board .header-status-tile{display:block;min-width:0;flex:1 1 auto;padding:10px 12px;border:1px solid #d9e2ec;border-radius:7px;background:#f8fafc;color:#172033;font-size:12px}
+.header-status-board .header-status-tile b{display:block;color:#667085;font-size:11px;font-weight:800}
+.header-status-board .header-status-tile strong{display:block;margin-top:3px;color:#172033;font-size:14px;font-weight:900;word-break:break-word}
+.section-tabs{position:sticky;top:0;z-index:20;margin:0 -16px 10px;padding:8px 16px;background:#ffffff;border-bottom:1px solid #d9e2ec;box-shadow:0 8px 20px rgba(15,23,42,.06);backdrop-filter:none}
+.tab-button{border:0;border-radius:7px;background:#f1f5f9;color:#344054;padding:9px 12px;font-size:13px;font-weight:900}
+.tab-button.active{background:#0f766e;color:#ffffff;box-shadow:0 8px 18px rgba(15,118,110,.22)}
+.quick-section-nav{display:none}
+.quick-nav-link{border:1px solid #d9e2ec;border-radius:7px;background:#ffffff;color:#475467;font-weight:800}
+.quick-nav-link:hover{border-color:#0f766e;background:#ecfdf5;color:#0f766e}
+.tab-panel{margin:0;padding:0;background:transparent;border:0;border-radius:0}
+.tab-panel>h2{margin:0 0 12px;color:#172033;font-size:18px;font-weight:900}
+section:not(.tab-panel){margin:12px 0;padding:16px;background:#ffffff;border:1px solid #d9e2ec;border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.055)}
+h2,h3{color:#172033}
+.dashboard-overview-section{background:#ffffff;border-color:#cbd5e1}
+.dashboard-alert{border-radius:8px}
+.dashboard-alert.ok{background:#ecfdf5;border:1px solid #86efac;color:#166534}
+.dashboard-alert.danger{background:#fff7ed;border:1px solid #fdba74;color:#9a3412}
+.kpi-grid{gap:10px}
+.kpi-card{min-height:150px;border:1px solid #d9e2ec;border-top:4px solid #64748b;border-radius:8px;background:#ffffff;box-shadow:0 8px 20px rgba(15,23,42,.045)}
+.kpi-card h3{color:#667085;font-size:12px;font-weight:900}
+.kpi-primary{color:#172033;font-size:22px}
+.kpi-meta span{border-top:1px solid #edf2f7}
+.kpi-meta b{color:#667085}
+.kpi-meta em{color:#172033}
+.kpi-card.ok{border-color:#d9e2ec;border-top-color:#16a34a}
+.kpi-card.warning{border-color:#d9e2ec;border-top-color:#f59e0b}
+.kpi-card.danger{border-color:#d9e2ec;border-top-color:#dc2626}
+.kpi-card.info{border-color:#d9e2ec;border-top-color:#2563eb}
+.status-badge{border-radius:6px;border:1px solid #d0d5dd;padding:5px 8px;font-size:11px}
+.badge-ok{background:#dcfce7;border-color:#86efac;color:#166534}
+.badge-info{background:#dbeafe;border-color:#93c5fd;color:#1d4ed8}
+.badge-warning{background:#fef3c7;border-color:#fbbf24;color:#92400e}
+.badge-danger{background:#fee2e2;border-color:#fca5a5;color:#991b1b}
+.badge-neutral{background:#f1f5f9;border-color:#cbd5e1;color:#475467}
+.decision-lane,.overview-metric,.card,.chart-card,.mobile-card,.health,.collapse-block{background:#ffffff;border-color:#d9e2ec;border-radius:8px}
+.decision-lane strong,.overview-metric strong,.card strong,.holding-metrics strong{color:#172033}
+.decision-lane span,.decision-lane em,.overview-metric span,.card span,.holding-metrics span,.detail-grid dt{color:#667085}
+.pnl-card{background:#ffffff;border-color:#d9e2ec;border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.05)}
+.position-pnl,.closed-pnl,.holding-metrics div,.empty,.note{background:#f8fafc;border-color:#d9e2ec;color:#344054}
+.note{background:#eef6ff;border-color:#bfdbfe}
+.table-wrap{border-color:#d9e2ec;background:#ffffff}
+table{background:#ffffff}
+th{background:#f8fafc;color:#475467;font-size:12px;border-bottom:1px solid #d9e2ec}
+td{color:#172033;border-bottom:1px solid #edf2f7}
+tbody tr:nth-child(even) td{background:#fbfdff}
+.collapse-block>summary{color:#172033;background:#f8fafc;border-radius:8px}
+.collapse-content{background:#ffffff;border-radius:0 0 8px 8px}
+.top-info{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
+.top-notice{background:#fffbeb;border-color:#fcd34d;color:#92400e}
+.top-warning{background:#fff1f2;border-color:#fda4af;color:#9f1239}
+@media(min-width:760px){.brokerage-header{grid-template-columns:minmax(260px,1.2fr) minmax(420px,2fr)}.header-status-board{grid-template-columns:repeat(4,minmax(0,1fr))}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:1120px){
+  .page{width:auto;max-width:none;margin:0;padding:24px 30px 36px 286px}
+  .section-tabs{position:fixed;inset:0 auto 0 0;width:256px;height:100vh;display:flex;flex-direction:column;align-items:stretch;gap:6px;margin:0;padding:22px 14px;background:#182230;border:0;border-right:1px solid #263244;box-shadow:8px 0 24px rgba(15,23,42,.18)}
+  .section-tabs:before{content:"TW-Quant";display:block;margin:0 8px 18px;color:#ffffff;font-size:20px;font-weight:900}
+  .section-tabs:after{content:"Paper Trading Dashboard";display:block;margin:auto 8px 0;color:#98a2b3;font-size:11px;font-weight:800;text-transform:uppercase}
+  .tab-button{width:100%;text-align:left;background:transparent;color:#cbd5e1;border-radius:7px;padding:11px 12px}
+  .tab-button.active{background:#0f766e;color:#ffffff;box-shadow:none}
+  .tab-button:hover{background:#263244;color:#ffffff}
+  .quick-section-nav{display:none}
+  .brokerage-header{position:relative}
+}
 </style>
 </head>
 <body>
 <main class="page">
-<header class="account-header"><p>台股自動化系統</p><h1>台股紙上交易帳務</h1><div class="header-meta"><span>原始執行日期：2026-06-04</span><span>實際交易日：2026-06-04</span><span>是否使用最近有效資料：否</span><span>報表更新時間：2026-06-04 22:56</span></div><small>本頁為紙上交易帳務與風控檢查報表，不代表投資建議，也不承諾投資結果。</small></header>
+<header class="account-header brokerage-header"><div class="brokerage-title-block"><p>TW-Quant Paper Trading</p><h1>台股投資儀表板</h1><small>紙上交易帳務、風控與資料品質監控；不代表投資建議，也不會真實下單。</small></div><div class="header-meta header-status-board"><span class="header-status-tile"><b>原始執行日期</b><strong>2026-06-04</strong></span><span class="header-status-tile"><b>實際交易日</b><strong>2026-06-04</strong></span><span class="header-status-tile"><b>是否使用最近有效資料</b><strong>否</strong></span><span class="header-status-tile"><b>報表更新時間</b><strong>2026-06-04 23:13</strong></span></div></header>
 
 <nav class="section-tabs tab-nav" aria-label="報表區塊導覽"><button type="button" class="tab-button active" data-tab-target="overview" aria-controls="tab-overview" aria-selected="true">總覽</button><button type="button" class="tab-button" data-tab-target="positions" aria-controls="tab-positions" aria-selected="false">紙上持倉</button><button type="button" class="tab-button" data-tab-target="pending" aria-controls="tab-pending" aria-selected="false">待進場</button><button type="button" class="tab-button" data-tab-target="closed" aria-controls="tab-closed" aria-selected="false">已出場</button><button type="button" class="tab-button" data-tab-target="fundamental" aria-controls="tab-fundamental" aria-selected="false">候選股 / 市場情報</button><button type="button" class="tab-button" data-tab-target="decision" aria-controls="tab-decision" aria-selected="false">今日交易決策</button><button type="button" class="tab-button" data-tab-target="health" aria-controls="tab-health" aria-selected="false">資料品質</button></nav>
 <nav class="quick-section-nav" aria-label="重點區塊導覽"><button type="button" class="quick-nav-link" data-tab-jump="overview" data-section-target="dashboard-overview">總覽</button><button type="button" class="quick-nav-link" data-tab-jump="decision" data-section-target="decision-dashboard">今日交易決策</button><button type="button" class="quick-nav-link" data-tab-jump="positions" data-section-target="tab-positions">紙上持倉</button><button type="button" class="quick-nav-link" data-tab-jump="fundamental" data-section-target="candidate-detail-section">候選股</button><button type="button" class="quick-nav-link" data-tab-jump="health" data-section-target="data-quality-section">資料品質</button><button type="button" class="quick-nav-link" data-tab-jump="health" data-section-target="missing-industry-section">產業分類缺口</button><button type="button" class="quick-nav-link" data-tab-jump="health" data-section-target="anysearch-candidates-section">AnySearch 候選資料</button><button type="button" class="quick-nav-link" data-tab-jump="health" data-section-target="config-summary-section">系統設定摘要</button></nav>

@@ -181,6 +181,12 @@ def test_generate_html_report_uses_broker_app_cards_and_profit_classes(tmp_path:
     output_path = generate_html_report(tmp_path)
     html = output_path.read_text(encoding="utf-8")
 
+    assert 'class="account-header brokerage-header"' in html
+    assert "TW-Quant Paper Trading" in html
+    assert "台股投資儀表板" in html
+    assert "header-status-tile" in html
+    assert "Brokerage-style dashboard refresh" in html
+    assert ".quick-section-nav{display:none}" in html
     assert 'class="section-tabs tab-nav"' in html
     assert 'data-tab-target="overview"' in html
     assert 'data-tab-target="positions"' in html

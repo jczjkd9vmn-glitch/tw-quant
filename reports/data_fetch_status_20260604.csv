@@ -1,0 +1,11 @@
+﻿source_name,status,rows,warning,error_message,requested_period,actual_period,latest_available_period,source_url_or_name,is_real_data,is_mock,is_stale,data_age_days,coverage_ratio,affected_symbols_count,data_freshness_level,fallback_reason,fallback_action
+monthly_revenue,OK,1078,,,,,,,False,False,False,,,,,,
+valuation,OK,1078,,,,,,,False,False,False,,,,,,
+financials,OK,1043,,,,,,,False,False,False,,,,,,
+material_events,OK,99,,,,,,,False,False,False,,,,,,
+institutional,OK,1320,,,,,,,False,False,False,,,,,,
+margin_short,OK,1273,,,,,,,False,False,False,,,,,,
+attention_disposition,OK,81,,,,,,,False,False,False,,,,,,
+sector_strength,OK,1433,,,,,,,False,False,False,,,,,,
+liquidity,OK,1433,,,,,,,False,False,False,,,,,,
+market_intel,OK_WITH_WARNING,20,市場事件資料不足，採中性處理；市場事件資料不足，採中性處理；基本面資料不足，採中性分數；估值資料不足，採中性分數；非交易日，使用最近交易日資料。,,2026-06-04,2026-06-04,2026-06-04,market_intel provider,True,False,False,0,,20,CURRENT,no trading data,non_trading_day_fallback

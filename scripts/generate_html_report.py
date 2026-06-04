@@ -1162,6 +1162,7 @@ def _render_page(
 
     overview_content = "".join(
         [
+            _pnl_overview(latest_summary, latest_paper_summary, open_positions),
             _overview_dashboard(
                 latest_summary,
                 latest_paper_summary,
@@ -1172,17 +1173,16 @@ def _render_page(
             ),
             _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
             _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status, trading_decisions), class_name="today-action-section"),
-            _pnl_chart_section(latest_summary, pnl_chart_data, recent_summaries),
             _decision_dashboard(latest_summary, trading_decisions, candidates, open_positions),
             _position_review_section(position_review, open_positions),
             _market_recap_section(market_recap, latest_summary),
+            _pnl_chart_section(latest_summary, pnl_chart_data, recent_summaries),
             _guardrail_overview(latest_summary, market_regime, rejected_orders),
             _loss_attribution_overview(loss_attribution),
             _enrichment_overview(latest_summary, ai_enrichment),
             _decision_overview(latest_summary, trading_decisions),
             _data_quality_detail_block(latest_summary, data_fetch_status),
             _data_quality_health_section(data_quality_health),
-            _pnl_overview(latest_summary, latest_paper_summary, open_positions),
             _details_block("交易成本摘要", _cost_overview(latest_summary, latest_paper_summary, trading_cost)),
             _details_block("紙上交易績效", _paper_performance(latest_paper_summary, closed_trades, open_positions)),
             _details_block("出場策略摘要", _exit_strategy_summary(latest_summary, open_positions, closed_trades)),
@@ -1599,7 +1599,135 @@ def _pnl_overview(
         )
     primary_cards = "".join(_overview_metric(label, value, raw, class_name) for label, value, raw, class_name in primary)
     secondary_cards = "".join(_overview_metric(label, value, raw, "") for label, value, raw in secondary)
-    return f'<div class="pnl-card"><h3>損益總覽</h3><div class="pnl-primary">{primary_cards}</div><div class="pnl-secondary">{secondary_cards}</div></div>'
+    donut_card = _asset_pnl_donut_card(
+        total_equity=total_equity_after_cost,
+        total_capital=total_capital,
+        invested_value=invested_value,
+        market_value=market_value,
+        cash=_first_number(summary, "cash"),
+        unrealized=unrealized,
+        realized=realized,
+        total_pnl=total_pnl,
+        return_pct=return_pct,
+        new_entries_allowed=_format_cell(
+            "new_entries_allowed",
+            _first_raw(daily_summary.get("new_entries_allowed"), summary.get("new_entries_allowed")),
+        ),
+        open_positions=open_positions,
+    )
+    kpi_panel = f'<div class="pnl-card pnl-kpi-panel"><h3>損益 KPI 總覽</h3><div class="pnl-primary">{primary_cards}</div><div class="pnl-secondary">{secondary_cards}</div></div>'
+    return _section(
+        "損益總覽",
+        f'<div class="pnl-overview-layout">{donut_card}{kpi_panel}</div>',
+        section_id="pnl-overview",
+        class_name="pnl-overview-section",
+    )
+
+
+def _asset_pnl_donut_card(
+    *,
+    total_equity: float | None,
+    total_capital: float | None,
+    invested_value: float | None,
+    market_value: float | None,
+    cash: float | None,
+    unrealized: float | None,
+    realized: float | None,
+    total_pnl: float | None,
+    return_pct: float | None,
+    new_entries_allowed: str,
+    open_positions: pd.DataFrame,
+) -> str:
+    display_market_value = market_value if market_value is not None else invested_value
+    has_allocation = bool(total_equity and total_equity > 0 and display_market_value is not None)
+    if not has_allocation:
+        fallback_metrics = "".join(
+            _overview_metric(label, value, raw, "")
+            for label, value, raw in [
+                ("總資產", _format_number_or_dash(total_equity), None),
+                ("總報酬率", _percent_or_dash(return_pct), total_pnl),
+                ("未實現損益", _signed_or_dash(unrealized), unrealized),
+                ("已實現損益", _signed_or_dash(realized), realized),
+                ("是否允許新增持倉", new_entries_allowed, None),
+            ]
+        )
+        return (
+            '<div class="asset-donut-card asset-donut-fallback">'
+            "<h3>資產 / 損益圓環卡</h3>"
+            '<p class="note">持倉資料不足，改顯示損益摘要。</p>'
+            f'<div class="pnl-secondary">{fallback_metrics}</div>'
+            "</div>"
+        )
+
+    holding_pct = max(0.0, min(100.0, (display_market_value or 0.0) / total_equity * 100.0))
+    cash_value = cash if cash is not None else max(0.0, total_equity - (display_market_value or 0.0))
+    cash_pct = max(0.0, min(100.0, cash_value / total_equity * 100.0)) if total_equity else 0.0
+    allocation_items = _asset_allocation_items(open_positions, total_equity)
+    bottom_metrics = [
+        ("總成本", _format_number_or_dash(invested_value), None),
+        ("未實現損益", _signed_or_dash(unrealized), unrealized),
+        ("已實現損益", _signed_or_dash(realized), realized),
+        ("是否允許新增持倉", new_entries_allowed, None),
+    ]
+    bottom_html = "".join(_asset_bottom_metric(label, value, raw) for label, value, raw in bottom_metrics)
+    return (
+        '<div class="asset-donut-card">'
+        '<div class="asset-donut-head"><h3>資產 / 損益圓環卡</h3><span>持倉現值比例 / 總資產</span></div>'
+        '<div class="asset-donut-body">'
+        '<div class="asset-visual-stack">'
+        f'<div class="asset-donut" style="--holding-pct:{holding_pct:.2f}%;" role="img" aria-label="持倉現值占總資產 {holding_pct:.1f}%">'
+        '<div class="asset-donut-core">'
+        '<span>總資產</span>'
+        f'<strong>{escape(_format_number_or_dash(total_equity))}</strong>'
+        f'<em class="{_profit_class(total_pnl)}">總報酬率 {_percent_or_dash(return_pct)}</em>'
+        "</div></div>"
+        f'<div class="asset-pnl-bottom">{bottom_html}</div>'
+        "</div>"
+        '<div class="asset-allocation">'
+        '<div class="allocation-row"><span><i class="asset-dot holding-dot"></i>持倉現值</span>'
+        f'<strong>{holding_pct:.1f}%</strong></div>'
+        '<div class="allocation-row"><span><i class="asset-dot cash-dot"></i>現金 / 未投入</span>'
+        f'<strong>{cash_pct:.1f}%</strong></div>'
+        '<h4>前幾大持倉</h4>'
+        f"{allocation_items}"
+        "</div></div>"
+        "</div>"
+    )
+
+
+def _asset_allocation_items(open_positions: pd.DataFrame, total_equity: float) -> str:
+    if open_positions.empty or total_equity <= 0:
+        return '<div class="empty compact-empty">目前尚無持倉占比資料</div>'
+    value_column = "market_value" if "market_value" in open_positions.columns else "position_value"
+    if value_column not in open_positions.columns:
+        return '<div class="empty compact-empty">目前尚無持倉占比資料</div>'
+    rows = open_positions.copy()
+    rows["_allocation_value"] = pd.to_numeric(rows[value_column], errors="coerce").fillna(0.0)
+    rows = rows[rows["_allocation_value"] > 0].sort_values("_allocation_value", ascending=False).head(4)
+    if rows.empty:
+        return '<div class="empty compact-empty">目前尚無持倉占比資料</div>'
+    items = []
+    for _, row in rows.iterrows():
+        stock_name = _format_cell("stock_name", row.get("stock_name"))
+        stock_id = _format_cell("stock_id", row.get("stock_id"))
+        pct = float(row["_allocation_value"]) / total_equity * 100.0
+        items.append(
+            "<li>"
+            f"<span><b>{escape(stock_name)}</b><em>{escape(stock_id)}</em></span>"
+            f"<strong>{pct:.1f}%</strong>"
+            "</li>"
+        )
+    return f'<ol class="allocation-list">{"".join(items)}</ol>'
+
+
+def _asset_bottom_metric(label: str, value: str, raw_value: float | None) -> str:
+    value_class = _profit_class(raw_value) if raw_value is not None else "profit-flat"
+    return (
+        '<div class="asset-bottom-metric">'
+        f"<span>{escape(label)}</span>"
+        f'<strong class="{value_class}">{escape(value)}</strong>'
+        "</div>"
+    )
 
 
 def _pnl_chart_section(
@@ -5024,15 +5152,51 @@ h2,h3{color:#172033}
 .badge-warning{background:#fef3c7;border-color:#fbbf24;color:#92400e}
 .badge-danger{background:#fee2e2;border-color:#fca5a5;color:#991b1b}
 .badge-neutral{background:#f1f5f9;border-color:#cbd5e1;color:#475467}
+.profit-positive{color:#dc2626!important}.profit-negative{color:#047857!important}.profit-flat{color:#182230!important}
+.positive{color:#dc2626!important}.negative{color:#047857!important}.neutral{color:#182230!important}
 .decision-lane,.overview-metric,.card,.chart-card,.mobile-card,.health,.collapse-block{background:#ffffff;border-color:#d9e2ec;border-radius:8px}
-.decision-lane strong,.overview-metric strong,.card strong,.holding-metrics strong{color:#172033}
-.decision-lane span,.decision-lane em,.overview-metric span,.card span,.holding-metrics span,.detail-grid dt{color:#667085}
-.pnl-card{background:#ffffff;border-color:#d9e2ec;border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.05)}
+.decision-lane strong,.overview-metric strong,.card strong,.holding-metrics strong{color:#0b1220;font-weight:900}
+.decision-lane span,.decision-lane em,.overview-metric span,.card span,.holding-metrics span,.detail-grid dt{color:#475467;font-weight:750}
+.pnl-overview-section{border-color:#b7c7db;background:#ffffff}
+.pnl-overview-layout{display:grid;gap:12px}
+.asset-donut-card,.pnl-card{background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 12px 26px rgba(15,23,42,.07)}
+.asset-donut-card{padding:16px}
+.asset-donut-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+.asset-donut-head h3{margin:0;color:#0b1220;font-size:17px;font-weight:900}
+.asset-donut-head span{color:#475467;font-size:12px;font-weight:800;text-align:right}
+.asset-donut-body{display:grid;gap:16px;align-items:center}
+.asset-visual-stack{display:grid;gap:12px;justify-items:center}
+.asset-donut{width:min(258px,78vw);aspect-ratio:1;border-radius:50%;margin:0 auto;background:conic-gradient(#2f80ed 0 var(--holding-pct),#e6eef8 var(--holding-pct) 100%);display:grid;place-items:center;box-shadow:inset 0 0 0 1px #d9e2ec,0 14px 30px rgba(47,128,237,.14)}
+.asset-donut-core{width:62%;height:62%;border-radius:50%;background:#ffffff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 0 0 1px #d9e2ec}
+.asset-donut-core span{color:#475467;font-size:13px;font-weight:800}
+.asset-donut-core strong{margin-top:6px;color:#0b1220;font-size:28px;font-weight:950;letter-spacing:0}
+.asset-donut-core em{margin-top:6px;font-style:normal;font-size:14px;font-weight:900}
+.asset-allocation{display:grid;gap:9px}
+.allocation-row{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#182230;font-weight:850}
+.allocation-row span{display:flex;align-items:center;gap:8px;color:#344054}
+.asset-dot{width:12px;height:12px;border-radius:999px;display:inline-block}
+.holding-dot{background:#2f80ed}.cash-dot{background:#b8c6d9}
+.asset-allocation h4{margin:8px 0 0;color:#182230;font-size:13px;font-weight:900}
+.allocation-list{display:grid;gap:7px;margin:0;padding:0;list-style:none}
+.allocation-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid #edf2f7}
+.allocation-list b{display:block;color:#0b1220;font-size:13px}
+.allocation-list em{display:block;color:#667085;font-size:12px;font-style:normal}
+.allocation-list strong{color:#0b1220;font-size:14px;font-weight:900}
+.asset-pnl-bottom{display:grid;grid-template-columns:1fr;gap:8px;width:100%;border-top:1px solid #edf2f7;padding-top:12px}
+.asset-bottom-metric{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;background:#f8fafc;border:1px solid #d9e2ec;border-radius:7px}
+.asset-bottom-metric span{color:#475467;font-size:12px;font-weight:850}
+.asset-bottom-metric strong{font-size:18px;font-weight:950}
+.asset-donut-fallback .note{margin:0 0 10px}
+.compact-empty{padding:10px;font-size:12px}
+.pnl-card{padding:14px;border-color:#cbd5e1;border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.05)}
+.pnl-kpi-panel h3{font-size:17px}
+.pnl-kpi-panel .pnl-primary{grid-template-columns:repeat(2,minmax(0,1fr))}
+.pnl-kpi-panel .overview-metric strong{word-break:normal}
 .position-pnl,.closed-pnl,.holding-metrics div,.empty,.note{background:#f8fafc;border-color:#d9e2ec;color:#344054}
 .note{background:#eef6ff;border-color:#bfdbfe}
 .table-wrap{border-color:#d9e2ec;background:#ffffff}
 table{background:#ffffff}
-th{background:#f8fafc;color:#475467;font-size:12px;border-bottom:1px solid #d9e2ec}
+th{background:#f8fafc;color:#344054;font-size:12px;border-bottom:1px solid #d9e2ec}
 td{color:#172033;border-bottom:1px solid #edf2f7}
 tbody tr:nth-child(even) td{background:#fbfdff}
 .collapse-block>summary{color:#172033;background:#f8fafc;border-radius:8px}
@@ -5040,7 +5204,7 @@ tbody tr:nth-child(even) td{background:#fbfdff}
 .top-info{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
 .top-notice{background:#fffbeb;border-color:#fcd34d;color:#92400e}
 .top-warning{background:#fff1f2;border-color:#fda4af;color:#9f1239}
-@media(min-width:760px){.brokerage-header{grid-template-columns:minmax(260px,1.2fr) minmax(420px,2fr)}.header-status-board{grid-template-columns:repeat(4,minmax(0,1fr))}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:760px){.brokerage-header{grid-template-columns:minmax(260px,1.2fr) minmax(420px,2fr)}.header-status-board{grid-template-columns:repeat(4,minmax(0,1fr))}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.pnl-overview-layout{grid-template-columns:minmax(420px,.95fr) minmax(520px,1.05fr);align-items:stretch}.asset-donut-body{grid-template-columns:minmax(230px,300px) 1fr}.asset-pnl-bottom{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-bottom-metric{display:block}.asset-bottom-metric strong{display:block;margin-top:4px}}
 @media(min-width:1120px){
   .page{width:auto;max-width:none;margin:0;padding:24px 30px 36px 286px}
   .section-tabs{position:fixed;inset:0 auto 0 0;width:256px;height:100vh;display:flex;flex-direction:column;align-items:stretch;gap:6px;margin:0;padding:22px 14px;background:#182230;border:0;border-right:1px solid #263244;box-shadow:8px 0 24px rgba(15,23,42,.18)}

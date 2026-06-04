@@ -243,6 +243,15 @@ def test_generate_html_report_has_modern_dashboard_sections_and_badges(tmp_path:
     assert "產業分類缺口" in html
     assert "AnySearch 候選資料" in html
     assert "資料為最新或目前可用資料" in html
+    assert 'id="pnl-overview"' in html
+    assert 'class="asset-donut-card"' in html
+    assert "資產 / 損益圓環卡" in html
+    assert "總報酬率" in html
+    assert "前幾大持倉" in html
+    assert "總成本" in html
+    assert "conic-gradient" in html
+    assert html.index('id="pnl-overview"') < html.index('id="dashboard-overview"')
+    assert html.index('id="pnl-overview"') < html.index("今日損益圖")
     assert 'class="status-badge badge-ok freshness-badge"' in html
     assert 'class="status-badge badge-ok guardrail-badge"' in html
     assert 'data-section-target="missing-industry-section"' in html
@@ -253,6 +262,45 @@ def test_generate_html_report_has_modern_dashboard_sections_and_badges(tmp_path:
     assert "NEEDS_MANUAL_CHECK" in html
     assert "候選資料，尚未正式採用" in html
     assert "已正式採用" not in html
+
+
+def test_asset_donut_falls_back_when_position_allocation_is_missing(tmp_path: Path) -> None:
+    pd.DataFrame(
+        [
+            {
+                "requested_date": "2026-05-10",
+                "trade_date": "2026-05-08",
+                "status": "OK",
+                "total_capital": 1_000_000.0,
+                "total_equity_after_cost": 1_001_000.0,
+                "unrealized_pnl": 1_000.0,
+                "realized_pnl_after_cost": 0.0,
+                "new_entries_allowed": True,
+                "guardrail_status": "OK",
+                "data_freshness_level": "CURRENT",
+                "market_intel_status": "OK",
+            }
+        ]
+    ).to_csv(tmp_path / "daily_summary_20260510.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-05-08",
+                "total_capital": 1_000_000.0,
+                "total_equity_after_cost": 1_001_000.0,
+                "unrealized_pnl": 1_000.0,
+                "realized_pnl_after_cost": 0.0,
+            }
+        ]
+    ).to_csv(tmp_path / "paper_summary_20260508.csv", index=False, encoding="utf-8-sig")
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "資產 / 損益圓環卡" in html
+    assert "持倉資料不足，改顯示損益摘要。" in html
+    assert "總資產" in html
+    assert "總報酬率" in html
 
 
 def _write_reports(path: Path) -> None:

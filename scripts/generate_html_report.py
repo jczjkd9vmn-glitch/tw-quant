@@ -1418,7 +1418,7 @@ def _overview_dashboard(
 
     high_priority = _priority_level_count(missing_industry_priority, "HIGH")
     medium_priority = _priority_level_count(missing_industry_priority, "MEDIUM")
-    low_priority = _priority_level_count(missing_industry_priority, "LOW")
+    urgent_priority = high_priority + medium_priority
     pending_review = _anysearch_status_count(anysearch_candidates, "PENDING_REVIEW")
     manual_check = _anysearch_status_count(anysearch_candidates, "NEEDS_MANUAL_CHECK")
 
@@ -1464,13 +1464,17 @@ def _overview_dashboard(
         ),
         _kpi_card(
             "產業分類缺口",
-            escape("高優先缺口已清空" if high_priority == 0 else f"HIGH {high_priority:,.0f}"),
+            escape(
+                "高優先缺口已清空"
+                if urgent_priority == 0
+                else f"HIGH {high_priority:,.0f} / MEDIUM {medium_priority:,.0f}"
+            ),
             [
-                ("缺分類總數", f"{len(missing_industry_priority):,.0f}"),
+                ("需優先處理", f"{urgent_priority:,.0f}"),
+                ("HIGH", f"{high_priority:,.0f}"),
                 ("MEDIUM", f"{medium_priority:,.0f}"),
-                ("LOW", f"{low_priority:,.0f}"),
             ],
-            tone="ok" if high_priority == 0 else "warning",
+            tone="ok" if urgent_priority == 0 else "warning",
         ),
         _kpi_card(
             "AnySearch 候選資料",
@@ -1909,7 +1913,7 @@ def _missing_industry_priority_section(priority: pd.DataFrame) -> str:
             ("缺分類總數", "0"),
             ("HIGH", "0"),
             ("MEDIUM", "0"),
-            ("LOW", "0"),
+            ("需優先處理", "0"),
         ]
         return _section(
             title,
@@ -1930,13 +1934,15 @@ def _missing_industry_priority_section(priority: pd.DataFrame) -> str:
     high = frame[frame.get("priority_level", pd.Series([""] * len(frame))).fillna("").astype(str).str.upper() == "HIGH"]
     medium = frame[frame.get("priority_level", pd.Series([""] * len(frame))).fillna("").astype(str).str.upper() == "MEDIUM"]
     low = frame[frame.get("priority_level", pd.Series([""] * len(frame))).fillna("").astype(str).str.upper() == "LOW"]
-    top = high if not high.empty else frame
+    urgent = pd.concat([high, medium], ignore_index=False)
+    top = high if not high.empty else medium
     top = top.drop(columns=["_priority_score", "_recent_appearance_count"], errors="ignore")
+    urgent_count = len(urgent)
     cards = [
         ("缺分類總數", f"{len(priority):,.0f}"),
         ("HIGH", f"{_priority_level_count(priority, 'HIGH'):,.0f}"),
         ("MEDIUM", f"{_priority_level_count(priority, 'MEDIUM'):,.0f}"),
-        ("LOW", f"{_priority_level_count(priority, 'LOW'):,.0f}"),
+        ("需優先處理", f"{urgent_count:,.0f}"),
     ]
     table = _table(
         top,
@@ -1981,7 +1987,12 @@ def _missing_industry_priority_section(priority: pd.DataFrame) -> str:
         "priority_level",
         "suggested_action",
     ], "目前尚無 LOW priority 缺口", 20)
-    high_note = "高優先缺口已清空。" if high.empty else "HIGH priority 缺口已置頂，優先人工查證。"
+    if high.empty and medium.empty:
+        high_note = "高優先缺口已清空；MEDIUM 缺口也已清空。LOW priority 已移至下方收合區作為背景資訊。"
+    elif high.empty:
+        high_note = "高優先缺口已清空；MEDIUM priority 缺口仍需排入下一批補資料。"
+    else:
+        high_note = "HIGH priority 缺口已置頂，優先人工查證。"
     note = (
         f'<p class="note">{escape(high_note)} 此清單只列出仍使用 market_relative_fallback 的股票；'
         "不會移除缺產業分類警告，也不會自動補分類。</p>"
@@ -1990,9 +2001,13 @@ def _missing_industry_priority_section(priority: pd.DataFrame) -> str:
         title,
         '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
         + note
-        + _details_block("前 20 檔優先補資料標的", table, open_by_default=True)
+        + _details_block("HIGH / MEDIUM 優先補資料標的", table, open_by_default=urgent_count > 0)
         + _details_block("MEDIUM priority 缺口", medium_table)
-        + _details_block("LOW priority 低優先缺口", low_table),
+        + _details_block(
+            f"LOW priority 低優先缺口（{len(low):,.0f} 筆，收合資訊）",
+            low_table,
+            class_name="missing-low-priority-details",
+        ),
         section_id="missing-industry-section",
         class_name="missing-industry-section",
     )

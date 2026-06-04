@@ -252,6 +252,19 @@ def test_generate_html_report_has_modern_dashboard_sections_and_badges(tmp_path:
     assert "conic-gradient" in html
     assert html.index('id="pnl-overview"') < html.index('id="dashboard-overview"')
     assert html.index('id="pnl-overview"') < html.index("今日損益圖")
+    assert "--text-main" in html
+    assert "--text-secondary" in html
+    assert "--text-muted" in html
+    assert "--text-strong" in html
+    assert "大盤比較 / 超額報酬" in html
+    assert 'id="benchmark-alpha"' in html
+    assert "超額報酬 alpha" in html
+    assert "Benchmark warning" in html
+    assert "market_regime_score 說明" in html
+    assert "新增持倉風控分數" in html
+    assert "不是選股分數，也不是獲利保證" in html
+    assert "5 日市場報酬" in html
+    assert "20 日均線站上比例" in html
     assert 'class="status-badge badge-ok freshness-badge"' in html
     assert 'class="status-badge badge-ok guardrail-badge"' in html
     assert 'data-section-target="missing-industry-section"' in html
@@ -262,6 +275,49 @@ def test_generate_html_report_has_modern_dashboard_sections_and_badges(tmp_path:
     assert "NEEDS_MANUAL_CHECK" in html
     assert "候選資料，尚未正式採用" in html
     assert "已正式採用" not in html
+
+
+def test_benchmark_alpha_uses_0050_fallback_and_shows_summary(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+    for index, equity in enumerate([990_000, 992_000, 994_000, 996_000, 998_000], start=3):
+        pd.DataFrame(
+            [
+                {
+                    "requested_date": f"2026-05-0{index}",
+                    "trade_date": f"2026-05-0{index}",
+                    "status": "OK",
+                    "total_capital": 1_000_000.0,
+                    "total_equity_after_cost": equity,
+                    "total_equity": equity,
+                    "market_regime_score": 65.0,
+                }
+            ]
+        ).to_csv(tmp_path / f"daily_summary_2026050{index}.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-05-08",
+                "stock_id": "0050",
+                "stock_name": "元大台灣50",
+                "stock_return_5d": 0.01,
+                "stock_return_20d": 0.02,
+                "market_return_5d": 0.008,
+                "market_return_20d": 0.015,
+            }
+        ]
+    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "大盤比較 / 超額報酬" in html
+    assert "0050 fallback" in html
+    assert "未使用正式加權指數資料" in html
+    assert "不能假裝是正式大盤指數" in html
+    assert "打敗大盤" in html
+    assert "超額報酬 alpha" in html
+    assert "大盤比較詳細數據" in html
+    assert "近 5 日" in html
 
 
 def test_asset_donut_falls_back_when_position_allocation_is_missing(tmp_path: Path) -> None:
@@ -349,6 +405,7 @@ def _write_reports(path: Path) -> None:
                 "hold_count": 1,
                 "reduce_count": 0,
                 "exit_review_count": 0,
+                "market_regime_score": 65.0,
             }
         ]
     ).to_csv(path / "daily_summary_20260510.csv", index=False, encoding="utf-8-sig")
@@ -694,6 +751,51 @@ def _write_reports(path: Path) -> None:
             }
         ]
     ).to_csv(path / "strategy_validation_20260508.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-05-08",
+                "market_regime_score": 65.0,
+                "source": "index",
+                "twse_above_20ma": True,
+                "twse_above_60ma": False,
+                "market_return_5d": 0.8,
+                "market_return_20d": 1.5,
+                "market_above_20ma_ratio": 0.55,
+                "market_above_60ma_ratio": 0.48,
+                "warning": "",
+            }
+        ]
+    ).to_csv(path / "market_regime_20260508.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-05-08",
+                "market_regime_score": 65.0,
+                "regime_label": "大盤中性",
+                "twse_index": "",
+                "tpex_index": "",
+                "advancers": 1,
+                "decliners": 1,
+                "unchanged": 0,
+                "fallback_used": True,
+                "data_quality_note": "測試用 fallback",
+            }
+        ]
+    ).to_csv(path / "market_recap_20260508.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-05-08",
+                "stock_id": "0050",
+                "stock_name": "元大台灣50",
+                "stock_return_5d": 0.01,
+                "stock_return_20d": 0.02,
+                "market_return_5d": 0.008,
+                "market_return_20d": 0.015,
+            }
+        ]
+    ).to_csv(path / "sector_strength.csv", index=False, encoding="utf-8-sig")
     pd.DataFrame(
         [
             {

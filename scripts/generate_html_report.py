@@ -876,6 +876,7 @@ def generate_html_report(
     enrichment_evidence = _read_latest_csv(report_dir, "enrichment_evidence_*.csv")
     pnl_chart_data = _read_latest_csv(report_dir, "pnl_chart_data_*.csv")
     market_recap = _read_latest_csv(report_dir, "market_recap_*.csv")
+    sector_strength = _read_benchmark_sector_strength(report_dir)
     candidate_coverage = _read_latest_csv(report_dir, "candidate_coverage_report_*.csv")
     position_review = _read_latest_csv(report_dir, "position_review_summary_*.csv")
     missing_industry_priority = _read_csv(report_dir / "missing_industry_priority.csv")
@@ -902,6 +903,7 @@ def generate_html_report(
         enrichment_evidence=enrichment_evidence,
         pnl_chart_data=pnl_chart_data,
         market_recap=market_recap,
+        sector_strength=sector_strength,
         candidate_coverage=candidate_coverage,
         position_review=position_review,
         missing_industry_priority=missing_industry_priority,
@@ -938,6 +940,7 @@ def _render_page(
     enrichment_evidence: pd.DataFrame,
     pnl_chart_data: pd.DataFrame,
     market_recap: pd.DataFrame,
+    sector_strength: pd.DataFrame,
     candidate_coverage: pd.DataFrame,
     position_review: pd.DataFrame,
     missing_industry_priority: pd.DataFrame,
@@ -1171,6 +1174,8 @@ def _render_page(
                 missing_industry_priority,
                 anysearch_industry_candidates,
             ),
+            _benchmark_alpha_section(latest_summary, latest_paper_summary, recent_summaries, market_regime, market_recap, sector_strength),
+            _market_regime_score_explainer(latest_summary, market_regime, market_recap),
             _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
             _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status, trading_decisions), class_name="today-action-section"),
             _decision_dashboard(latest_summary, trading_decisions, candidates, open_positions),
@@ -2251,6 +2256,251 @@ def _market_recap_section(market_recap: pd.DataFrame, summary: dict[str, object]
         + _details_block("大盤復盤原始資料", table)
     )
     return _section("大盤復盤", content)
+
+
+def _benchmark_alpha_section(
+    summary: dict[str, object],
+    paper_summary: dict[str, object],
+    recent_summaries: pd.DataFrame,
+    market_regime: pd.DataFrame,
+    market_recap: pd.DataFrame,
+    sector_strength: pd.DataFrame,
+) -> str:
+    benchmark = _benchmark_snapshot(market_regime, market_recap, sector_strength)
+    system_returns = _system_return_snapshot(summary, paper_summary, recent_summaries)
+    headline_window = _best_alpha_window(system_returns, benchmark["returns"])
+    system_headline = system_returns.get(headline_window)
+    benchmark_headline = benchmark["returns"].get(headline_window)
+    alpha = _alpha_return(system_headline, benchmark_headline)
+    beat_text = _beat_market_text(alpha)
+    alpha_text = _return_text(alpha)
+    warning = ""
+    if benchmark["warning"]:
+        warning = (
+            '<p class="top-notice benchmark-warning"><strong>Benchmark warning</strong>'
+            f'<span>{escape(str(benchmark["warning"]))}</span></p>'
+        )
+    detail_rows = [
+        ("今日", system_returns.get("1d"), benchmark["returns"].get("1d")),
+        ("近 5 日", system_returns.get("5d"), benchmark["returns"].get("5d")),
+        ("近 20 日", system_returns.get("20d"), benchmark["returns"].get("20d")),
+        ("累計", system_returns.get("total"), benchmark["returns"].get("total")),
+    ]
+    detail_table = _benchmark_detail_table(detail_rows)
+    content = (
+        '<div class="benchmark-summary-grid">'
+        + _benchmark_card("打敗大盤", beat_text, headline_window)
+        + _benchmark_card("超額報酬 alpha", alpha_text, _benchmark_window_label(headline_window), alpha)
+        + _benchmark_card("本系統總資產報酬率", _return_text(system_returns.get("total")), "相對初始資金")
+        + _benchmark_card("Benchmark 報酬率", _return_text(benchmark_headline), str(benchmark["source_label"]))
+        + "</div>"
+        + warning
+        + _details_block("大盤比較詳細數據", detail_table)
+    )
+    return _section("大盤比較 / 超額報酬", content, section_id="benchmark-alpha", class_name="benchmark-alpha-section")
+
+
+def _market_regime_score_explainer(
+    summary: dict[str, object],
+    market_regime: pd.DataFrame,
+    market_recap: pd.DataFrame,
+) -> str:
+    row = market_regime.iloc[0].to_dict() if not market_regime.empty else {}
+    score = _first_raw(summary.get("market_regime_score"), row.get("market_regime_score"))
+    fallback_used = _truthy(_frame_first(market_recap, "fallback_used")) or _truthy(row.get("fallback_used"))
+    factors = [
+        ("5 日市場報酬", _return_text(_normalized_return(row.get("market_return_5d")))),
+        ("20 日市場報酬", _return_text(_normalized_return(row.get("market_return_20d")))),
+        ("20 日均線站上比例", _ratio_or_bool_text(row.get("market_above_20ma_ratio"), row.get("twse_above_20ma"))),
+        ("60 日均線站上比例", _ratio_or_bool_text(row.get("market_above_60ma_ratio"), row.get("twse_above_60ma"))),
+        ("是否使用 fallback", "是" if fallback_used else "否"),
+    ]
+    content = (
+        '<div class="regime-explainer">'
+        '<div class="regime-definition">'
+        f'<span>目前 market_regime_score</span><strong>{escape(_format_cell("market_regime_score", score))}</strong>'
+        "<p>這是新增持倉風控分數，不是選股分數，也不是獲利保證；分數偏低時只代表新增紙上持倉要更保守。</p>"
+        "</div>"
+        '<div class="regime-factor-grid">'
+        + "".join(_card(label, value) for label, value in factors)
+        + "</div></div>"
+    )
+    return _section("market_regime_score 說明", content, section_id="market-regime-explainer", class_name="market-regime-explainer-section")
+
+
+def _benchmark_snapshot(
+    market_regime: pd.DataFrame,
+    market_recap: pd.DataFrame,
+    sector_strength: pd.DataFrame,
+) -> dict[str, object]:
+    regime_row = market_regime.iloc[0].to_dict() if not market_regime.empty else {}
+    recap_uses_fallback = _truthy(_frame_first(market_recap, "fallback_used"))
+    source = str(regime_row.get("source", "")).strip().lower()
+    if source == "index" and not recap_uses_fallback:
+        returns = {
+            "1d": None,
+            "5d": _normalized_return(regime_row.get("market_return_5d")),
+            "20d": _normalized_return(regime_row.get("market_return_20d")),
+            "total": None,
+        }
+        return {
+            "source_label": "加權指數",
+            "warning": "",
+            "returns": returns,
+        }
+    if not sector_strength.empty and "stock_id" in sector_strength.columns:
+        frame = sector_strength.copy()
+        frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
+        etf_0050 = frame[frame["stock_id"] == "0050"]
+        if not etf_0050.empty:
+            row = etf_0050.iloc[0].to_dict()
+            return {
+                "source_label": "0050 fallback",
+                "warning": "未使用正式加權指數資料；本次 benchmark fallback 使用 0050，不能假裝是正式大盤指數。",
+                "returns": {
+                    "1d": None,
+                    "5d": _normalized_return(row.get("stock_return_5d")),
+                    "20d": _normalized_return(row.get("stock_return_20d")),
+                    "total": None,
+                },
+            }
+        market_return_rows = frame.dropna(subset=["market_return_5d", "market_return_20d"], how="all") if {"market_return_5d", "market_return_20d"}.issubset(frame.columns) else pd.DataFrame()
+        if not market_return_rows.empty:
+            row = market_return_rows.iloc[0].to_dict()
+            return {
+                "source_label": "全市場等權 fallback",
+                "warning": "未使用正式加權指數資料；本次 benchmark fallback 使用全市場等權報酬。",
+                "returns": {
+                    "1d": None,
+                    "5d": _normalized_return(row.get("market_return_5d")),
+                    "20d": _normalized_return(row.get("market_return_20d")),
+                    "total": None,
+                },
+            }
+    return {
+        "source_label": "benchmark 資料不足",
+        "warning": "缺少正式加權指數、0050 與全市場等權資料，無法計算 benchmark alpha。",
+        "returns": {"1d": None, "5d": None, "20d": None, "total": None},
+    }
+
+
+def _system_return_snapshot(
+    summary: dict[str, object],
+    paper_summary: dict[str, object],
+    recent_summaries: pd.DataFrame,
+) -> dict[str, float | None]:
+    source = paper_summary or summary
+    total_equity = _first_number(source, "total_equity_after_cost") or _first_number(source, "total_equity")
+    total_capital = _first_number(source, "total_capital")
+    total = (total_equity / total_capital - 1.0) if total_equity is not None and total_capital else None
+    return {
+        "1d": _equity_return_over_recent_window(recent_summaries, 1),
+        "5d": _equity_return_over_recent_window(recent_summaries, 5),
+        "20d": _equity_return_over_recent_window(recent_summaries, 20),
+        "total": total,
+    }
+
+
+def _equity_return_over_recent_window(recent_summaries: pd.DataFrame, window: int) -> float | None:
+    if recent_summaries.empty:
+        return None
+    equity_column = "total_equity_after_cost" if "total_equity_after_cost" in recent_summaries.columns else "total_equity"
+    if equity_column not in recent_summaries.columns:
+        return None
+    frame = recent_summaries.copy()
+    if "trade_date" in frame.columns:
+        frame["_sort_date"] = pd.to_datetime(frame["trade_date"], errors="coerce")
+        frame = frame.sort_values("_sort_date", ascending=False)
+    values = pd.to_numeric(frame[equity_column], errors="coerce").dropna().tolist()
+    if len(values) <= window:
+        return None
+    latest, baseline = float(values[0]), float(values[window])
+    if abs(baseline) < 0.000001:
+        return None
+    return latest / baseline - 1.0
+
+
+def _best_alpha_window(system_returns: dict[str, float | None], benchmark_returns: dict[str, float | None]) -> str:
+    for key in ["5d", "20d", "1d"]:
+        if system_returns.get(key) is not None and benchmark_returns.get(key) is not None:
+            return key
+    return "total"
+
+
+def _alpha_return(system_return: float | None, benchmark_return: float | None) -> float | None:
+    if system_return is None or benchmark_return is None:
+        return None
+    return system_return - benchmark_return
+
+
+def _beat_market_text(alpha: float | None) -> str:
+    if alpha is None:
+        return "資料不足"
+    return "是" if alpha >= 0 else "否"
+
+
+def _benchmark_card(label: str, value: str, note: str, raw_value: float | None = None) -> str:
+    value_class = _profit_class(raw_value) if raw_value is not None else "profit-flat"
+    return (
+        '<article class="benchmark-card">'
+        f"<span>{escape(label)}</span>"
+        f'<strong class="{value_class}">{escape(value)}</strong>'
+        f"<em>{escape(note)}</em>"
+        "</article>"
+    )
+
+
+def _benchmark_detail_table(rows: list[tuple[str, float | None, float | None]]) -> str:
+    body = []
+    for label, system_value, benchmark_value in rows:
+        alpha = _alpha_return(system_value, benchmark_value)
+        body.append(
+            "<tr>"
+            f"<td>{escape(label)}</td>"
+            f"<td>{escape(_return_text(system_value))}</td>"
+            f"<td>{escape(_return_text(benchmark_value))}</td>"
+            f'<td class="{_profit_class(alpha)}">{escape(_return_text(alpha))}</td>'
+            f"<td>{escape(_beat_market_text(alpha))}</td>"
+            "</tr>"
+        )
+    return (
+        '<div class="table-wrap always-table"><table class="benchmark-detail-table">'
+        "<thead><tr><th>期間</th><th>本系統報酬率</th><th>Benchmark 報酬率</th><th>Alpha</th><th>是否打敗大盤</th></tr></thead>"
+        f"<tbody>{''.join(body)}</tbody></table></div>"
+    )
+
+
+def _benchmark_window_label(window: str) -> str:
+    return {"1d": "今日", "5d": "近 5 日", "20d": "近 20 日", "total": "累計"}.get(window, window)
+
+
+def _return_text(value: float | None) -> str:
+    if value is None:
+        return "資料不足"
+    return f"{value * 100:+.2f}%"
+
+
+def _normalized_return(value: object) -> float | None:
+    number = _to_float(value)
+    if number is None:
+        return None
+    if abs(number) > 0.5 and abs(number) <= 100:
+        return number / 100.0
+    if abs(number) > 100:
+        return None
+    return number
+
+
+def _ratio_or_bool_text(ratio_value: object, bool_value: object) -> str:
+    ratio = _to_float(ratio_value)
+    if ratio is not None:
+        if abs(ratio) <= 1:
+            return f"{ratio * 100:.1f}%"
+        if abs(ratio) <= 100:
+            return f"{ratio:.1f}%"
+    if _is_blank(bool_value):
+        return "資料不足"
+    return "是" if _truthy(bool_value) else "否"
 
 
 def _overview_metric(label: str, value: str, raw_value: float | None, extra_class: str = "") -> str:
@@ -4886,6 +5136,18 @@ def _read_csv(path: Path) -> pd.DataFrame:
         return pd.DataFrame()
 
 
+def _read_benchmark_sector_strength(report_dir: Path) -> pd.DataFrame:
+    candidates = [
+        report_dir / "sector_strength.csv",
+        report_dir.parent / "data" / "sector_strength.csv",
+    ]
+    for path in candidates:
+        frame = _read_csv(path)
+        if not frame.empty:
+            return frame
+    return pd.DataFrame()
+
+
 def _latest_file(report_dir: Path, pattern: str) -> Path | None:
     files = _sorted_report_files(report_dir, pattern)
     return files[0] if files else None
@@ -4986,7 +5248,7 @@ body{margin:0;background:#080d18;color:#e5e7eb;font-family:-apple-system,BlinkMa
 .account-header{padding:18px 2px 12px}
 .account-header p{margin:0 0 4px;color:#38bdf8;font-size:13px;font-weight:700}
 .account-header h1{margin:0 0 10px;font-size:26px;letter-spacing:0}
-.account-header small{display:block;margin-top:10px;color:#94a3b8;font-size:12px}
+.account-header small{display:block;margin-top:10px;color:var(--text-muted);font-size:12px}
 .header-meta{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
 .header-meta span{flex:0 0 auto;padding:5px 9px;border:1px solid #243244;border-radius:999px;background:#0f172a;color:#cbd5e1;font-size:12px}
 .section-tabs{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;margin:10px -14px 12px;padding:9px 14px;background:rgba(8,13,24,.94);backdrop-filter:blur(10px);border-bottom:1px solid #1f2937}
@@ -5010,7 +5272,7 @@ h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
 .kpi-primary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#f8fafc;font-size:24px;font-weight:800;line-height:1.25}
 .kpi-meta{display:grid;gap:7px;margin-top:auto}
 .kpi-meta span{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-top:1px solid #1f2937;padding-top:7px}
-.kpi-meta b{color:#94a3b8;font-size:12px;font-weight:700}
+.kpi-meta b{color:var(--text-muted);font-size:12px;font-weight:700}
 .kpi-meta em{color:#e5e7eb;font-style:normal;text-align:right;font-size:12px;max-width:62%;word-break:break-word}
 .kpi-card.ok{border-color:#0f766e}.kpi-card.warning{border-color:#b45309}.kpi-card.danger{border-color:#dc2626}.kpi-card.info{border-color:#2563eb}
 .status-badge{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;border:1px solid #334155;padding:5px 9px;font-size:12px;font-weight:900;line-height:1.1;white-space:nowrap}
@@ -5022,24 +5284,24 @@ h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
 .status-strip{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .decision-lanes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-bottom:12px}
 .decision-lane{padding:12px;border:1px solid #243244;border-radius:10px;background:#0b1220}
-.decision-lane span,.decision-lane em{display:block;color:#94a3b8;font-size:12px;font-style:normal}
+.decision-lane span,.decision-lane em{display:block;color:var(--text-muted);font-size:12px;font-style:normal}
 .decision-lane strong{display:block;margin:5px 0;font-size:26px;color:#f8fafc}
 .decision-buy{border-color:#14b8a6}.decision-watch{border-color:#38bdf8}.decision-no-trade{border-color:#64748b}.decision-hold{border-color:#22c55e}.decision-reduce{border-color:#f59e0b}.decision-exit{border-color:#ef4444}
 .pnl-card{padding:14px;border:1px solid #334155;border-radius:12px;background:linear-gradient(180deg,#172033,#0f172a)}
 .pnl-primary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .pnl-secondary,.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
 .overview-metric,.card{padding:12px;background:#0b1220;border:1px solid #243244;border-radius:10px}
-.overview-metric span,.card span{display:block;color:#94a3b8;font-size:12px}
+.overview-metric span,.card span{display:block;color:var(--text-muted);font-size:12px}
 .overview-metric strong,.card strong{display:block;margin-top:4px;font-size:17px;color:#f8fafc;word-break:break-word}
 .overview-metric.pnl-main strong{font-size:24px}
 .overview-metric.total-value strong{font-size:22px}
 .chart-grid,.dashboard-split{display:grid;gap:12px}
 .chart-card{padding:13px;background:#0b1220;border:1px solid #243244;border-radius:10px}
 .pnl-bar-row{display:grid;grid-template-columns:110px 1fr 92px;gap:8px;align-items:center;margin:9px 0}
-.pnl-bar-row span{font-size:12px;color:#94a3b8}.pnl-bar-row strong{text-align:right;font-size:13px}
+.pnl-bar-row span{font-size:12px;color:var(--text-muted)}.pnl-bar-row strong{text-align:right;font-size:13px}
 .pnl-bar-track{height:10px;border-radius:999px;background:#1f2937;overflow:hidden}
 .pnl-bar-track i{display:block;height:100%;border-radius:999px;background:#e5e7eb}
-.pnl-bar-track i.profit-positive{background:#ef4444}.pnl-bar-track i.profit-negative{background:#22c55e}.pnl-bar-track i.profit-flat{background:#94a3b8}
+.pnl-bar-track i.profit-positive{background:#ef4444}.pnl-bar-track i.profit-negative{background:#22c55e}.pnl-bar-track i.profit-flat{background:var(--text-muted)}
 .pnl-line-chart{width:100%;min-height:160px;background:#0f172a;border:1px solid #1f2937;border-radius:8px}
 .chart-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;color:#cbd5e1;font-size:12px}
 .chart-legend i{display:inline-block;width:10px;height:10px;border-radius:999px;margin-right:5px}
@@ -5061,25 +5323,25 @@ h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
 .holding-head b{padding:3px 8px;border-radius:999px;background:#1e3a8a;color:#dbeafe;font-size:12px;white-space:nowrap}
 .holding-main{display:grid;gap:12px;margin-top:12px}
 .position-pnl,.closed-pnl{padding:14px;border-radius:12px;background:#111827;border:1px solid #243244}
-.position-pnl span,.closed-pnl span{display:block;color:#94a3b8;font-size:12px}
+.position-pnl span,.closed-pnl span{display:block;color:var(--text-muted);font-size:12px}
 .position-pnl strong,.closed-pnl strong{display:block;font-size:30px;font-weight:800;letter-spacing:0}
 .position-pnl em{display:block;font-style:normal;font-size:15px;font-weight:700}
 .pnl-highlight{min-height:96px;display:flex;flex-direction:column;justify-content:center}
 .holding-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .holding-metrics div{padding:10px;border-radius:8px;background:#0b1220;border:1px solid #1f2937}
-.holding-metrics span{display:block;color:#94a3b8;font-size:12px}
+.holding-metrics span{display:block;color:var(--text-muted);font-size:12px}
 .holding-metrics strong{font-size:15px;color:#f8fafc}
 .card-details{margin-top:12px;border-top:1px solid #243244;padding-top:10px}
 .compact-grid{grid-template-columns:120px 1fr}
 .collapse-block{margin-top:12px;border:1px solid #243244;border-radius:10px;background:#0b1220}
 .collapse-block>summary{padding:12px 13px;color:#bfdbfe;font-size:14px;font-weight:800;cursor:pointer;list-style:none}
 .collapse-block>summary::-webkit-details-marker{display:none}
-.collapse-block>summary:after{content:"展開";float:right;color:#94a3b8;font-size:12px;font-weight:700}
+.collapse-block>summary:after{content:"展開";float:right;color:var(--text-muted);font-size:12px;font-weight:700}
 .collapse-block[open]>summary:after{content:"收合"}
 .collapse-content{padding:0 12px 12px}
 summary{cursor:pointer;color:#bfdbfe;font-size:14px;font-weight:700}
 .detail-grid{display:grid;grid-template-columns:120px 1fr;gap:7px 10px;margin:10px 0 0}
-.detail-grid dt{color:#94a3b8;font-size:12px}.detail-grid dd{margin:0;color:#e5e7eb;font-size:13px}
+.detail-grid dt{color:var(--text-muted);font-size:12px}.detail-grid dd{margin:0;color:#e5e7eb;font-size:13px}
 .table-wrap{display:none;width:100%;overflow-x:auto;border:1px solid #243244;border-radius:8px;margin-top:12px}
 .table-wrap.always-table{display:block}
 .collapse-block .table-wrap{display:block}
@@ -5111,37 +5373,38 @@ tr:last-child td{border-bottom:0}
 @media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.quick-section-nav{margin:0 0 16px;padding:8px 0}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.decision-lanes{grid-template-columns:repeat(6,minmax(0,1fr))}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.chart-grid,.dashboard-split{grid-template-columns:repeat(2,minmax(0,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards,.mobile-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}
 
 /* Brokerage-style dashboard refresh: distinct from any broker brand, focused on dense scanning. */
-body{background:#edf2f7;color:#182230;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}
+:root{--text-main:#182230;--text-secondary:#344054;--text-muted:#667085;--text-strong:#0b1220}
+body{background:#edf2f7;color:var(--text-main);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}
 .page{width:min(1480px,100%);padding:14px 16px 28px}
 .brokerage-header{display:grid;gap:16px;margin:0 0 14px;padding:18px;background:#ffffff;border:1px solid #d9e2ec;border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.07)}
 .brokerage-title-block p{margin:0 0 5px;color:#0f766e;font-size:12px;font-weight:900;letter-spacing:.04em;text-transform:uppercase}
-.brokerage-title-block h1{margin:0;color:#172033;font-size:28px;font-weight:900}
-.brokerage-title-block small{display:block;margin-top:8px;color:#667085;font-size:12px}
+.brokerage-title-block h1{margin:0;color:var(--text-strong);font-size:28px;font-weight:900}
+.brokerage-title-block small{display:block;margin-top:8px;color:var(--text-secondary);font-size:12px}
 .header-status-board{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;overflow:visible;padding:0}
-.header-status-board .header-status-tile{display:block;min-width:0;flex:1 1 auto;padding:10px 12px;border:1px solid #d9e2ec;border-radius:7px;background:#f8fafc;color:#172033;font-size:12px}
-.header-status-board .header-status-tile b{display:block;color:#667085;font-size:11px;font-weight:800}
-.header-status-board .header-status-tile strong{display:block;margin-top:3px;color:#172033;font-size:14px;font-weight:900;word-break:break-word}
+.header-status-board .header-status-tile{display:block;min-width:0;flex:1 1 auto;padding:10px 12px;border:1px solid #d9e2ec;border-radius:7px;background:#f8fafc;color:var(--text-main);font-size:12px}
+.header-status-board .header-status-tile b{display:block;color:var(--text-secondary);font-size:11px;font-weight:850}
+.header-status-board .header-status-tile strong{display:block;margin-top:3px;color:var(--text-strong);font-size:14px;font-weight:900;word-break:break-word}
 .section-tabs{position:sticky;top:0;z-index:20;margin:0 -16px 10px;padding:8px 16px;background:#ffffff;border-bottom:1px solid #d9e2ec;box-shadow:0 8px 20px rgba(15,23,42,.06);backdrop-filter:none}
-.tab-button{border:0;border-radius:7px;background:#f1f5f9;color:#344054;padding:9px 12px;font-size:13px;font-weight:900}
+.tab-button{border:0;border-radius:7px;background:#f1f5f9;color:var(--text-secondary);padding:9px 12px;font-size:13px;font-weight:900}
 .tab-button.active{background:#0f766e;color:#ffffff;box-shadow:0 8px 18px rgba(15,118,110,.22)}
 .quick-section-nav{display:none}
-.quick-nav-link{border:1px solid #d9e2ec;border-radius:7px;background:#ffffff;color:#475467;font-weight:800}
+.quick-nav-link{border:1px solid #d9e2ec;border-radius:7px;background:#ffffff;color:var(--text-secondary);font-weight:800}
 .quick-nav-link:hover{border-color:#0f766e;background:#ecfdf5;color:#0f766e}
 .tab-panel{margin:0;padding:0;background:transparent;border:0;border-radius:0}
-.tab-panel>h2{margin:0 0 12px;color:#172033;font-size:18px;font-weight:900}
+.tab-panel>h2{margin:0 0 12px;color:var(--text-strong);font-size:18px;font-weight:900}
 section:not(.tab-panel){margin:12px 0;padding:16px;background:#ffffff;border:1px solid #d9e2ec;border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.055)}
-h2,h3{color:#172033}
+h2,h3{color:var(--text-strong)}
 .dashboard-overview-section{background:#ffffff;border-color:#cbd5e1}
 .dashboard-alert{border-radius:8px}
 .dashboard-alert.ok{background:#ecfdf5;border:1px solid #86efac;color:#166534}
 .dashboard-alert.danger{background:#fff7ed;border:1px solid #fdba74;color:#9a3412}
 .kpi-grid{gap:10px}
 .kpi-card{min-height:150px;border:1px solid #d9e2ec;border-top:4px solid #64748b;border-radius:8px;background:#ffffff;box-shadow:0 8px 20px rgba(15,23,42,.045)}
-.kpi-card h3{color:#667085;font-size:12px;font-weight:900}
-.kpi-primary{color:#172033;font-size:22px}
+.kpi-card h3{color:var(--text-secondary);font-size:12px;font-weight:900}
+.kpi-primary{color:var(--text-strong);font-size:22px}
 .kpi-meta span{border-top:1px solid #edf2f7}
-.kpi-meta b{color:#667085}
-.kpi-meta em{color:#172033}
+.kpi-meta b{color:var(--text-secondary);font-weight:850}
+.kpi-meta em{color:var(--text-main);font-weight:750}
 .kpi-card.ok{border-color:#d9e2ec;border-top-color:#16a34a}
 .kpi-card.warning{border-color:#d9e2ec;border-top-color:#f59e0b}
 .kpi-card.danger{border-color:#d9e2ec;border-top-color:#dc2626}
@@ -5151,43 +5414,57 @@ h2,h3{color:#172033}
 .badge-info{background:#dbeafe;border-color:#93c5fd;color:#1d4ed8}
 .badge-warning{background:#fef3c7;border-color:#fbbf24;color:#92400e}
 .badge-danger{background:#fee2e2;border-color:#fca5a5;color:#991b1b}
-.badge-neutral{background:#f1f5f9;border-color:#cbd5e1;color:#475467}
-.profit-positive{color:#dc2626!important}.profit-negative{color:#047857!important}.profit-flat{color:#182230!important}
-.positive{color:#dc2626!important}.negative{color:#047857!important}.neutral{color:#182230!important}
+.badge-neutral{background:#f1f5f9;border-color:#cbd5e1;color:var(--text-secondary)}
+.profit-positive{color:#dc2626!important}.profit-negative{color:#047857!important}.profit-flat{color:var(--text-main)!important}
+.positive{color:#dc2626!important}.negative{color:#047857!important}.neutral{color:var(--text-main)!important}
 .decision-lane,.overview-metric,.card,.chart-card,.mobile-card,.health,.collapse-block{background:#ffffff;border-color:#d9e2ec;border-radius:8px}
-.decision-lane strong,.overview-metric strong,.card strong,.holding-metrics strong{color:#0b1220;font-weight:900}
-.decision-lane span,.decision-lane em,.overview-metric span,.card span,.holding-metrics span,.detail-grid dt{color:#475467;font-weight:750}
+.decision-lane strong,.overview-metric strong,.card strong,.holding-metrics strong{color:var(--text-strong);font-weight:900}
+.decision-lane span,.decision-lane em,.overview-metric span,.card span,.holding-metrics span,.detail-grid dt{color:var(--text-secondary);font-weight:800}
 .pnl-overview-section{border-color:#b7c7db;background:#ffffff}
 .pnl-overview-layout{display:grid;gap:12px}
 .asset-donut-card,.pnl-card{background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 12px 26px rgba(15,23,42,.07)}
 .asset-donut-card{padding:16px}
 .asset-donut-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
-.asset-donut-head h3{margin:0;color:#0b1220;font-size:17px;font-weight:900}
-.asset-donut-head span{color:#475467;font-size:12px;font-weight:800;text-align:right}
+.asset-donut-head h3{margin:0;color:var(--text-strong);font-size:17px;font-weight:900}
+.asset-donut-head span{color:var(--text-secondary);font-size:12px;font-weight:800;text-align:right}
 .asset-donut-body{display:grid;gap:16px;align-items:center}
 .asset-visual-stack{display:grid;gap:12px;justify-items:center}
 .asset-donut{width:min(258px,78vw);aspect-ratio:1;border-radius:50%;margin:0 auto;background:conic-gradient(#2f80ed 0 var(--holding-pct),#e6eef8 var(--holding-pct) 100%);display:grid;place-items:center;box-shadow:inset 0 0 0 1px #d9e2ec,0 14px 30px rgba(47,128,237,.14)}
 .asset-donut-core{width:62%;height:62%;border-radius:50%;background:#ffffff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-shadow:0 0 0 1px #d9e2ec}
-.asset-donut-core span{color:#475467;font-size:13px;font-weight:800}
-.asset-donut-core strong{margin-top:6px;color:#0b1220;font-size:28px;font-weight:950;letter-spacing:0}
+.asset-donut-core span{color:var(--text-secondary);font-size:13px;font-weight:850}
+.asset-donut-core strong{margin-top:6px;color:var(--text-strong);font-size:28px;font-weight:950;letter-spacing:0}
 .asset-donut-core em{margin-top:6px;font-style:normal;font-size:14px;font-weight:900}
 .asset-allocation{display:grid;gap:9px}
-.allocation-row{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#182230;font-weight:850}
-.allocation-row span{display:flex;align-items:center;gap:8px;color:#344054}
+.allocation-row{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--text-main);font-weight:850}
+.allocation-row span{display:flex;align-items:center;gap:8px;color:var(--text-secondary)}
 .asset-dot{width:12px;height:12px;border-radius:999px;display:inline-block}
 .holding-dot{background:#2f80ed}.cash-dot{background:#b8c6d9}
-.asset-allocation h4{margin:8px 0 0;color:#182230;font-size:13px;font-weight:900}
+.asset-allocation h4{margin:8px 0 0;color:var(--text-main);font-size:13px;font-weight:900}
 .allocation-list{display:grid;gap:7px;margin:0;padding:0;list-style:none}
 .allocation-list li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid #edf2f7}
-.allocation-list b{display:block;color:#0b1220;font-size:13px}
-.allocation-list em{display:block;color:#667085;font-size:12px;font-style:normal}
-.allocation-list strong{color:#0b1220;font-size:14px;font-weight:900}
+.allocation-list b{display:block;color:var(--text-strong);font-size:13px}
+.allocation-list em{display:block;color:var(--text-muted);font-size:12px;font-style:normal}
+.allocation-list strong{color:var(--text-strong);font-size:14px;font-weight:900}
 .asset-pnl-bottom{display:grid;grid-template-columns:1fr;gap:8px;width:100%;border-top:1px solid #edf2f7;padding-top:12px}
 .asset-bottom-metric{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;background:#f8fafc;border:1px solid #d9e2ec;border-radius:7px}
-.asset-bottom-metric span{color:#475467;font-size:12px;font-weight:850}
+.asset-bottom-metric span{color:var(--text-secondary);font-size:12px;font-weight:850}
 .asset-bottom-metric strong{font-size:18px;font-weight:950}
 .asset-donut-fallback .note{margin:0 0 10px}
 .compact-empty{padding:10px;font-size:12px}
+.benchmark-alpha-section,.market-regime-explainer-section{border-color:#cbd5e1;background:#ffffff}
+.benchmark-summary-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.benchmark-card{padding:13px 14px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc}
+.benchmark-card span{display:block;color:var(--text-secondary);font-size:12px;font-weight:850}
+.benchmark-card strong{display:block;margin-top:4px;color:var(--text-strong);font-size:24px;font-weight:950}
+.benchmark-card em{display:block;margin-top:4px;color:var(--text-secondary);font-style:normal;font-size:12px;font-weight:750}
+.benchmark-warning{margin-top:12px}
+.benchmark-detail-table td:nth-child(4),.benchmark-detail-table td:nth-child(5){font-weight:900}
+.regime-explainer{display:grid;gap:12px}
+.regime-definition{padding:14px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc}
+.regime-definition span{display:block;color:var(--text-secondary);font-size:12px;font-weight:850}
+.regime-definition strong{display:block;margin-top:5px;color:var(--text-strong);font-size:30px;font-weight:950}
+.regime-definition p{margin:8px 0 0;color:var(--text-main);font-weight:750;line-height:1.6}
+.regime-factor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .pnl-card{padding:14px;border-color:#cbd5e1;border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.05)}
 .pnl-kpi-panel h3{font-size:17px}
 .pnl-kpi-panel .pnl-primary{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -5196,15 +5473,15 @@ h2,h3{color:#172033}
 .note{background:#eef6ff;border-color:#bfdbfe}
 .table-wrap{border-color:#d9e2ec;background:#ffffff}
 table{background:#ffffff}
-th{background:#f8fafc;color:#344054;font-size:12px;border-bottom:1px solid #d9e2ec}
-td{color:#172033;border-bottom:1px solid #edf2f7}
+th{background:#f8fafc;color:var(--text-secondary);font-size:12px;font-weight:900;border-bottom:1px solid #d9e2ec}
+td{color:var(--text-main);border-bottom:1px solid #edf2f7}
 tbody tr:nth-child(even) td{background:#fbfdff}
-.collapse-block>summary{color:#172033;background:#f8fafc;border-radius:8px}
+.collapse-block>summary{color:var(--text-main);background:#f8fafc;border-radius:8px}
 .collapse-content{background:#ffffff;border-radius:0 0 8px 8px}
 .top-info{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
 .top-notice{background:#fffbeb;border-color:#fcd34d;color:#92400e}
 .top-warning{background:#fff1f2;border-color:#fda4af;color:#9f1239}
-@media(min-width:760px){.brokerage-header{grid-template-columns:minmax(260px,1.2fr) minmax(420px,2fr)}.header-status-board{grid-template-columns:repeat(4,minmax(0,1fr))}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.pnl-overview-layout{grid-template-columns:minmax(420px,.95fr) minmax(520px,1.05fr);align-items:stretch}.asset-donut-body{grid-template-columns:minmax(230px,300px) 1fr}.asset-pnl-bottom{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-bottom-metric{display:block}.asset-bottom-metric strong{display:block;margin-top:4px}}
+@media(min-width:760px){.brokerage-header{grid-template-columns:minmax(260px,1.2fr) minmax(420px,2fr)}.header-status-board{grid-template-columns:repeat(4,minmax(0,1fr))}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.pnl-overview-layout{grid-template-columns:minmax(420px,.95fr) minmax(520px,1.05fr);align-items:stretch}.asset-donut-body{grid-template-columns:minmax(230px,300px) 1fr}.asset-pnl-bottom{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-bottom-metric{display:block}.asset-bottom-metric strong{display:block;margin-top:4px}.benchmark-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.regime-explainer{grid-template-columns:minmax(260px,.8fr) minmax(420px,1.2fr)}.regime-factor-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(min-width:1120px){
   .page{width:auto;max-width:none;margin:0;padding:24px 30px 36px 286px}
   .section-tabs{position:fixed;inset:0 auto 0 0;width:256px;height:100vh;display:flex;flex-direction:column;align-items:stretch;gap:6px;margin:0;padding:22px 14px;background:#182230;border:0;border-right:1px solid #263244;box-shadow:8px 0 24px rgba(15,23,42,.18)}

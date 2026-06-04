@@ -756,6 +756,44 @@ def test_generate_html_report_translates_fallback_status(tmp_path: Path) -> None
     assert "已有持倉，略過重複進場" in html
 
 
+def test_missing_industry_low_priority_is_collapsed_outside_overview(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "stock_id": "1002",
+                "stock_name": "低優先測試",
+                "market_type": "ETF",
+                "latest_relative_mode": "market_relative_fallback",
+                "fallback_reason": "缺少產業分類，使用全市場相對強弱",
+                "recent_appearance_count": 0,
+                "priority_score": 1,
+                "priority_level": "LOW",
+                "suggested_action": "暫緩補資料",
+            },
+        ]
+    ).to_csv(tmp_path / "missing_industry_priority.csv", index=False, encoding="utf-8-sig")
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+    overview_start = html.index('id="dashboard-overview"')
+    overview_end = html.index("<section", overview_start + 1)
+    overview = html[overview_start:overview_end]
+
+    assert "高優先缺口已清空" in overview
+    assert "<b>HIGH</b>" in overview
+    assert "<b>MEDIUM</b>" in overview
+    assert "LOW" not in overview
+    assert 'class="kpi-card ok"><h3>產業分類缺口</h3>' in overview
+
+    missing_start = html.index('id="missing-industry-section"')
+    missing_end = html.index("<section", missing_start + 1)
+    missing_section = html[missing_start:missing_end]
+    assert "LOW priority 低優先缺口（1 筆，收合資訊）" in missing_section
+    assert '<details class="collapse-block missing-low-priority-details">' in missing_section
+    assert 'badge-warning">低' not in missing_section
+
+
 def test_generate_html_report_does_not_show_raw_english_field_names(tmp_path: Path) -> None:
     _write_reports(tmp_path)
 

@@ -5420,6 +5420,11 @@ h2,h3{color:var(--text-strong)}
 .decision-lane,.overview-metric,.card,.chart-card,.mobile-card,.health,.collapse-block{background:#ffffff;border-color:#d9e2ec;border-radius:8px}
 .decision-lane strong,.overview-metric strong,.card strong,.holding-metrics strong{color:var(--text-strong);font-weight:900}
 .decision-lane span,.decision-lane em,.overview-metric span,.card span,.holding-metrics span,.detail-grid dt{color:var(--text-secondary);font-weight:800}
+.action-list,.quality-list,.risk-list,.catalyst-list{color:var(--text-main);font-weight:750}
+.action-list li,.quality-list li,.risk-list li,.catalyst-list li{color:var(--text-main);font-weight:750}
+.detail-grid dd,.mobile-card dl dd,.card-details dd,.collapse-content dd{color:var(--text-main);font-weight:750}
+.card-details summary,.collapse-block summary{color:var(--text-strong);font-weight:900}
+.collapse-content,.mobile-card p,.card-details{color:var(--text-main)}
 .pnl-overview-section{border-color:#b7c7db;background:#ffffff}
 .pnl-overview-layout{display:grid;gap:12px}
 .asset-donut-card,.pnl-card{background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 12px 26px rgba(15,23,42,.07)}

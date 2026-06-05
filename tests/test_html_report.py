@@ -256,6 +256,9 @@ def test_generate_html_report_has_modern_dashboard_sections_and_badges(tmp_path:
     assert "--text-secondary" in html
     assert "--text-muted" in html
     assert "--text-strong" in html
+    assert ".action-list li,.quality-list li,.risk-list li,.catalyst-list li{color:var(--text-main)" in html
+    assert ".detail-grid dd,.mobile-card dl dd,.card-details dd,.collapse-content dd{color:var(--text-main)" in html
+    assert ".card-details summary,.collapse-block summary{color:var(--text-strong)" in html
     assert "大盤比較 / 超額報酬" in html
     assert 'id="benchmark-alpha"' in html
     assert "超額報酬 alpha" in html

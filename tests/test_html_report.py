@@ -252,13 +252,13 @@ def test_generate_html_report_has_modern_dashboard_sections_and_badges(tmp_path:
     assert "conic-gradient" in html
     assert html.index('id="pnl-overview"') < html.index('id="dashboard-overview"')
     assert html.index('id="pnl-overview"') < html.index("今日損益圖")
-    assert "--text-main" in html
-    assert "--text-secondary" in html
-    assert "--text-muted" in html
-    assert "--text-strong" in html
+    assert ":root{--text-main:#111827;--text-secondary:#374151;--text-muted:#374151;--text-strong:#000000}" in html
+    assert "#94a3b8" not in html
+    assert "#cbd5e1" not in html
     assert ".action-list li,.quality-list li,.risk-list li,.catalyst-list li{color:var(--text-main)" in html
     assert ".detail-grid dd,.mobile-card dl dd,.card-details dd,.collapse-content dd{color:var(--text-main)" in html
     assert ".card-details summary,.collapse-block summary{color:var(--text-strong)" in html
+    assert ".chart-legend,.recap-summary,.pnl-bar-row span,.holding-head span,.card-title-row span{color:var(--text-secondary)" in html
     assert "大盤比較 / 超額報酬" in html
     assert 'id="benchmark-alpha"' in html
     assert "超額報酬 alpha" in html

@@ -206,6 +206,53 @@ COLUMN_LABELS = {
     "max_adverse_excursion": "最大不利波動",
     "loss_bucket": "虧損分類",
     "likely_loss_reason": "可能虧損原因",
+    "factor_name": "因子名稱",
+    "decision_action": "決策動作",
+    "bucket": "分組",
+    "stock_count": "股票數",
+    "trade_count": "交易樣本數",
+    "avg_forward_return_1d": "平均 1 日後報酬",
+    "avg_forward_return_5d": "平均 5 日後報酬",
+    "avg_forward_return_20d": "平均 20 日後報酬",
+    "win_rate_1d": "1 日勝率",
+    "win_rate_5d": "5 日勝率",
+    "win_rate_20d": "20 日勝率",
+    "avg_return_pct": "平均交易報酬率",
+    "median_return_pct": "交易報酬率中位數",
+    "total_realized_pnl_after_cost": "扣成本後已實現損益合計",
+    "avg_realized_pnl_after_cost": "扣成本後已實現損益平均",
+    "max_loss_pct": "最大虧損率",
+    "max_gain_pct": "最大獲利率",
+    "benchmark_return_1d": "Benchmark 1 日報酬",
+    "benchmark_return_5d": "Benchmark 5 日報酬",
+    "benchmark_return_20d": "Benchmark 20 日報酬",
+    "alpha_1d": "1 日 Alpha",
+    "alpha_5d": "5 日 Alpha",
+    "alpha_20d": "20 日 Alpha",
+    "conclusion": "結論",
+    "data_quality_warning": "資料品質警告",
+    "notes": "備註",
+    "report_date": "報表日期",
+    "best_bucket": "最佳分組",
+    "best_alpha_20d": "最佳 20 日 Alpha",
+    "best_avg_return_pct": "最佳平均交易報酬",
+    "worst_bucket": "最差分組",
+    "worst_alpha_20d": "最差 20 日 Alpha",
+    "worst_avg_return_pct": "最差平均交易報酬",
+    "total_stock_count": "總股票數",
+    "total_trade_count": "總交易樣本數",
+    "sample_status": "樣本狀態",
+    "system_cumulative_return": "系統累積報酬",
+    "benchmark_cumulative_return": "Benchmark 累積報酬",
+    "alpha": "累積 Alpha",
+    "win_rate_vs_benchmark": "相對 Benchmark 勝率",
+    "max_drawdown": "最大回撤",
+    "benchmark_source": "Benchmark 來源",
+    "benchmark_warning": "Benchmark 警告",
+    "rejected_count": "被擋交易數",
+    "missed_winner_count": "可能錯過贏家數",
+    "avoided_loser_count": "避免輸家數",
+    "estimated_alpha_impact": "估計 Alpha 影響",
     "rejected_reason": "拒絕建立原因",
     "rejection_stage": "拒絕階段",
     "rejection_reason": "拒絕 / 取消原因",
@@ -767,10 +814,34 @@ PERCENT_COLUMNS.update(
         "gap_pct",
         "max_favorable_excursion",
         "max_adverse_excursion",
+        "avg_forward_return_1d",
+        "avg_forward_return_5d",
+        "avg_forward_return_20d",
+        "win_rate_1d",
+        "win_rate_5d",
+        "win_rate_20d",
+        "benchmark_return_1d",
+        "benchmark_return_5d",
+        "benchmark_return_20d",
+        "alpha_1d",
+        "alpha_5d",
+        "alpha_20d",
+        "alpha",
+        "system_cumulative_return",
+        "benchmark_cumulative_return",
+        "win_rate_vs_benchmark",
+        "max_drawdown",
+        "best_alpha_20d",
+        "best_avg_return_pct",
+        "worst_alpha_20d",
+        "worst_avg_return_pct",
+        "estimated_alpha_impact",
     }
 )
 AMOUNT_COLUMNS.update({"monthly_revenue", "avg_turnover_20d", "latest_turnover"})
 AMOUNT_COLUMNS.update({"fund_size"})
+PNL_COLUMNS.update({"total_realized_pnl_after_cost", "avg_realized_pnl_after_cost"})
+INTEGER_COLUMNS.update({"stock_count", "trade_count", "total_stock_count", "total_trade_count", "rejected_count", "missed_winner_count", "avoided_loser_count"})
 PERCENT_COLUMNS.update({"expense_ratio", "discount_premium"})
 INTEGER_COLUMNS.update(
     {
@@ -870,6 +941,10 @@ def generate_html_report(
     strategy_validation = _read_latest_csv(report_dir, "strategy_validation_*.csv")
     trading_decisions = _read_latest_csv(report_dir, "trading_decisions_*.csv")
     loss_attribution = _read_latest_csv(report_dir, "loss_attribution_*.csv")
+    factor_attribution = _read_latest_csv(report_dir, "factor_attribution_????????.csv")
+    factor_attribution_summary = _read_latest_csv(report_dir, "factor_attribution_summary_*.csv")
+    benchmark_diagnostics = _read_latest_csv(report_dir, "benchmark_diagnostics_*.csv")
+    guardrail_impact = _read_latest_csv(report_dir, "guardrail_impact_*.csv")
     market_regime = _read_latest_csv(report_dir, "market_regime_*.csv")
     rejected_orders = _read_latest_csv(report_dir, "rejected_paper_orders_*.csv")
     ai_enrichment = _read_latest_csv(report_dir, "ai_enrichment_*.csv")
@@ -897,6 +972,10 @@ def generate_html_report(
         strategy_validation=strategy_validation,
         trading_decisions=trading_decisions,
         loss_attribution=loss_attribution,
+        factor_attribution=factor_attribution,
+        factor_attribution_summary=factor_attribution_summary,
+        benchmark_diagnostics=benchmark_diagnostics,
+        guardrail_impact=guardrail_impact,
         market_regime=market_regime,
         rejected_orders=rejected_orders,
         ai_enrichment=ai_enrichment,
@@ -934,6 +1013,10 @@ def _render_page(
     strategy_validation: pd.DataFrame,
     trading_decisions: pd.DataFrame,
     loss_attribution: pd.DataFrame,
+    factor_attribution: pd.DataFrame,
+    factor_attribution_summary: pd.DataFrame,
+    benchmark_diagnostics: pd.DataFrame,
+    guardrail_impact: pd.DataFrame,
     market_regime: pd.DataFrame,
     rejected_orders: pd.DataFrame,
     ai_enrichment: pd.DataFrame,
@@ -1175,6 +1258,12 @@ def _render_page(
                 anysearch_industry_candidates,
             ),
             _benchmark_alpha_section(latest_summary, latest_paper_summary, recent_summaries, market_regime, market_recap, sector_strength),
+            _strategy_diagnostics_section(
+                factor_attribution,
+                factor_attribution_summary,
+                benchmark_diagnostics,
+                guardrail_impact,
+            ),
             _market_regime_score_explainer(latest_summary, market_regime, market_recap),
             _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
             _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status, trading_decisions), class_name="today-action-section"),
@@ -2298,6 +2387,201 @@ def _benchmark_alpha_section(
         + _details_block("大盤比較詳細數據", detail_table)
     )
     return _section("大盤比較 / 超額報酬", content, section_id="benchmark-alpha", class_name="benchmark-alpha-section")
+
+
+def _strategy_diagnostics_section(
+    factor_attribution: pd.DataFrame,
+    factor_summary: pd.DataFrame,
+    benchmark_diagnostics: pd.DataFrame,
+    guardrail_impact: pd.DataFrame,
+) -> str:
+    benchmark_row = benchmark_diagnostics.iloc[0].to_dict() if not benchmark_diagnostics.empty else {}
+    headline_alpha = _first_numeric_from_row(benchmark_row, ["alpha", "alpha_5d", "alpha_20d", "alpha_1d"])
+    beat_benchmark = "資料不足" if headline_alpha is None else ("是" if headline_alpha >= 0 else "否")
+    sample_sufficiency = _diagnostic_sample_sufficiency(factor_summary)
+    guardrail_stance = _guardrail_stance(guardrail_impact)
+    best_factors = _factor_rank_text(factor_summary, best=True)
+    worst_factors = _factor_rank_text(factor_summary, best=False)
+    benchmark_source = _format_cell("benchmark_source", benchmark_row.get("benchmark_source")) if benchmark_row else "資料不足"
+    warning = _format_cell("benchmark_warning", benchmark_row.get("benchmark_warning")) if benchmark_row else "缺少 benchmark diagnostics"
+
+    cards = [
+        _kpi_card(
+            "是否打敗 Benchmark",
+            escape(beat_benchmark),
+            [
+                ("目前 Alpha", _return_text(headline_alpha)),
+                ("Benchmark 來源", benchmark_source),
+            ],
+            tone="ok" if headline_alpha is not None and headline_alpha >= 0 else "warning",
+        ),
+        _kpi_card(
+            "最有效因子前 3 名",
+            escape(best_factors),
+            [("樣本狀態", sample_sufficiency)],
+            tone="info",
+        ),
+        _kpi_card(
+            "最拖累因子前 3 名",
+            escape(worst_factors),
+            [("警告", "DATA_INSUFFICIENT 不能作為正式調參依據")],
+            tone="warning",
+        ),
+        _kpi_card(
+            "Guardrail 影響",
+            escape(guardrail_stance),
+            [("說明", "只做診斷，不改策略或出場規則")],
+            tone="neutral" if guardrail_stance in {"正常", "資料不足"} else "warning",
+        ),
+    ]
+    warning_note = ""
+    if warning != "-":
+        warning_note = f'<p class="top-notice benchmark-warning"><strong>Benchmark warning</strong><span>{escape(warning)}</span></p>'
+
+    summary_table = _table(
+        factor_summary,
+        [
+            "factor_name",
+            "best_bucket",
+            "best_alpha_20d",
+            "best_avg_return_pct",
+            "worst_bucket",
+            "worst_alpha_20d",
+            "worst_avg_return_pct",
+            "total_trade_count",
+            "sample_status",
+            "data_quality_warning",
+            "notes",
+        ],
+        "目前尚無 factor attribution summary",
+        max_rows=30,
+    )
+    factor_table = _table(
+        factor_attribution,
+        [
+            "factor_name",
+            "bucket",
+            "stock_count",
+            "trade_count",
+            "avg_forward_return_5d",
+            "avg_forward_return_20d",
+            "avg_return_pct",
+            "benchmark_return_5d",
+            "benchmark_return_20d",
+            "alpha_5d",
+            "alpha_20d",
+            "conclusion",
+            "data_quality_warning",
+            "notes",
+        ],
+        "目前尚無 factor attribution 明細",
+        max_rows=80,
+    )
+    benchmark_table = _table(
+        benchmark_diagnostics,
+        [
+            "trade_date",
+            "system_cumulative_return",
+            "benchmark_cumulative_return",
+            "alpha",
+            "alpha_1d",
+            "alpha_5d",
+            "alpha_20d",
+            "win_rate_vs_benchmark",
+            "max_drawdown",
+            "benchmark_source",
+            "benchmark_warning",
+            "data_quality_warning",
+            "notes",
+        ],
+        "目前尚無 benchmark diagnostics",
+        max_rows=5,
+    )
+    guardrail_table = _table(
+        guardrail_impact,
+        [
+            "rejected_reason",
+            "rejected_count",
+            "avg_forward_return_1d",
+            "avg_forward_return_5d",
+            "avg_forward_return_20d",
+            "missed_winner_count",
+            "avoided_loser_count",
+            "estimated_alpha_impact",
+            "notes",
+        ],
+        "目前尚無 guardrail impact diagnostics",
+        max_rows=30,
+    )
+    content = (
+        '<div class="benchmark-summary-grid strategy-diagnostics-grid">'
+        + "".join(cards)
+        + "</div>"
+        + warning_note
+        + '<p class="note">此區只做策略診斷與歸因，不會修改正式買賣策略、出場規則或建立真實訂單。</p>'
+        + _details_block("因子績效摘要", summary_table, open_by_default=True)
+        + _details_block("Factor attribution 明細", factor_table)
+        + _details_block("Benchmark diagnostics 明細", benchmark_table)
+        + _details_block("Guardrail impact 明細", guardrail_table)
+    )
+    return _section("策略績效診斷", content, section_id="strategy-diagnostics", class_name="strategy-diagnostics-section")
+
+
+def _first_numeric_from_row(row: dict[str, object], columns: list[str]) -> float | None:
+    for column in columns:
+        value = _to_float(row.get(column))
+        if value is not None:
+            return value
+    return None
+
+
+def _diagnostic_sample_sufficiency(summary: pd.DataFrame) -> str:
+    if summary.empty or "total_trade_count" not in summary.columns:
+        return "資料不足"
+    counts = pd.to_numeric(summary["total_trade_count"], errors="coerce").fillna(0)
+    if counts.empty or counts.max() < 20:
+        return "樣本不足"
+    if counts.max() < 50:
+        return "僅供觀察"
+    return "初步足夠"
+
+
+def _factor_rank_text(summary: pd.DataFrame, *, best: bool) -> str:
+    if summary.empty:
+        return "資料不足"
+    metric_column = "best_avg_return_pct" if best else "worst_avg_return_pct"
+    bucket_column = "best_bucket" if best else "worst_bucket"
+    frame = summary.copy()
+    frame["_metric"] = pd.to_numeric(frame.get(metric_column), errors="coerce")
+    frame = frame.dropna(subset=["_metric"])
+    if frame.empty:
+        return "資料不足"
+    frame = frame.sort_values("_metric", ascending=not best).head(3)
+    parts = []
+    for _, row in frame.iterrows():
+        factor = _format_cell("factor_name", row.get("factor_name"))
+        bucket = _format_cell(bucket_column, row.get(bucket_column))
+        metric = _return_text(_to_float(row.get(metric_column)))
+        parts.append(f"{factor} / {bucket} {metric}")
+    return "；".join(parts)
+
+
+def _guardrail_stance(guardrail_impact: pd.DataFrame) -> str:
+    if guardrail_impact.empty:
+        return "資料不足"
+    impact = pd.to_numeric(guardrail_impact.get("estimated_alpha_impact"), errors="coerce").dropna()
+    missed = int(pd.to_numeric(guardrail_impact.get("missed_winner_count"), errors="coerce").fillna(0).sum())
+    avoided = int(pd.to_numeric(guardrail_impact.get("avoided_loser_count"), errors="coerce").fillna(0).sum())
+    if impact.empty:
+        return "資料不足"
+    mean_impact = float(impact.mean())
+    if mean_impact > 0 and missed > avoided:
+        return "偏保守"
+    if mean_impact < 0 and avoided >= missed:
+        return "正常"
+    if mean_impact > 0 and missed == 0:
+        return "偏寬鬆"
+    return "正常"
 
 
 def _market_regime_score_explainer(
@@ -5018,6 +5302,9 @@ def _format_cell(column: str, value: object) -> str:
     if str(value).strip() == "NEXT_AVAILABLE_TRADING_DAY":
         return "下一個有效交易日"
 
+    if column == "factor_name":
+        raw = str(value).strip()
+        return COLUMN_LABELS.get(raw, raw)
     if column == "entry_price_source":
         text = str(value).strip()
         return ENTRY_PRICE_SOURCE_LABELS.get(text, text)
@@ -5457,7 +5744,7 @@ h2,h3{color:var(--text-strong)}
 .asset-bottom-metric strong{font-size:18px;font-weight:950}
 .asset-donut-fallback .note{margin:0 0 10px}
 .compact-empty{padding:10px;font-size:12px}
-.benchmark-alpha-section,.market-regime-explainer-section{border-color:#9ca3af;background:#ffffff}
+.benchmark-alpha-section,.market-regime-explainer-section,.strategy-diagnostics-section{border-color:#9ca3af;background:#ffffff}
 .benchmark-summary-grid{display:grid;grid-template-columns:1fr;gap:10px}
 .benchmark-card{padding:13px 14px;border:1px solid #9ca3af;border-radius:8px;background:#f8fafc}
 .benchmark-card span{display:block;color:var(--text-secondary);font-size:12px;font-weight:850}
@@ -5487,7 +5774,7 @@ tbody tr:nth-child(even) td{background:#fbfdff}
 .top-info{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
 .top-notice{background:#fffbeb;border-color:#fcd34d;color:#92400e}
 .top-warning{background:#fff1f2;border-color:#fda4af;color:#9f1239}
-@media(min-width:760px){.brokerage-header{grid-template-columns:minmax(260px,1.2fr) minmax(420px,2fr)}.header-status-board{grid-template-columns:repeat(4,minmax(0,1fr))}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.pnl-overview-layout{grid-template-columns:minmax(420px,.95fr) minmax(520px,1.05fr);align-items:stretch}.asset-donut-body{grid-template-columns:minmax(230px,300px) 1fr}.asset-pnl-bottom{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-bottom-metric{display:block}.asset-bottom-metric strong{display:block;margin-top:4px}.benchmark-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.regime-explainer{grid-template-columns:minmax(260px,.8fr) minmax(420px,1.2fr)}.regime-factor-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:760px){.brokerage-header{grid-template-columns:minmax(260px,1.2fr) minmax(420px,2fr)}.header-status-board{grid-template-columns:repeat(4,minmax(0,1fr))}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.pnl-overview-layout{grid-template-columns:minmax(420px,.95fr) minmax(520px,1.05fr);align-items:stretch}.asset-donut-body{grid-template-columns:minmax(230px,300px) 1fr}.asset-pnl-bottom{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-bottom-metric{display:block}.asset-bottom-metric strong{display:block;margin-top:4px}.benchmark-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.strategy-diagnostics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-explainer{grid-template-columns:minmax(260px,.8fr) minmax(420px,1.2fr)}.regime-factor-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(min-width:1120px){
   .page{width:auto;max-width:none;margin:0;padding:24px 30px 36px 286px}
   .section-tabs{position:fixed;inset:0 auto 0 0;width:256px;height:100vh;display:flex;flex-direction:column;align-items:stretch;gap:6px;margin:0;padding:22px 14px;background:#182230;border:0;border-right:1px solid #263244;box-shadow:8px 0 24px rgba(15,23,42,.18)}

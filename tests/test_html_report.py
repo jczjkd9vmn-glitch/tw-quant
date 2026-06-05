@@ -262,6 +262,12 @@ def test_generate_html_report_has_modern_dashboard_sections_and_badges(tmp_path:
     assert "大盤比較 / 超額報酬" in html
     assert 'id="benchmark-alpha"' in html
     assert "超額報酬 alpha" in html
+    assert "策略績效診斷" in html
+    assert 'id="strategy-diagnostics"' in html
+    assert "最有效因子前 3 名" in html
+    assert "Guardrail 影響" in html
+    assert "平均 5 日後報酬" in html
+    assert "市場環境分數偏低" in html
     assert "Benchmark warning" in html
     assert "market_regime_score 說明" in html
     assert "新增持倉風控分數" in html
@@ -868,6 +874,91 @@ def _write_reports(path: Path) -> None:
             },
         ]
     ).to_csv(path / "anysearch_industry_candidates.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "factor_name": "total_score",
+                "bucket": "HIGH",
+                "stock_count": 2,
+                "trade_count": 1,
+                "avg_forward_return_1d": "",
+                "avg_forward_return_5d": "",
+                "avg_forward_return_20d": "",
+                "win_rate_1d": "",
+                "win_rate_5d": "",
+                "win_rate_20d": "",
+                "avg_return_pct": 0.03,
+                "median_return_pct": 0.03,
+                "total_realized_pnl_after_cost": 3000,
+                "avg_realized_pnl_after_cost": 3000,
+                "max_loss_pct": -0.01,
+                "max_gain_pct": 0.05,
+                "benchmark_return_1d": "",
+                "benchmark_return_5d": 0.01,
+                "benchmark_return_20d": 0.02,
+                "alpha_1d": "",
+                "alpha_5d": "",
+                "alpha_20d": "",
+                "conclusion": "DATA_INSUFFICIENT",
+                "data_quality_warning": "DATA_INSUFFICIENT",
+                "notes": "測試資料",
+            }
+        ]
+    ).to_csv(path / "factor_attribution_20260508.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "report_date": "2026-05-08",
+                "factor_name": "total_score",
+                "best_bucket": "HIGH",
+                "best_alpha_20d": "",
+                "best_avg_return_pct": 0.03,
+                "worst_bucket": "LOW",
+                "worst_alpha_20d": "",
+                "worst_avg_return_pct": -0.01,
+                "total_stock_count": 2,
+                "total_trade_count": 1,
+                "sample_status": "DATA_INSUFFICIENT",
+                "conclusion": "DATA_INSUFFICIENT",
+                "data_quality_warning": "DATA_INSUFFICIENT",
+                "notes": "測試摘要",
+            }
+        ]
+    ).to_csv(path / "factor_attribution_summary_20260508.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-05-08",
+                "system_cumulative_return": 0.001,
+                "benchmark_cumulative_return": "",
+                "alpha": "",
+                "alpha_1d": "",
+                "alpha_5d": -0.002,
+                "alpha_20d": "",
+                "win_rate_vs_benchmark": 0,
+                "max_drawdown": -0.01,
+                "benchmark_source": "0050 fallback",
+                "benchmark_warning": "測試 benchmark fallback",
+                "data_quality_warning": "DATA_INSUFFICIENT",
+                "notes": "測試 benchmark",
+            }
+        ]
+    ).to_csv(path / "benchmark_diagnostics_20260508.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "rejected_reason": "市場環境分數偏低",
+                "rejected_count": 1,
+                "avg_forward_return_1d": "",
+                "avg_forward_return_5d": "",
+                "avg_forward_return_20d": "",
+                "missed_winner_count": 0,
+                "avoided_loser_count": 0,
+                "estimated_alpha_impact": "",
+                "notes": "DATA_INSUFFICIENT",
+            }
+        ]
+    ).to_csv(path / "guardrail_impact_20260508.csv", index=False, encoding="utf-8-sig")
 
 
 def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path) -> None:

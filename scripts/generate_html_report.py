@@ -5250,12 +5250,12 @@ body{margin:0;background:#080d18;color:#e5e7eb;font-family:-apple-system,BlinkMa
 .account-header h1{margin:0 0 10px;font-size:26px;letter-spacing:0}
 .account-header small{display:block;margin-top:10px;color:var(--text-muted);font-size:12px}
 .header-meta{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px}
-.header-meta span{flex:0 0 auto;padding:5px 9px;border:1px solid #243244;border-radius:999px;background:#0f172a;color:#cbd5e1;font-size:12px}
+.header-meta span{flex:0 0 auto;padding:5px 9px;border:1px solid #243244;border-radius:999px;background:#0f172a;color:#f8fafc;font-size:12px}
 .section-tabs{position:sticky;top:0;z-index:5;display:flex;gap:8px;overflow-x:auto;margin:10px -14px 12px;padding:9px 14px;background:rgba(8,13,24,.94);backdrop-filter:blur(10px);border-bottom:1px solid #1f2937}
 .tab-button{flex:0 0 auto;padding:8px 12px;border:1px solid #243244;border-radius:999px;background:#111827;color:#dbeafe;font:700 14px/1.2 inherit;cursor:pointer}
 .tab-button.active{background:#2563eb;border-color:#60a5fa;color:#fff}
 .quick-section-nav{position:sticky;top:54px;z-index:4;display:flex;gap:8px;overflow-x:auto;margin:0 -14px 12px;padding:8px 14px;background:rgba(11,18,32,.92);border-bottom:1px solid #243244;backdrop-filter:blur(10px)}
-.quick-nav-link{flex:0 0 auto;border:1px solid #243244;border-radius:999px;background:#0f172a;color:#cbd5e1;padding:7px 10px;font:700 12px/1.2 inherit;cursor:pointer}
+.quick-nav-link{flex:0 0 auto;border:1px solid #243244;border-radius:999px;background:#0f172a;color:#f8fafc;padding:7px 10px;font:700 12px/1.2 inherit;cursor:pointer}
 .quick-nav-link:hover{border-color:#60a5fa;color:#fff;background:#1e293b}
 .tab-panel{display:none}
 .tab-panel.active{display:block}
@@ -5268,7 +5268,7 @@ h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
 .dashboard-alert.danger{background:#4c1d14;border:1px solid #f97316;color:#ffedd5}
 .kpi-grid{display:grid;grid-template-columns:1fr;gap:12px}
 .kpi-card{min-height:176px;padding:14px;border:1px solid #263244;border-radius:10px;background:#0b1220;display:flex;flex-direction:column;gap:10px}
-.kpi-card h3{margin:0;color:#cbd5e1;font-size:13px}
+.kpi-card h3{margin:0;color:#f8fafc;font-size:13px}
 .kpi-primary{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:#f8fafc;font-size:24px;font-weight:800;line-height:1.25}
 .kpi-meta{display:grid;gap:7px;margin-top:auto}
 .kpi-meta span{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;border-top:1px solid #1f2937;padding-top:7px}
@@ -5303,7 +5303,7 @@ h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
 .pnl-bar-track i{display:block;height:100%;border-radius:999px;background:#e5e7eb}
 .pnl-bar-track i.profit-positive{background:#ef4444}.pnl-bar-track i.profit-negative{background:#22c55e}.pnl-bar-track i.profit-flat{background:var(--text-muted)}
 .pnl-line-chart{width:100%;min-height:160px;background:#0f172a;border:1px solid #1f2937;border-radius:8px}
-.chart-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;color:#cbd5e1;font-size:12px}
+.chart-legend{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;color:#e5e7eb;font-size:12px}
 .chart-legend i{display:inline-block;width:10px;height:10px;border-radius:999px;margin-right:5px}
 .decision-stat-cards{margin-bottom:12px}
 .risk-list,.catalyst-list{margin:0;padding-left:20px}
@@ -5319,7 +5319,7 @@ h3{margin:0 0 10px;font-size:16px;color:#f8fafc;letter-spacing:0}
 .mobile-cards{display:grid;gap:12px}
 .mobile-card{padding:14px;background:#0f172a;border:1px solid #263244;border-radius:12px;box-shadow:0 10px 24px rgba(0,0,0,.16)}
 .holding-head,.card-title-row{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-.holding-head span,.card-title-row span{display:inline-block;color:#cbd5e1;font-size:13px}
+.holding-head span,.card-title-row span{display:inline-block;color:#e5e7eb;font-size:13px}
 .holding-head b{padding:3px 8px;border-radius:999px;background:#1e3a8a;color:#dbeafe;font-size:12px;white-space:nowrap}
 .holding-main{display:grid;gap:12px;margin-top:12px}
 .position-pnl,.closed-pnl{padding:14px;border-radius:12px;background:#111827;border:1px solid #243244}
@@ -5351,9 +5351,9 @@ th{color:#bae6fd;background:#172033;font-size:13px;white-space:nowrap}
 td{font-size:13px;color:#e5e7eb;white-space:nowrap}
 .summary-table td:nth-child(3),.summary-table td:nth-child(5),.technical-table td:nth-child(5),.technical-table td:nth-child(6){white-space:normal;min-width:220px}
 tr:last-child td{border-bottom:0}
-.empty,.note{padding:13px;background:#0f172a;border:1px solid #243244;border-radius:10px;color:#cbd5e1}
+.empty,.note{padding:13px;background:#0f172a;border:1px solid #243244;border-radius:10px;color:#e5e7eb}
 .note{border-color:#164e63;background:#082f49;margin-top:10px}
-.quality-list{margin:0;padding-left:20px;color:#cbd5e1}
+.quality-list{margin:0;padding-left:20px;color:#e5e7eb}
 .action-list{margin:0;padding-left:20px;color:#e5e7eb}
 .action-list li{margin:7px 0;line-height:1.55}
 .risk-light-badge{border-radius:999px;padding:5px 9px;background:#334155;color:#e5e7eb}
@@ -5373,7 +5373,7 @@ tr:last-child td{border-bottom:0}
 @media(min-width:760px){.page{padding:22px}.account-header h1{font-size:32px}.section-tabs{margin:12px 0 16px;padding:10px 0}.quick-section-nav{margin:0 0 16px;padding:8px 0}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.decision-lanes{grid-template-columns:repeat(6,minmax(0,1fr))}.pnl-primary{grid-template-columns:repeat(4,minmax(0,1fr))}.pnl-secondary,.cards{grid-template-columns:repeat(auto-fit,minmax(160px,1fr))}.chart-grid,.dashboard-split{grid-template-columns:repeat(2,minmax(0,1fr))}.holding-main{grid-template-columns:220px 1fr}.broker-cards,.mobile-cards{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.health-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}}
 
 /* Brokerage-style dashboard refresh: distinct from any broker brand, focused on dense scanning. */
-:root{--text-main:#182230;--text-secondary:#344054;--text-muted:#667085;--text-strong:#0b1220}
+:root{--text-main:#111827;--text-secondary:#374151;--text-muted:#374151;--text-strong:#000000}
 body{background:#edf2f7;color:var(--text-main);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans TC",sans-serif}
 .page{width:min(1480px,100%);padding:14px 16px 28px}
 .brokerage-header{display:grid;gap:16px;margin:0 0 14px;padding:18px;background:#ffffff;border:1px solid #d9e2ec;border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.07)}
@@ -5394,7 +5394,7 @@ body{background:#edf2f7;color:var(--text-main);font-family:-apple-system,BlinkMa
 .tab-panel>h2{margin:0 0 12px;color:var(--text-strong);font-size:18px;font-weight:900}
 section:not(.tab-panel){margin:12px 0;padding:16px;background:#ffffff;border:1px solid #d9e2ec;border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.055)}
 h2,h3{color:var(--text-strong)}
-.dashboard-overview-section{background:#ffffff;border-color:#cbd5e1}
+.dashboard-overview-section{background:#ffffff;border-color:#9ca3af}
 .dashboard-alert{border-radius:8px}
 .dashboard-alert.ok{background:#ecfdf5;border:1px solid #86efac;color:#166534}
 .dashboard-alert.danger{background:#fff7ed;border:1px solid #fdba74;color:#9a3412}
@@ -5414,7 +5414,7 @@ h2,h3{color:var(--text-strong)}
 .badge-info{background:#dbeafe;border-color:#93c5fd;color:#1d4ed8}
 .badge-warning{background:#fef3c7;border-color:#fbbf24;color:#92400e}
 .badge-danger{background:#fee2e2;border-color:#fca5a5;color:#991b1b}
-.badge-neutral{background:#f1f5f9;border-color:#cbd5e1;color:var(--text-secondary)}
+.badge-neutral{background:#f1f5f9;border-color:#9ca3af;color:var(--text-secondary)}
 .profit-positive{color:#dc2626!important}.profit-negative{color:#047857!important}.profit-flat{color:var(--text-main)!important}
 .positive{color:#dc2626!important}.negative{color:#047857!important}.neutral{color:var(--text-main)!important}
 .decision-lane,.overview-metric,.card,.chart-card,.mobile-card,.health,.collapse-block{background:#ffffff;border-color:#d9e2ec;border-radius:8px}
@@ -5425,9 +5425,10 @@ h2,h3{color:var(--text-strong)}
 .detail-grid dd,.mobile-card dl dd,.card-details dd,.collapse-content dd{color:var(--text-main);font-weight:750}
 .card-details summary,.collapse-block summary{color:var(--text-strong);font-weight:900}
 .collapse-content,.mobile-card p,.card-details{color:var(--text-main)}
+.chart-legend,.recap-summary,.pnl-bar-row span,.holding-head span,.card-title-row span{color:var(--text-secondary);font-weight:800}
 .pnl-overview-section{border-color:#b7c7db;background:#ffffff}
 .pnl-overview-layout{display:grid;gap:12px}
-.asset-donut-card,.pnl-card{background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;box-shadow:0 12px 26px rgba(15,23,42,.07)}
+.asset-donut-card,.pnl-card{background:#ffffff;border:1px solid #9ca3af;border-radius:8px;box-shadow:0 12px 26px rgba(15,23,42,.07)}
 .asset-donut-card{padding:16px}
 .asset-donut-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
 .asset-donut-head h3{margin:0;color:var(--text-strong);font-size:17px;font-weight:900}
@@ -5456,21 +5457,21 @@ h2,h3{color:var(--text-strong)}
 .asset-bottom-metric strong{font-size:18px;font-weight:950}
 .asset-donut-fallback .note{margin:0 0 10px}
 .compact-empty{padding:10px;font-size:12px}
-.benchmark-alpha-section,.market-regime-explainer-section{border-color:#cbd5e1;background:#ffffff}
+.benchmark-alpha-section,.market-regime-explainer-section{border-color:#9ca3af;background:#ffffff}
 .benchmark-summary-grid{display:grid;grid-template-columns:1fr;gap:10px}
-.benchmark-card{padding:13px 14px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc}
+.benchmark-card{padding:13px 14px;border:1px solid #9ca3af;border-radius:8px;background:#f8fafc}
 .benchmark-card span{display:block;color:var(--text-secondary);font-size:12px;font-weight:850}
 .benchmark-card strong{display:block;margin-top:4px;color:var(--text-strong);font-size:24px;font-weight:950}
 .benchmark-card em{display:block;margin-top:4px;color:var(--text-secondary);font-style:normal;font-size:12px;font-weight:750}
 .benchmark-warning{margin-top:12px}
 .benchmark-detail-table td:nth-child(4),.benchmark-detail-table td:nth-child(5){font-weight:900}
 .regime-explainer{display:grid;gap:12px}
-.regime-definition{padding:14px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc}
+.regime-definition{padding:14px;border:1px solid #9ca3af;border-radius:8px;background:#f8fafc}
 .regime-definition span{display:block;color:var(--text-secondary);font-size:12px;font-weight:850}
 .regime-definition strong{display:block;margin-top:5px;color:var(--text-strong);font-size:30px;font-weight:950}
 .regime-definition p{margin:8px 0 0;color:var(--text-main);font-weight:750;line-height:1.6}
 .regime-factor-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.pnl-card{padding:14px;border-color:#cbd5e1;border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.05)}
+.pnl-card{padding:14px;border-color:#9ca3af;border-radius:8px;box-shadow:0 10px 24px rgba(15,23,42,.05)}
 .pnl-kpi-panel h3{font-size:17px}
 .pnl-kpi-panel .pnl-primary{grid-template-columns:repeat(2,minmax(0,1fr))}
 .pnl-kpi-panel .overview-metric strong{word-break:normal}
@@ -5492,7 +5493,7 @@ tbody tr:nth-child(even) td{background:#fbfdff}
   .section-tabs{position:fixed;inset:0 auto 0 0;width:256px;height:100vh;display:flex;flex-direction:column;align-items:stretch;gap:6px;margin:0;padding:22px 14px;background:#182230;border:0;border-right:1px solid #263244;box-shadow:8px 0 24px rgba(15,23,42,.18)}
   .section-tabs:before{content:"TW-Quant";display:block;margin:0 8px 18px;color:#ffffff;font-size:20px;font-weight:900}
   .section-tabs:after{content:"Paper Trading Dashboard";display:block;margin:auto 8px 0;color:#98a2b3;font-size:11px;font-weight:800;text-transform:uppercase}
-  .tab-button{width:100%;text-align:left;background:transparent;color:#cbd5e1;border-radius:7px;padding:11px 12px}
+  .tab-button{width:100%;text-align:left;background:transparent;color:#f8fafc;border-radius:7px;padding:11px 12px}
   .tab-button.active{background:#0f766e;color:#ffffff;box-shadow:none}
   .tab-button:hover{background:#263244;color:#ffffff}
   .quick-section-nav{display:none}

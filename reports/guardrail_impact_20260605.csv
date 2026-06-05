@@ -1,0 +1,2 @@
+﻿rejected_reason,rejected_count,avg_forward_return_1d,avg_forward_return_5d,avg_forward_return_20d,missed_winner_count,avoided_loser_count,estimated_alpha_impact,notes
+market_regime_score 59.00 低於新增持倉門檻 60.00；目前持倉 9 檔已達上限 8 檔,6,,,,0,0,,DATA_INSUFFICIENT: 缺少 forward_return 欄位，暫不能判斷 guardrail 是否過度保守

@@ -959,6 +959,38 @@ def _write_reports(path: Path) -> None:
             }
         ]
     ).to_csv(path / "guardrail_impact_20260508.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-05-08",
+                "source": "pnl_chart_data",
+                "observation_start": "2026-05-01",
+                "observation_end": "2026-05-08",
+                "observation_count": 6,
+                "daily_return_count": 5,
+                "cumulative_return": 0.04,
+                "annualized_return": 0.12,
+                "volatility": 0.18,
+                "sharpe_like_ratio": 1.23,
+                "sortino_like_ratio": 1.56,
+                "max_drawdown": -0.02,
+                "win_rate_by_day": 0.6,
+                "best_day": "2026-05-07",
+                "best_day_return": 0.03,
+                "worst_day": "2026-05-03",
+                "worst_day_return": -0.02,
+                "profit_factor": 1.8,
+                "benchmark_return": 0.01,
+                "benchmark_window": "5d",
+                "alpha": 0.03,
+                "benchmark_source": "加權指數",
+                "benchmark_warning": "",
+                "status": "OK",
+                "data_quality_warning": "",
+                "notes": "測試績效診斷",
+            }
+        ]
+    ).to_csv(path / "performance_diagnostics_20260508.csv", index=False, encoding="utf-8-sig")
 
 
 def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path) -> None:
@@ -978,6 +1010,10 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert "市場判斷摘要" in html
     assert "系統健康檢查" in html
     assert "交易成本摘要" in html
+    assert "績效風險分析" in html
+    assert 'id="performance-diagnostics"' in html
+    assert "Sharpe-like" in html
+    assert "績效風險診斷明細" in html
 
 
 def test_generate_html_report_creates_docs_index_for_github_pages(tmp_path: Path) -> None:

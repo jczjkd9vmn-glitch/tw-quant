@@ -24,6 +24,7 @@ from tw_quant.reporting.missing_industry_priority import generate_missing_indust
 from tw_quant.reporting.position_review import generate_position_review_summary
 from tw_quant.reporting.export import export_latest_candidates
 from tw_quant.reporting.factor_diagnostics import generate_factor_diagnostics
+from tw_quant.reporting.performance_diagnostics import generate_performance_diagnostics
 from tw_quant.trading.paper import run_paper_trade
 from tw_quant.trading.paper_update import update_paper_positions
 from tw_quant.trading.pending import execute_pending_orders
@@ -140,6 +141,7 @@ class DailyWorkflowResult:
     pnl_chart_result: Any | None = None
     market_recap_result: Any | None = None
     factor_diagnostics_result: Any | None = None
+    performance_diagnostics_result: Any | None = None
 
 
 def run_all_daily(
@@ -167,6 +169,7 @@ def run_all_daily(
     missing_industry_priority_func: Callable[..., Any] = generate_missing_industry_priority_report,
     anysearch_industry_research_func: Callable[..., Any] = generate_anysearch_industry_research_report,
     factor_diagnostics_func: Callable[..., Any] = generate_factor_diagnostics,
+    performance_diagnostics_func: Callable[..., Any] = generate_performance_diagnostics,
 ) -> DailyWorkflowResult:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -178,6 +181,7 @@ def run_all_daily(
     anysearch_industry_research_result = None
     pnl_chart_result = market_recap_result = None
     factor_diagnostics_result = None
+    performance_diagnostics_result = None
 
     try:
         (
@@ -754,6 +758,29 @@ def run_all_daily(
     except Exception as exc:
         messages.append(f"factor_diagnostics warning {type(exc).__name__}: {exc}")
 
+    try:
+        try:
+            performance_diagnostics_result = performance_diagnostics_func(
+                reports_dir=report_dir,
+                trade_date=summary_values["trade_date"],
+            )
+        except TypeError:
+            performance_diagnostics_result = performance_diagnostics_func(reports_dir=report_dir)
+        performance_frame = getattr(performance_diagnostics_result, "frame", pd.DataFrame())
+        performance_row = performance_frame.iloc[0].to_dict() if not performance_frame.empty else {}
+        messages.append(
+            "performance_diagnostics "
+            f"{getattr(performance_diagnostics_result, 'status', 'OK')} "
+            f"cumulative_return={_message_value(performance_row.get('cumulative_return'))} "
+            f"max_drawdown={_message_value(performance_row.get('max_drawdown'))} "
+            f"sharpe_like={_message_value(performance_row.get('sharpe_like_ratio'))} "
+            f"alpha={_message_value(performance_row.get('alpha'))}"
+        )
+        if getattr(performance_diagnostics_result, "warning", ""):
+            messages.append(f"performance_diagnostics warning {performance_diagnostics_result.warning}")
+    except Exception as exc:
+        messages.append(f"performance_diagnostics warning {type(exc).__name__}: {exc}")
+
     summary_values["decision_dashboard_status"] = "OK" if summary_values.get("trading_decisions_status") != "FAILED" else "WARNING"
     summary_values["config_summary_status"] = "OK"
     summary_values["enrichment_evidence_status"] = (
@@ -782,6 +809,7 @@ def run_all_daily(
         pnl_chart_result=pnl_chart_result,
         market_recap_result=market_recap_result,
         factor_diagnostics_result=factor_diagnostics_result,
+        performance_diagnostics_result=performance_diagnostics_result,
     )
 
 
@@ -1215,6 +1243,15 @@ def _frame_first_value(frame: pd.DataFrame, column: str) -> object:
     if value is None or str(value).strip().lower() == "nan":
         return ""
     return value
+
+
+def _message_value(value: object) -> str:
+    if value is None:
+        return "-"
+    text = str(value).strip()
+    if not text or text.lower() == "nan":
+        return "-"
+    return text
 
 
 def _first_non_blank(*values: object) -> object:

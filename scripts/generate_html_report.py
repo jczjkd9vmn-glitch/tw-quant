@@ -249,6 +249,24 @@ COLUMN_LABELS = {
     "max_drawdown": "最大回撤",
     "benchmark_source": "Benchmark 來源",
     "benchmark_warning": "Benchmark 警告",
+    "source": "資料來源",
+    "observation_start": "觀察起日",
+    "observation_end": "觀察迄日",
+    "observation_count": "觀察天數",
+    "daily_return_count": "日報酬樣本數",
+    "cumulative_return": "累積報酬",
+    "annualized_return": "年化報酬",
+    "volatility": "年化波動",
+    "sharpe_like_ratio": "Sharpe-like",
+    "sortino_like_ratio": "Sortino-like",
+    "win_rate_by_day": "日勝率",
+    "best_day": "最佳日",
+    "best_day_return": "最佳日報酬",
+    "worst_day": "最差日",
+    "worst_day_return": "最差日報酬",
+    "profit_factor": "Profit factor",
+    "benchmark_return": "Benchmark 報酬",
+    "benchmark_window": "Benchmark 視窗",
     "rejected_count": "被擋交易數",
     "missed_winner_count": "可能錯過贏家數",
     "avoided_loser_count": "避免輸家數",
@@ -774,6 +792,10 @@ DATE_COLUMNS = {
     "decision_date",
     "validation_date",
     "actual_data_date",
+    "observation_start",
+    "observation_end",
+    "best_day",
+    "worst_day",
 }
 AMOUNT_COLUMNS.add("summary_total_equity_after_cost")
 SCORE_COLUMNS.update(
@@ -790,6 +812,8 @@ SCORE_COLUMNS.update(
         "total_return_pct",
         "max_drawdown_pct",
         "profit_factor",
+        "sharpe_like_ratio",
+        "sortino_like_ratio",
         "expectancy",
         "market_regime_score",
     }
@@ -836,12 +860,19 @@ PERCENT_COLUMNS.update(
         "worst_alpha_20d",
         "worst_avg_return_pct",
         "estimated_alpha_impact",
+        "cumulative_return",
+        "annualized_return",
+        "volatility",
+        "win_rate_by_day",
+        "best_day_return",
+        "worst_day_return",
+        "benchmark_return",
     }
 )
 AMOUNT_COLUMNS.update({"monthly_revenue", "avg_turnover_20d", "latest_turnover"})
 AMOUNT_COLUMNS.update({"fund_size"})
 PNL_COLUMNS.update({"total_realized_pnl_after_cost", "avg_realized_pnl_after_cost"})
-INTEGER_COLUMNS.update({"stock_count", "trade_count", "total_stock_count", "total_trade_count", "rejected_count", "missed_winner_count", "avoided_loser_count"})
+INTEGER_COLUMNS.update({"stock_count", "trade_count", "total_stock_count", "total_trade_count", "rejected_count", "missed_winner_count", "avoided_loser_count", "observation_count", "daily_return_count"})
 PERCENT_COLUMNS.update({"expense_ratio", "discount_premium"})
 INTEGER_COLUMNS.update(
     {
@@ -945,6 +976,7 @@ def generate_html_report(
     factor_attribution_summary = _read_latest_csv(report_dir, "factor_attribution_summary_*.csv")
     benchmark_diagnostics = _read_latest_csv(report_dir, "benchmark_diagnostics_*.csv")
     guardrail_impact = _read_latest_csv(report_dir, "guardrail_impact_*.csv")
+    performance_diagnostics = _read_latest_csv(report_dir, "performance_diagnostics_*.csv")
     market_regime = _read_latest_csv(report_dir, "market_regime_*.csv")
     rejected_orders = _read_latest_csv(report_dir, "rejected_paper_orders_*.csv")
     ai_enrichment = _read_latest_csv(report_dir, "ai_enrichment_*.csv")
@@ -976,6 +1008,7 @@ def generate_html_report(
         factor_attribution_summary=factor_attribution_summary,
         benchmark_diagnostics=benchmark_diagnostics,
         guardrail_impact=guardrail_impact,
+        performance_diagnostics=performance_diagnostics,
         market_regime=market_regime,
         rejected_orders=rejected_orders,
         ai_enrichment=ai_enrichment,
@@ -992,11 +1025,11 @@ def generate_html_report(
     )
 
     output_path = report_dir / "index.html"
-    output_path.write_text(html, encoding="utf-8")
+    output_path.write_text(html, encoding="utf-8", newline="\n")
     if docs_dir is not None:
         docs_path = Path(docs_dir)
         docs_path.mkdir(parents=True, exist_ok=True)
-        (docs_path / "index.html").write_text(html, encoding="utf-8")
+        (docs_path / "index.html").write_text(html, encoding="utf-8", newline="\n")
     return output_path
 
 
@@ -1017,6 +1050,7 @@ def _render_page(
     factor_attribution_summary: pd.DataFrame,
     benchmark_diagnostics: pd.DataFrame,
     guardrail_impact: pd.DataFrame,
+    performance_diagnostics: pd.DataFrame,
     market_regime: pd.DataFrame,
     rejected_orders: pd.DataFrame,
     ai_enrichment: pd.DataFrame,
@@ -1258,6 +1292,7 @@ def _render_page(
                 anysearch_industry_candidates,
             ),
             _benchmark_alpha_section(latest_summary, latest_paper_summary, recent_summaries, market_regime, market_recap, sector_strength),
+            _performance_diagnostics_section(performance_diagnostics),
             _strategy_diagnostics_section(
                 factor_attribution,
                 factor_attribution_summary,
@@ -1435,6 +1470,7 @@ def _nav_tabs_v2() -> str:
 def _section_shortcuts() -> str:
     links = [
         ("overview", "dashboard-overview", "總覽"),
+        ("overview", "performance-diagnostics", "績效風險"),
         ("decision", "decision-dashboard", "今日交易決策"),
         ("positions", "tab-positions", "紙上持倉"),
         ("fundamental", "candidate-detail-section", "候選股"),
@@ -2387,6 +2423,107 @@ def _benchmark_alpha_section(
         + _details_block("大盤比較詳細數據", detail_table)
     )
     return _section("大盤比較 / 超額報酬", content, section_id="benchmark-alpha", class_name="benchmark-alpha-section")
+
+
+def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> str:
+    row = performance_diagnostics.iloc[0].to_dict() if not performance_diagnostics.empty else {}
+    cumulative = _to_float(row.get("cumulative_return"))
+    drawdown = _to_float(row.get("max_drawdown"))
+    sharpe = _to_float(row.get("sharpe_like_ratio"))
+    alpha = _to_float(row.get("alpha"))
+    warning = _format_cell("data_quality_warning", row.get("data_quality_warning")) if row else "目前尚無 performance diagnostics"
+    benchmark_warning = _format_cell("benchmark_warning", row.get("benchmark_warning")) if row else "-"
+    status = _format_cell("status", row.get("status")) if row else "資料不足"
+
+    cards = [
+        _kpi_card(
+            "累積報酬",
+            escape(_return_text(cumulative)),
+            [
+                ("資料來源", _format_cell("source", row.get("source")) if row else "-"),
+                ("觀察天數", _format_cell("observation_count", row.get("observation_count")) if row else "0"),
+                ("狀態", status),
+            ],
+            tone="ok" if cumulative is not None and cumulative >= 0 else "warning",
+        ),
+        _kpi_card(
+            "最大回撤",
+            escape(_return_text(drawdown)),
+            [
+                ("最佳日", _format_cell("best_day", row.get("best_day")) if row else "-"),
+                ("最差日", _format_cell("worst_day", row.get("worst_day")) if row else "-"),
+            ],
+            tone="ok" if drawdown is not None and drawdown >= -0.05 else "warning",
+        ),
+        _kpi_card(
+            "Sharpe-like",
+            escape(_format_cell("sharpe_like_ratio", row.get("sharpe_like_ratio")) if row else "-"),
+            [
+                ("Sortino-like", _format_cell("sortino_like_ratio", row.get("sortino_like_ratio")) if row else "-"),
+                ("日勝率", _format_cell("win_rate_by_day", row.get("win_rate_by_day")) if row else "-"),
+            ],
+            tone="info",
+        ),
+        _kpi_card(
+            "Alpha",
+            escape(_return_text(alpha)),
+            [
+                ("Benchmark", _format_cell("benchmark_source", row.get("benchmark_source")) if row else "-"),
+                ("視窗", _format_cell("benchmark_window", row.get("benchmark_window")) if row else "-"),
+                ("Benchmark 報酬", _format_cell("benchmark_return", row.get("benchmark_return")) if row else "-"),
+            ],
+            tone="ok" if alpha is not None and alpha >= 0 else "warning",
+        ),
+    ]
+
+    notice = ""
+    if warning != "-":
+        notice += f'<p class="top-notice benchmark-warning"><strong>資料品質</strong><span>{escape(warning)}</span></p>'
+    if benchmark_warning != "-":
+        notice += f'<p class="top-notice benchmark-warning"><strong>Benchmark warning</strong><span>{escape(benchmark_warning)}</span></p>'
+
+    detail_table = _table(
+        performance_diagnostics,
+        [
+            "trade_date",
+            "source",
+            "observation_start",
+            "observation_end",
+            "observation_count",
+            "daily_return_count",
+            "cumulative_return",
+            "annualized_return",
+            "volatility",
+            "sharpe_like_ratio",
+            "sortino_like_ratio",
+            "max_drawdown",
+            "win_rate_by_day",
+            "best_day",
+            "best_day_return",
+            "worst_day",
+            "worst_day_return",
+            "profit_factor",
+            "benchmark_return",
+            "benchmark_window",
+            "alpha",
+            "benchmark_source",
+            "benchmark_warning",
+            "status",
+            "data_quality_warning",
+            "notes",
+        ],
+        "目前尚無績效風險診斷資料",
+        max_rows=10,
+    )
+    content = (
+        '<div class="benchmark-summary-grid performance-diagnostics-grid">'
+        + "".join(cards)
+        + "</div>"
+        + notice
+        + '<p class="note">此區只做紙上交易績效風險分析，不會修改正式買賣策略、出場規則或建立真實訂單。</p>'
+        + _details_block("績效風險診斷明細", detail_table)
+    )
+    return _section("績效風險分析", content, section_id="performance-diagnostics", class_name="performance-diagnostics-section")
 
 
 def _strategy_diagnostics_section(
@@ -5744,7 +5881,7 @@ h2,h3{color:var(--text-strong)}
 .asset-bottom-metric strong{font-size:18px;font-weight:950}
 .asset-donut-fallback .note{margin:0 0 10px}
 .compact-empty{padding:10px;font-size:12px}
-.benchmark-alpha-section,.market-regime-explainer-section,.strategy-diagnostics-section{border-color:#9ca3af;background:#ffffff}
+.benchmark-alpha-section,.market-regime-explainer-section,.strategy-diagnostics-section,.performance-diagnostics-section{border-color:#9ca3af;background:#ffffff}
 .benchmark-summary-grid{display:grid;grid-template-columns:1fr;gap:10px}
 .benchmark-card{padding:13px 14px;border:1px solid #9ca3af;border-radius:8px;background:#f8fafc}
 .benchmark-card span{display:block;color:var(--text-secondary);font-size:12px;font-weight:850}
@@ -5774,7 +5911,7 @@ tbody tr:nth-child(even) td{background:#fbfdff}
 .top-info{background:#eff6ff;border-color:#93c5fd;color:#1d4ed8}
 .top-notice{background:#fffbeb;border-color:#fcd34d;color:#92400e}
 .top-warning{background:#fff1f2;border-color:#fda4af;color:#9f1239}
-@media(min-width:760px){.brokerage-header{grid-template-columns:minmax(260px,1.2fr) minmax(420px,2fr)}.header-status-board{grid-template-columns:repeat(4,minmax(0,1fr))}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.pnl-overview-layout{grid-template-columns:minmax(420px,.95fr) minmax(520px,1.05fr);align-items:stretch}.asset-donut-body{grid-template-columns:minmax(230px,300px) 1fr}.asset-pnl-bottom{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-bottom-metric{display:block}.asset-bottom-metric strong{display:block;margin-top:4px}.benchmark-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.strategy-diagnostics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.regime-explainer{grid-template-columns:minmax(260px,.8fr) minmax(420px,1.2fr)}.regime-factor-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:760px){.brokerage-header{grid-template-columns:minmax(260px,1.2fr) minmax(420px,2fr)}.header-status-board{grid-template-columns:repeat(4,minmax(0,1fr))}.kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.pnl-overview-layout{grid-template-columns:minmax(420px,.95fr) minmax(520px,1.05fr);align-items:stretch}.asset-donut-body{grid-template-columns:minmax(230px,300px) 1fr}.asset-pnl-bottom{grid-template-columns:repeat(2,minmax(0,1fr))}.asset-bottom-metric{display:block}.asset-bottom-metric strong{display:block;margin-top:4px}.benchmark-summary-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.strategy-diagnostics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.performance-diagnostics-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.regime-explainer{grid-template-columns:minmax(260px,.8fr) minmax(420px,1.2fr)}.regime-factor-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(min-width:1120px){
   .page{width:auto;max-width:none;margin:0;padding:24px 30px 36px 286px}
   .section-tabs{position:fixed;inset:0 auto 0 0;width:256px;height:100vh;display:flex;flex-direction:column;align-items:stretch;gap:6px;margin:0;padding:22px 14px;background:#182230;border:0;border-right:1px solid #263244;box-shadow:8px 0 24px rgba(15,23,42,.18)}

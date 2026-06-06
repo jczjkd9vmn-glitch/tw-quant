@@ -10,6 +10,8 @@ import pandas as pd
 
 from tw_quant.config import load_config
 from tw_quant.data.database import create_db_engine, init_db, load_price_history
+from tw_quant.data.trading_calendar import filter_trading_days
+from tw_quant.risk.controls import detect_price_jumps
 
 
 @dataclass(frozen=True)
@@ -189,7 +191,11 @@ def _market_breadth_from_sqlite(config_path: str | Path, trade_date: str) -> dic
         return {}
     frame = history.copy()
     frame["trade_date"] = pd.to_datetime(frame["trade_date"], errors="coerce")
-    frame = frame.dropna(subset=["trade_date"]).sort_values(["symbol", "trade_date"])
+    frame = frame.dropna(subset=["trade_date"])
+    frame = filter_trading_days(frame).sort_values(["symbol", "trade_date"])
+    if frame.empty:
+        return {}
+    frame, price_warning = _remove_price_quality_jumps(frame)
     if frame.empty:
         return {}
     latest_date = frame["trade_date"].max()
@@ -207,31 +213,72 @@ def _market_breadth_from_sqlite(config_path: str | Path, trade_date: str) -> dic
     returns = merged["return_pct"].dropna()
     if returns.empty:
         return {}
-    text = merged["symbol"].astype(str) + " " + merged["name"].astype(str)
-    index_mask = text.str.contains("加權|櫃買|TAIEX|TWII|TPEX|OTC|發行量加權", case=False, na=False)
-    stocks = merged[~index_mask].copy()
-    if stocks.empty:
-        stocks = merged.copy()
+    stocks = merged.copy()
+    official_indices = _official_index_closes(config_path, latest_date)
+    note = "未接正式指數來源時，使用本地 SQLite 全市場價量 fallback"
+    if price_warning:
+        note = f"{note}；{price_warning}"
     return {
         "advancers": int((stocks["return_pct"] > 0).sum()),
         "decliners": int((stocks["return_pct"] < 0).sum()),
         "unchanged": int((stocks["return_pct"] == 0).sum()),
         "limit_up_count": int((stocks["return_pct"] >= 0.095).sum()),
         "limit_down_count": int((stocks["return_pct"] <= -0.095).sum()),
-        "twse_index": _index_close(merged, ["加權", "TAIEX", "TWII", "發行量加權"]),
-        "tpex_index": _index_close(merged, ["櫃買", "TPEX", "OTC"]),
+        "twse_index": official_indices.get("twse_index", ""),
+        "tpex_index": official_indices.get("tpex_index", ""),
         "fallback_used": True,
-        "data_quality_note": "未接正式指數來源時，使用本地 SQLite 全市場價量 fallback",
+        "data_quality_note": note,
     }
 
 
-def _index_close(frame: pd.DataFrame, keywords: list[str]) -> str:
-    text = frame["symbol"].astype(str) + " " + frame["name"].astype(str)
-    mask = text.str.contains("|".join(keywords), case=False, na=False)
-    if not mask.any():
-        return ""
-    value = _to_float(frame[mask].iloc[-1].get("close"))
-    return "" if value is None else round(value, 2)
+def _remove_price_quality_jumps(frame: pd.DataFrame) -> tuple[pd.DataFrame, str]:
+    if frame.empty or not {"trade_date", "symbol", "close"}.issubset(frame.columns):
+        return frame, ""
+    jumps = detect_price_jumps(frame[["trade_date", "symbol", "close"]], max_abs_daily_return=0.50)
+    if jumps.empty:
+        return frame, ""
+    keys = set(zip(jumps["symbol"].astype(str), jumps["trade_date"].astype(str)))
+    output = frame.copy()
+    output["_jump_key"] = list(zip(output["symbol"].astype(str), output["trade_date"].dt.strftime("%Y-%m-%d")))
+    output = output[~output["_jump_key"].isin(keys)].drop(columns=["_jump_key"])
+    return output, f"排除 {len(jumps)} 筆跨日價格跳動異常資料"
+
+
+def _official_index_closes(config_path: str | Path, trade_date: pd.Timestamp) -> dict[str, object]:
+    for path in _market_index_paths(config_path):
+        frame = _read_csv(path)
+        if frame.empty or not {"trade_date", "index_id", "close"}.issubset(frame.columns):
+            continue
+        data = frame.copy()
+        data["trade_date"] = pd.to_datetime(data["trade_date"], errors="coerce")
+        data["index_id"] = data["index_id"].astype(str).str.strip()
+        if "is_official" in data.columns:
+            data = data[data["is_official"].apply(_truthy)].copy()
+        data = filter_trading_days(data.dropna(subset=["trade_date"]))
+        data = data[data["trade_date"] <= trade_date].copy()
+        if data.empty:
+            continue
+        latest = data.sort_values("trade_date").drop_duplicates("index_id", keep="last")
+        twse = _index_value(latest, ["TAIEX_TR", "TAIEX"])
+        tpex = _index_value(latest, ["TPEx", "TPEX"])
+        if twse or tpex:
+            return {"twse_index": twse, "tpex_index": tpex}
+    return {"twse_index": "", "tpex_index": ""}
+
+
+def _market_index_paths(config_path: str | Path) -> list[Path]:
+    root = Path(config_path).resolve().parent
+    return [root / "data" / "market_indices.csv", Path("data") / "market_indices.csv"]
+
+
+def _index_value(frame: pd.DataFrame, index_ids: list[str]) -> str | float:
+    for index_id in index_ids:
+        subset = frame[frame["index_id"].astype(str).str.strip() == index_id]
+        if subset.empty:
+            continue
+        value = _to_float(subset.iloc[-1].get("close"))
+        return "" if value is None else round(value, 2)
+    return ""
 
 
 def _read_all_reports(report_dir: Path, pattern: str) -> pd.DataFrame:
@@ -271,6 +318,14 @@ def _to_float(value: object) -> float | None:
     except (TypeError, ValueError):
         return None
     return None if pd.isna(parsed) else parsed
+
+
+def _truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"true", "1", "yes", "y", "是"}
 
 
 def _regime_label(score: float) -> str:

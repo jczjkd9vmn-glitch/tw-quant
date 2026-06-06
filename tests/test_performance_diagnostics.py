@@ -21,7 +21,7 @@ def test_performance_diagnostics_no_equity_data_does_not_crash(tmp_path: Path) -
 
 def test_performance_diagnostics_calculates_metrics_from_pnl_chart(tmp_path: Path) -> None:
     _write_pnl_chart(tmp_path)
-    _write_market_regime(tmp_path)
+    _write_market_indices(tmp_path)
 
     result = generate_performance_diagnostics(tmp_path, trade_date="2026-06-05")
     row = result.frame.iloc[0]
@@ -32,7 +32,7 @@ def test_performance_diagnostics_calculates_metrics_from_pnl_chart(tmp_path: Pat
     assert row["cumulative_return"] == 0.06
     assert row["max_drawdown"] < 0
     assert row["sharpe_like_ratio"] != ""
-    assert row["benchmark_source"] == "加權指數"
+    assert row["benchmark_source"] == "正式加權報酬指數"
     assert row["benchmark_return"] == 0.02
     assert row["alpha"] == 0.04
     assert row["status"] == "OK"
@@ -52,6 +52,43 @@ def test_performance_diagnostics_marks_small_samples_insufficient(tmp_path: Path
 
     assert row["status"] == "DATA_INSUFFICIENT"
     assert "daily_return_count < 5" in row["data_quality_warning"]
+
+
+def test_performance_diagnostics_does_not_trust_market_regime_index_without_official_data(tmp_path: Path) -> None:
+    _write_pnl_chart(tmp_path)
+    _write_market_regime(tmp_path)
+
+    result = generate_performance_diagnostics(tmp_path, trade_date="2026-06-05")
+    row = result.frame.iloc[0]
+
+    assert row["benchmark_source"] == "benchmark 資料不足"
+    assert pd.isna(row["benchmark_return"])
+    assert pd.isna(row["alpha"])
+    assert "缺少正式加權 / 櫃買指數資料" in row["benchmark_warning"]
+
+
+def test_performance_diagnostics_rejects_abnormal_0050_fallback(tmp_path: Path) -> None:
+    _write_pnl_chart(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-06-05",
+                "stock_id": "0050",
+                "stock_name": "元大台灣50",
+                "stock_return_5d": 0.2826,
+                "stock_return_20d": "",
+                "market_return_5d": "",
+                "market_return_20d": "",
+            }
+        ]
+    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+
+    result = generate_performance_diagnostics(tmp_path, trade_date="2026-06-05")
+    row = result.frame.iloc[0]
+
+    assert row["benchmark_source"] == "benchmark 資料不足"
+    assert "0050 fallback 5d 報酬" in row["benchmark_warning"]
+    assert pd.isna(row["alpha"])
 
 
 def test_performance_diagnostics_falls_back_to_paper_summary(tmp_path: Path) -> None:
@@ -107,6 +144,19 @@ def _write_market_regime(path: Path) -> None:
             }
         ]
     ).to_csv(path / "market_regime_20260605.csv", index=False, encoding="utf-8-sig")
+
+
+def _write_market_indices(path: Path) -> None:
+    pd.DataFrame(
+        [
+            {"trade_date": "2026-05-29", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 100.0, "is_official": True},
+            {"trade_date": "2026-06-01", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 100.5, "is_official": True},
+            {"trade_date": "2026-06-02", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 101.0, "is_official": True},
+            {"trade_date": "2026-06-03", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 101.5, "is_official": True},
+            {"trade_date": "2026-06-04", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 101.8, "is_official": True},
+            {"trade_date": "2026-06-05", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 102.0, "is_official": True},
+        ]
+    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
 
 
 def _write_sector_strength(path: Path) -> None:

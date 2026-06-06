@@ -14,6 +14,8 @@ from typing import Iterable
 
 import pandas as pd
 
+from tw_quant.reporting.benchmark import select_benchmark_snapshot
+
 
 FACTOR_ATTRIBUTION_COLUMNS = [
     "factor_name",
@@ -147,16 +149,14 @@ def generate_factor_diagnostics(
     decisions = _read_latest(report_dir, "trading_decisions_*.csv", trade_date)
     market_intel = _read_latest(report_dir, "market_intel_*.csv", trade_date)
     market_regime = _read_latest(report_dir, "market_regime_*.csv", trade_date)
-    market_recap = _read_latest(report_dir, "market_recap_*.csv", trade_date)
     paper_summary = _read_latest(report_dir, "paper_summary_*.csv", trade_date)
     recent_summaries = _read_recent_summaries(report_dir)
-    sector_strength = _read_sector_strength(report_dir)
     trades = _read_csv(report_dir / "paper_trades.csv")
     rejected = _read_latest(report_dir, "rejected_paper_orders_*.csv", trade_date)
 
     analysis_frame = _build_analysis_frame(candidates, risk_pass, decisions, market_intel, trades, market_regime)
     trade_returns = _trade_returns(trades)
-    benchmark = _benchmark_snapshot(market_regime, market_recap, sector_strength)
+    benchmark = select_benchmark_snapshot(report_dir, selected_date)
 
     warnings: list[str] = []
     if trades.empty:
@@ -464,62 +464,6 @@ def _guardrail_impact(rejected: pd.DataFrame, benchmark: dict[str, object]) -> p
     return pd.DataFrame(rows, columns=GUARDRAIL_IMPACT_COLUMNS)
 
 
-def _benchmark_snapshot(
-    market_regime: pd.DataFrame,
-    market_recap: pd.DataFrame,
-    sector_strength: pd.DataFrame,
-) -> dict[str, object]:
-    regime_row = market_regime.iloc[0].to_dict() if not market_regime.empty else {}
-    recap_uses_fallback = _truthy(_frame_first(market_recap, "fallback_used"))
-    source = _text(regime_row.get("source")).lower()
-    if source == "index" and not recap_uses_fallback:
-        return {
-            "source_label": "加權指數",
-            "warning": "",
-            "returns": {
-                "1d": None,
-                "5d": _normalized_return(regime_row.get("market_return_5d")),
-                "20d": _normalized_return(regime_row.get("market_return_20d")),
-                "total": None,
-            },
-        }
-    if not sector_strength.empty and "stock_id" in sector_strength.columns:
-        frame = sector_strength.copy()
-        frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
-        etf_0050 = frame[frame["stock_id"] == "0050"]
-        if not etf_0050.empty:
-            row = etf_0050.iloc[0].to_dict()
-            return {
-                "source_label": "0050 fallback",
-                "warning": "未使用正式加權指數資料；benchmark fallback 使用 0050。",
-                "returns": {
-                    "1d": None,
-                    "5d": _normalized_return(row.get("stock_return_5d")),
-                    "20d": _normalized_return(row.get("stock_return_20d")),
-                    "total": None,
-                },
-            }
-        if {"market_return_5d", "market_return_20d"}.issubset(frame.columns):
-            market_rows = frame.dropna(subset=["market_return_5d", "market_return_20d"], how="all")
-            if not market_rows.empty:
-                row = market_rows.iloc[0].to_dict()
-                return {
-                    "source_label": "全市場等權 fallback",
-                    "warning": "未使用正式加權指數資料；benchmark fallback 使用全市場等權報酬。",
-                    "returns": {
-                        "1d": None,
-                        "5d": _normalized_return(row.get("market_return_5d")),
-                        "20d": _normalized_return(row.get("market_return_20d")),
-                        "total": None,
-                    },
-                }
-    return {
-        "source_label": "benchmark 資料不足",
-        "warning": "缺少正式加權指數、0050 與全市場等權資料，無法計算 benchmark alpha。",
-        "returns": {"1d": None, "5d": None, "20d": None, "total": None},
-    }
-
-
 def _system_return_snapshot(summary: dict[str, object], recent_summaries: pd.DataFrame) -> dict[str, float | None]:
     total_equity = _first_number(summary, ["total_equity_after_cost", "total_equity"])
     total_capital = _first_number(summary, ["total_capital"])
@@ -678,14 +622,6 @@ def _read_recent_summaries(report_dir: Path) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
-def _read_sector_strength(report_dir: Path) -> pd.DataFrame:
-    for path in [report_dir / "sector_strength.csv", report_dir.parent / "data" / "sector_strength.csv"]:
-        frame = _read_csv(path)
-        if not frame.empty:
-            return frame
-    return pd.DataFrame()
-
-
 def _resolve_trade_date(report_dir: Path, trade_date: str | None) -> pd.Timestamp | None:
     if trade_date:
         parsed = pd.to_datetime(trade_date, errors="coerce")
@@ -769,23 +705,6 @@ def _first_number(row: dict[str, object], columns: list[str]) -> float | None:
         if value is not None:
             return value
     return None
-
-
-def _frame_first(frame: pd.DataFrame, column: str) -> object:
-    if frame.empty or column not in frame.columns:
-        return ""
-    return frame.iloc[0].get(column, "")
-
-
-def _normalized_return(value: object) -> float | None:
-    number = _num(value)
-    if number is None:
-        return None
-    if abs(number) > 0.5 and abs(number) <= 100:
-        return number / 100.0
-    if abs(number) > 100:
-        return None
-    return number
 
 
 def _mean_or_none(values: pd.Series) -> float | None:

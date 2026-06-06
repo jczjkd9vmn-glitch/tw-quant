@@ -14,6 +14,8 @@ import re
 
 import pandas as pd
 
+from tw_quant.reporting.benchmark import benchmark_return_for_window
+
 
 PERFORMANCE_DIAGNOSTICS_COLUMNS = [
     "trade_date",
@@ -66,7 +68,7 @@ def generate_performance_diagnostics(
     date_label = (selected_date or pd.Timestamp.today()).strftime("%Y%m%d")
 
     equity_frame, source = _daily_equity_series(report_dir, selected_date)
-    benchmark = _benchmark_return(report_dir, selected_date, max(len(equity_frame) - 1, 0))
+    benchmark = benchmark_return_for_window(report_dir, selected_date, max(len(equity_frame) - 1, 0))
     row = _performance_row(equity_frame, source, selected_date, benchmark)
     frame = pd.DataFrame([row], columns=PERFORMANCE_DIAGNOSTICS_COLUMNS)
     output_path = report_dir / f"performance_diagnostics_{date_label}.csv"
@@ -210,65 +212,6 @@ def _empty_row(selected_date: pd.Timestamp | None, source: str, warning: str) ->
     return row
 
 
-def _benchmark_return(report_dir: Path, selected_date: pd.Timestamp | None, return_days: int) -> dict[str, object]:
-    market_regime = _read_latest(report_dir, "market_regime_*.csv", selected_date)
-    sector_strength = _read_sector_strength(report_dir)
-    window = "20d" if return_days >= 20 else ("5d" if return_days >= 5 else "1d")
-
-    regime_row = market_regime.iloc[0].to_dict() if not market_regime.empty else {}
-    if str(regime_row.get("source", "")).strip().lower() == "index":
-        value = _benchmark_value_for_window(regime_row, "market_return", window)
-        if value is not None:
-            return {"return": value, "window": window, "source": "加權指數", "warning": ""}
-
-    if not sector_strength.empty and "stock_id" in sector_strength.columns:
-        frame = sector_strength.copy()
-        frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
-        etf_0050 = frame[frame["stock_id"] == "0050"]
-        if not etf_0050.empty:
-            value = _benchmark_value_for_window(etf_0050.iloc[0].to_dict(), "stock_return", window)
-            if value is not None:
-                return {
-                    "return": value,
-                    "window": window,
-                    "source": "0050 fallback",
-                    "warning": "未使用正式加權指數資料；benchmark fallback 使用 0050。",
-                }
-        value_frame = frame.dropna(subset=["market_return_5d", "market_return_20d"], how="all") if {
-            "market_return_5d",
-            "market_return_20d",
-        }.issubset(frame.columns) else pd.DataFrame()
-        if not value_frame.empty:
-            value = _benchmark_value_for_window(value_frame.iloc[0].to_dict(), "market_return", window)
-            if value is not None:
-                return {
-                    "return": value,
-                    "window": window,
-                    "source": "全市場等權 fallback",
-                    "warning": "未使用正式加權指數資料；benchmark fallback 使用全市場等權報酬。",
-                }
-
-    return {
-        "return": None,
-        "window": window,
-        "source": "benchmark 資料不足",
-        "warning": "缺少正式加權指數、0050 與全市場等權資料，無法計算績效 alpha。",
-    }
-
-
-def _benchmark_value_for_window(row: dict[str, object], prefix: str, window: str) -> float | None:
-    candidates = [window]
-    if window == "1d":
-        candidates.extend(["5d", "20d"])
-    elif window == "5d":
-        candidates.append("20d")
-    for candidate in candidates:
-        value = _normalized_return(row.get(f"{prefix}_{candidate}"))
-        if value is not None:
-            return value
-    return None
-
-
 def _latest_total_return(frame: pd.DataFrame) -> float | None:
     if "total_return_pct" in frame.columns:
         values = pd.to_numeric(frame["total_return_pct"], errors="coerce").dropna()
@@ -359,24 +302,6 @@ def _read_all_reports(report_dir: Path, pattern: str) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True, sort=False) if frames else pd.DataFrame()
 
 
-def _read_latest(report_dir: Path, pattern: str, selected_date: pd.Timestamp | None) -> pd.DataFrame:
-    files = _sorted_report_files(report_dir, pattern)
-    if selected_date is not None:
-        target = selected_date.strftime("%Y%m%d")
-        for path in files:
-            if target in path.name:
-                return _read_csv(path)
-    return _read_csv(files[-1]) if files else pd.DataFrame()
-
-
-def _read_sector_strength(report_dir: Path) -> pd.DataFrame:
-    for path in [report_dir / "sector_strength.csv", report_dir.parent / "data" / "sector_strength.csv"]:
-        frame = _read_csv(path)
-        if not frame.empty:
-            return frame
-    return pd.DataFrame()
-
-
 def _sorted_report_files(report_dir: Path, pattern: str) -> list[Path]:
     return sorted(
         report_dir.glob(pattern),
@@ -420,17 +345,6 @@ def _first_existing_column(frame: pd.DataFrame, columns: list[str]) -> str | Non
         if column in frame.columns:
             return column
     return None
-
-
-def _normalized_return(value: object) -> float | None:
-    number = _num(value)
-    if number is None:
-        return None
-    if abs(number) > 0.5 and abs(number) <= 100:
-        return number / 100.0
-    if abs(number) > 100:
-        return None
-    return number
 
 
 def _sub_or_none(left: object, right: object) -> float | None:

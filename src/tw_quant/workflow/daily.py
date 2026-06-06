@@ -11,8 +11,10 @@ import pandas as pd
 
 from tw_quant.config import load_config
 from tw_quant.data.database import create_db_engine, init_db, load_latest_price_date
+from tw_quant.data.database import load_existing_price_dates
 from tw_quant.data.exceptions import TradingHalted
 from tw_quant.data.pipeline import run_daily_pipeline
+from tw_quant.data.trading_calendar import is_trading_day, latest_trading_day
 from tw_quant.data_sources.local_derived_provider import LocalDerivedProvider
 from tw_quant.decision.engine import decision_counts, generate_trading_decisions
 from tw_quant.enrichment.industry import update_industry_map
@@ -818,13 +820,39 @@ def _resolve_trade_date(
     trade_date: str | date | None,
     allow_fallback_latest: bool,
 ) -> tuple[str | date | None, str, date | None, str]:
-    if trade_date is not None or not allow_fallback_latest:
+    if trade_date is not None:
+        requested_date = pd.to_datetime(trade_date, errors="coerce")
+        calendar_path = Path(config_path).resolve().parent / "data" / "trading_calendar.csv"
+        if allow_fallback_latest and not pd.isna(requested_date) and not is_trading_day(requested_date, calendar_path=calendar_path):
+            config = load_config(config_path)
+            engine = create_db_engine(config["database"]["url"])
+            init_db(engine)
+            fallback_date = latest_trading_day(
+                load_existing_price_dates(engine),
+                end_date=requested_date,
+                calendar_path=calendar_path,
+            )
+            if fallback_date is None:
+                return trade_date, "", None, ""
+            fallback_reason = "non_trading_day"
+            return (
+                fallback_date,
+                f"fallback_date={fallback_date} reason={fallback_reason}",
+                fallback_date,
+                fallback_reason,
+            )
+        return trade_date, "", None, ""
+
+    if not allow_fallback_latest:
         return trade_date, "", None, ""
 
     config = load_config(config_path)
     engine = create_db_engine(config["database"]["url"])
     init_db(engine)
-    latest_date = load_latest_price_date(engine)
+    calendar_path = Path(config_path).resolve().parent / "data" / "trading_calendar.csv"
+    latest_date = latest_trading_day(load_existing_price_dates(engine), calendar_path=calendar_path)
+    if latest_date is None:
+        latest_date = load_latest_price_date(engine)
     if latest_date is None:
         raise TradingHalted("no price history available for fallback")
     fallback_reason = "no trading data"

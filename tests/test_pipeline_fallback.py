@@ -27,7 +27,7 @@ def test_run_daily_pipeline_falls_back_to_latest_sqlite_trade_date(tmp_path, mon
 
     assert result.trade_date == date(2026, 5, 8)
     assert result.fallback_date == date(2026, 5, 8)
-    assert result.fallback_reason == "no trading data"
+    assert result.fallback_reason == "non_trading_day"
     assert result.fetched_rows == 0
 
 

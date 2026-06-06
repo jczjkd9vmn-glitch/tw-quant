@@ -103,7 +103,7 @@ def test_investment_trust_consecutive_buy_adds_score(tmp_path: Path) -> None:
     assert "投信連買" in row["institutional_reason"]
 
 
-def test_multi_factor_does_not_change_default_ranking_or_risk_pass(tmp_path: Path) -> None:
+def test_multi_factor_does_not_change_default_ranking_but_blocks_high_event_tradable_pass(tmp_path: Path) -> None:
     engine = _engine_with_scores()
     events_path = tmp_path / "material_events.csv"
     pd.DataFrame(
@@ -114,9 +114,11 @@ def test_multi_factor_does_not_change_default_ranking_or_risk_pass(tmp_path: Pat
 
     assert list(result.candidates["stock_id"]) == ["2330", "2317"]
     assert list(result.candidates["total_score"]) == [90.0, 88.0]
-    assert list(result.candidates["risk_pass"]) == [1, 1]
     blocked = result.candidates[result.candidates["stock_id"] == "2330"].iloc[0]
     assert bool(blocked["event_blocked"]) is True
+    assert bool(blocked["technical_risk_pass"]) is True
+    assert bool(blocked["tradable_pass"]) is False
+    assert bool(blocked["risk_pass"]) is False
 
 
 def test_high_risk_event_blocks_new_pending_order(tmp_path: Path) -> None:
@@ -125,14 +127,14 @@ def test_high_risk_event_blocks_new_pending_order(tmp_path: Path) -> None:
     pd.DataFrame(
         [{"event_date": "2026-05-08", "stock_id": "2330", "stock_name": "台積電", "title": "內控缺失", "summary": "重大內控缺失"}]
     ).to_csv(events_path, index=False, encoding="utf-8-sig")
-    export_latest_candidates(engine, output_dir=tmp_path, events_path=events_path)
+    export_result = export_latest_candidates(engine, output_dir=tmp_path, events_path=events_path)
 
     result = run_paper_trade(reports_dir=tmp_path, capital=1_000_000)
 
+    assert "2330" not in set(export_result.risk_pass_candidates["stock_id"].astype(str))
     assert "2330" not in set(result.pending_orders["stock_id"].astype(str))
-    assert "2330" in set(result.rejected_orders["stock_id"].astype(str))
-    rejected = result.rejected_orders.set_index("stock_id")
-    assert "高風險事件" in rejected.loc["2330", "rejected_reason"]
+    candidate = export_result.candidates.set_index("stock_id").loc["2330"]
+    assert "重大事件" in candidate["blocking_risks"] or "高風險事件" in candidate["grade_risk_flags"]
 
 
 def _engine_with_scores():

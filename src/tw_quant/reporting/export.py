@@ -146,6 +146,8 @@ EXPORT_COLUMNS = [
     "system_comment",
     *MARKET_INTEL_COLUMNS,
     "is_candidate",
+    "technical_risk_pass",
+    "tradable_pass",
     "risk_pass",
     "risk_reason",
     "reason",
@@ -315,8 +317,57 @@ def _format_candidates(
         liquidity_path=liquidity_path,
     )
     frame = multi_factor.candidates
+    frame = _apply_tradable_pass_compatibility(frame)
     frame = apply_candidate_grades(frame)
     for column in EXPORT_COLUMNS:
         if column not in frame.columns:
             frame[column] = None
     return frame[EXPORT_COLUMNS].copy(), multi_factor.data_fetch_status
+
+
+def _apply_tradable_pass_compatibility(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    output = frame.copy()
+    if "technical_risk_pass" not in output.columns:
+        fallback = output["risk_pass"] if "risk_pass" in output.columns else pd.Series([False] * len(output), index=output.index)
+        output["technical_risk_pass"] = fallback.apply(_to_bool)
+    else:
+        output["technical_risk_pass"] = output["technical_risk_pass"].apply(_to_bool)
+    blockers = output.apply(_tradable_blockers, axis=1)
+    output["tradable_pass"] = [
+        bool(technical) and not bool(parts)
+        for technical, parts in zip(output["technical_risk_pass"].tolist(), blockers.tolist())
+    ]
+    output["risk_pass"] = output["tradable_pass"].astype(int)
+    if "risk_reason" in output.columns:
+        output["risk_reason"] = [
+            _append_reason(reason, parts)
+            for reason, parts in zip(output["risk_reason"].fillna("").astype(str).tolist(), blockers.tolist())
+        ]
+    return output
+
+
+def _tradable_blockers(row: pd.Series) -> list[str]:
+    blockers: list[str] = []
+    event_level = str(row.get("event_risk_level", "") or "").strip().upper()
+    if event_level == "HIGH" or _to_bool(row.get("event_blocked")):
+        blockers.append("重大事件或事件風控未通過")
+    if _to_bool(row.get("is_attention_stock")):
+        blockers.append("注意股需人工確認")
+    if _to_bool(row.get("is_disposition_stock")):
+        blockers.append("處置股禁止交易")
+    return blockers
+
+
+def _append_reason(reason: str, parts: list[str]) -> str:
+    clean = [part for part in [reason, *parts] if part and part != "nan"]
+    return "；".join(dict.fromkeys(clean))
+
+
+def _to_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"true", "1", "yes", "y", "是"}

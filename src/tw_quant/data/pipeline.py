@@ -12,6 +12,7 @@ from tw_quant.config import load_config
 from tw_quant.data.database import (
     create_db_engine,
     init_db,
+    load_existing_price_dates,
     load_latest_price_date,
     load_price_history,
     save_candidate_scores,
@@ -19,6 +20,7 @@ from tw_quant.data.database import (
 )
 from tw_quant.data.exceptions import DataQualityError, TradingHalted
 from tw_quant.data.fetcher import TWSEDailyFetcher
+from tw_quant.data.trading_calendar import filter_trading_days, is_trading_day, latest_trading_day
 from tw_quant.risk.controls import RiskConfig, RiskManager
 from tw_quant.strategy.scoring import ScoringConfig, StockScorer
 
@@ -49,6 +51,18 @@ def run_daily_pipeline(
     fallback_date: date | None = None
     fallback_reason = ""
     risk_manager = RiskManager(RiskConfig.from_mapping(config["risk"]))
+    calendar_path = Path(config_path).resolve().parent / "data" / "trading_calendar.csv"
+
+    if not is_trading_day(target_date, calendar_path=calendar_path):
+        if not allow_fallback_latest:
+            raise TradingHalted(f"non-trading day: {target_date}")
+        fallback = latest_trading_day(load_existing_price_dates(engine), end_date=target_date, calendar_path=calendar_path)
+        if fallback is None:
+            raise TradingHalted("no price history available for fallback")
+        target_date = fallback
+        fallback_date = fallback
+        fallback_reason = "non_trading_day"
+        fetch = False
 
     if fetch:
         fetcher = TWSEDailyFetcher(
@@ -60,7 +74,9 @@ def run_daily_pipeline(
         except DataQualityError as exc:
             if not allow_fallback_latest:
                 raise
-            latest_date = load_latest_price_date(engine)
+            latest_date = latest_trading_day(load_existing_price_dates(engine), end_date=target_date, calendar_path=calendar_path)
+            if latest_date is None:
+                latest_date = load_latest_price_date(engine)
             if latest_date is None:
                 raise TradingHalted("no price history available for fallback") from exc
             target_date = latest_date
@@ -70,7 +86,7 @@ def run_daily_pipeline(
             risk_manager.validate_price_data(prices)
             fetched_rows = save_daily_prices(engine, prices)
 
-    history = load_price_history(engine, end_date=str(target_date))
+    history = filter_trading_days(load_price_history(engine, end_date=str(target_date)), calendar_path=calendar_path)
     if history.empty:
         raise TradingHalted("no price history available for scoring")
 

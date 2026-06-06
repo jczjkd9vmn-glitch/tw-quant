@@ -1,2 +1,2 @@
 ﻿trade_date,system_cumulative_return,benchmark_cumulative_return,alpha,alpha_1d,alpha_5d,alpha_20d,win_rate_vs_benchmark,max_drawdown,benchmark_source,benchmark_warning,data_quality_warning,notes
-2026-06-05,0.023794410000000044,,,,-0.305251,-0.031727,0.0,-0.074387,0050 fallback,未使用正式加權指數資料；benchmark fallback 使用 0050。,DATA_INSUFFICIENT,未使用正式加權指數資料；benchmark fallback 使用 0050。
+2026-06-05,0.023794410000000044,,,,-0.010756,-0.030064,0.0,-0.074387,0050 fallback,缺少正式加權 / 櫃買指數資料，未使用正式加權指數資料，也未使用正式大盤指數。 benchmark fallback 使用 0050。,DATA_INSUFFICIENT,缺少正式加權 / 櫃買指數資料，未使用正式加權指數資料，也未使用正式大盤指數。 benchmark fallback 使用 0050。

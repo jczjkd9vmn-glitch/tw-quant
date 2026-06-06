@@ -11,6 +11,10 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from tw_quant.workflow.daily import run_all_daily
+from tw_quant.data_sources.official_market_indices import (
+    fetch_official_market_indices,
+    update_market_indices_csv,
+)
 
 
 def main() -> None:
@@ -21,6 +25,11 @@ def main() -> None:
     parser.add_argument("--reports-dir", default=str(ROOT / "reports"))
     parser.add_argument("--skip-paper-trade", action="store_true")
     parser.add_argument("--skip-update", action="store_true")
+    parser.add_argument(
+        "--skip-market-indices",
+        action="store_true",
+        help="Skip best-effort TWSE/TPEx official market index refresh.",
+    )
     parser.add_argument(
         "--allow-fallback-latest",
         action="store_true",
@@ -34,6 +43,9 @@ def main() -> None:
         help="Disable fallback to latest SQLite trading date.",
     )
     args = parser.parse_args()
+
+    if not args.skip_market_indices:
+        _refresh_official_market_indices()
 
     result = run_all_daily(
         config_path=args.config,
@@ -109,6 +121,18 @@ def main() -> None:
     if summary.status == "FAILED":
         print(f"error: step={summary.error_step} message={summary.error_message}")
         raise SystemExit(1)
+
+
+def _refresh_official_market_indices() -> None:
+    output_path = ROOT / "data" / "market_indices.csv"
+    try:
+        fetched = fetch_official_market_indices(timeout_seconds=15)
+        merged = update_market_indices_csv(output_path, fetched)
+        official_rows = int(merged["is_official"].astype(bool).sum()) if "is_official" in merged.columns else 0
+        index_ids = ",".join(sorted(set(merged["index_id"].astype(str)))) if not merged.empty else ""
+        print(f"market_indices_ingestion OK rows={len(merged)} official_rows={official_rows} index_ids={index_ids}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"market_indices_ingestion WARNING {type(exc).__name__}: {exc}; kept existing data/market_indices.csv")
 
 
 if __name__ == "__main__":

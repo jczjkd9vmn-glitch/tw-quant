@@ -18,6 +18,7 @@ if str(SRC_DIR) not in sys.path:
 from tw_quant.config import load_config
 from tw_quant.reporting.position_review import generate_position_review_summary
 from tw_quant.reporting.data_quality import write_data_quality_health
+from tw_quant.reporting.benchmark import select_benchmark_snapshot
 
 
 COLUMN_LABELS = {
@@ -1291,7 +1292,7 @@ def _render_page(
                 missing_industry_priority,
                 anysearch_industry_candidates,
             ),
-            _benchmark_alpha_section(latest_summary, latest_paper_summary, recent_summaries, market_regime, market_recap, sector_strength),
+            _benchmark_alpha_section(report_dir, latest_summary, latest_paper_summary, recent_summaries),
             _performance_diagnostics_section(performance_diagnostics),
             _strategy_diagnostics_section(
                 factor_attribution,
@@ -2384,14 +2385,12 @@ def _market_recap_section(market_recap: pd.DataFrame, summary: dict[str, object]
 
 
 def _benchmark_alpha_section(
+    report_dir: Path,
     summary: dict[str, object],
     paper_summary: dict[str, object],
     recent_summaries: pd.DataFrame,
-    market_regime: pd.DataFrame,
-    market_recap: pd.DataFrame,
-    sector_strength: pd.DataFrame,
 ) -> str:
-    benchmark = _benchmark_snapshot(market_regime, market_recap, sector_strength)
+    benchmark = _benchmark_snapshot(report_dir, summary)
     system_returns = _system_return_snapshot(summary, paper_summary, recent_summaries)
     headline_window = _best_alpha_window(system_returns, benchmark["returns"])
     system_headline = system_returns.get(headline_window)
@@ -2749,59 +2748,16 @@ def _market_regime_score_explainer(
     return _section("market_regime_score 說明", content, section_id="market-regime-explainer", class_name="market-regime-explainer-section")
 
 
-def _benchmark_snapshot(
-    market_regime: pd.DataFrame,
-    market_recap: pd.DataFrame,
-    sector_strength: pd.DataFrame,
-) -> dict[str, object]:
-    regime_row = market_regime.iloc[0].to_dict() if not market_regime.empty else {}
-    recap_uses_fallback = _truthy(_frame_first(market_recap, "fallback_used"))
-    source = str(regime_row.get("source", "")).strip().lower()
-    if source == "index" and not recap_uses_fallback:
-        returns = {
-            "1d": None,
-            "5d": _normalized_return(regime_row.get("market_return_5d")),
-            "20d": _normalized_return(regime_row.get("market_return_20d")),
-            "total": None,
-        }
-        return {
-            "source_label": "加權指數",
-            "warning": "",
-            "returns": returns,
-        }
-    if not sector_strength.empty and "stock_id" in sector_strength.columns:
-        frame = sector_strength.copy()
-        frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
-        etf_0050 = frame[frame["stock_id"] == "0050"]
-        if not etf_0050.empty:
-            row = etf_0050.iloc[0].to_dict()
-            return {
-                "source_label": "0050 fallback",
-                "warning": "未使用正式加權指數資料；本次 benchmark fallback 使用 0050，不能假裝是正式大盤指數。",
-                "returns": {
-                    "1d": None,
-                    "5d": _normalized_return(row.get("stock_return_5d")),
-                    "20d": _normalized_return(row.get("stock_return_20d")),
-                    "total": None,
-                },
-            }
-        market_return_rows = frame.dropna(subset=["market_return_5d", "market_return_20d"], how="all") if {"market_return_5d", "market_return_20d"}.issubset(frame.columns) else pd.DataFrame()
-        if not market_return_rows.empty:
-            row = market_return_rows.iloc[0].to_dict()
-            return {
-                "source_label": "全市場等權 fallback",
-                "warning": "未使用正式加權指數資料；本次 benchmark fallback 使用全市場等權報酬。",
-                "returns": {
-                    "1d": None,
-                    "5d": _normalized_return(row.get("market_return_5d")),
-                    "20d": _normalized_return(row.get("market_return_20d")),
-                    "total": None,
-                },
-            }
+def _benchmark_snapshot(report_dir: Path, summary: dict[str, object]) -> dict[str, object]:
+    selected_date = _first_raw(summary.get("trade_date"), summary.get("requested_date"))
+    snapshot = select_benchmark_snapshot(report_dir, selected_date)
+    warning = str(snapshot.get("warning", "") or "")
+    if snapshot.get("source_label") == "0050 fallback" and "不能假裝是正式大盤指數" not in warning:
+        warning = f"{warning} 不能假裝是正式大盤指數。".strip()
     return {
-        "source_label": "benchmark 資料不足",
-        "warning": "缺少正式加權指數、0050 與全市場等權資料，無法計算 benchmark alpha。",
-        "returns": {"1d": None, "5d": None, "20d": None, "total": None},
+        "source_label": snapshot.get("source_label", "benchmark 資料不足"),
+        "warning": warning,
+        "returns": snapshot.get("returns", {"1d": None, "5d": None, "20d": None, "total": None}),
     }
 
 

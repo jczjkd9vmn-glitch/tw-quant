@@ -13,8 +13,10 @@ from sqlalchemy.engine import Engine
 
 from tw_quant.config import load_config
 from tw_quant.data.database import create_db_engine, load_price_history
+from tw_quant.data.trading_calendar import filter_trading_days
 from tw_quant.data_sources.base import ProviderResult
 from tw_quant.enrichment.industry import load_industry_map
+from tw_quant.risk.controls import detect_price_jumps
 
 
 LIQUIDITY_DERIVED_COLUMNS = [
@@ -98,6 +100,7 @@ class LocalDerivedProvider:
 
     def fetch_liquidity(self, as_of: str | None = None) -> ProviderResult:
         history = self._load_history(as_of)
+        history_warning = str(history.attrs.get("price_quality_warning", ""))
         if history.empty:
             return self._empty_result(
                 "liquidity",
@@ -144,10 +147,13 @@ class LocalDerivedProvider:
         warning = ""
         if data["liquidity_warning"].fillna("").ne("").any():
             warning = "部分股票流動性偏低或價量資料不足"
+        if history_warning:
+            warning = "；".join(part for part in [warning, history_warning] if part)
         return self._ok_result("liquidity", data, warning, as_of, latest_date)
 
     def fetch_sector_strength(self, as_of: str | None = None) -> ProviderResult:
         history = self._load_history(as_of)
+        history_warning = str(history.attrs.get("price_quality_warning", ""))
         if history.empty:
             return self._empty_result(
                 "sector_strength",
@@ -216,6 +222,10 @@ class LocalDerivedProvider:
             status = "OK_WITH_FALLBACK"
         if data[["stock_return_5d", "stock_return_20d"]].isna().all(axis=None):
             warnings.append("價格資料不足，產業 / 相對強弱分數採中性")
+        if history_warning:
+            warnings.append(history_warning)
+            if status == "OK":
+                status = "OK_WITH_FALLBACK"
         warning = "；".join(warnings)
         return self._ok_result("sector_strength", data, warning, as_of, latest_date, status=status)
 
@@ -223,6 +233,7 @@ class LocalDerivedProvider:
         history = load_price_history(self.engine, end_date=as_of)
         if history.empty:
             return history
+        history = filter_trading_days(history)
         history = history.rename(columns={"symbol": "stock_id", "name": "stock_name"})
         history["trade_date"] = pd.to_datetime(history["trade_date"], errors="coerce")
         history = history.dropna(subset=["trade_date", "stock_id", "close"])
@@ -235,6 +246,15 @@ class LocalDerivedProvider:
             history["turnover_value"] = np.nan
         estimated = pd.to_numeric(history["close"], errors="coerce") * pd.to_numeric(history["volume"], errors="coerce")
         history["turnover_value"] = history["turnover_value"].where(history["turnover_value"].notna(), estimated)
+        jumps = detect_price_jumps(
+            history.rename(columns={"stock_id": "symbol"})[["trade_date", "symbol", "close"]],
+            max_abs_daily_return=0.50,
+        )
+        if not jumps.empty:
+            jump_keys = set(zip(jumps["symbol"].astype(str), jumps["trade_date"].astype(str)))
+            keys = list(zip(history["stock_id"].astype(str), history["trade_date"].dt.strftime("%Y-%m-%d")))
+            history = history[[key not in jump_keys for key in keys]].copy()
+            history.attrs["price_quality_warning"] = f"排除 {len(jumps)} 筆跨日價格跳動異常資料"
         history = self._merge_industry_map(history)
         return history.sort_values(["stock_id", "trade_date"])
 

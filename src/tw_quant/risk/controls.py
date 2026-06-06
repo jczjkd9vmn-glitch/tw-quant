@@ -20,6 +20,7 @@ class RiskConfig:
     default_stop_loss_pct: float = 0.08
     min_liquidity_value: float = 5_000_000
     max_volatility_20: float = 0.08
+    max_abs_daily_return: float = 0.50
 
     @classmethod
     def from_mapping(cls, values: dict[str, Any]) -> "RiskConfig":
@@ -35,6 +36,7 @@ class RiskConfig:
             ),
             min_liquidity_value=float(values.get("min_liquidity_value", cls.min_liquidity_value)),
             max_volatility_20=float(values.get("max_volatility_20", cls.max_volatility_20)),
+            max_abs_daily_return=float(values.get("max_abs_daily_return", cls.max_abs_daily_return)),
         )
 
 
@@ -50,7 +52,7 @@ class RiskManager:
     def __init__(self, config: RiskConfig | None = None):
         self.config = config or RiskConfig()
 
-    def validate_price_data(self, prices: pd.DataFrame) -> None:
+    def validate_price_data(self, prices: pd.DataFrame, check_price_jumps: bool = False) -> None:
         required = ["trade_date", "symbol", "open", "high", "low", "close", "volume"]
         missing = [column for column in required if column not in prices.columns]
         if missing:
@@ -75,6 +77,24 @@ class RiskManager:
             raise DataQualityError("price data has high lower than open/close/low")
         if (frame["low"] > frame[["open", "close", "high"]].min(axis=1)).any():
             raise DataQualityError("price data has low higher than open/close/high")
+        if check_price_jumps:
+            jumps = self.detect_price_jumps(frame)
+            if not jumps.empty:
+                raise DataQualityError(f"price data contains extreme daily jumps: {len(jumps)} rows")
+
+    def detect_price_jumps(
+        self,
+        prices: pd.DataFrame,
+        max_abs_daily_return: float | None = None,
+    ) -> pd.DataFrame:
+        return detect_price_jumps(
+            prices,
+            max_abs_daily_return=(
+                self.config.max_abs_daily_return
+                if max_abs_daily_return is None
+                else max_abs_daily_return
+            ),
+        )
 
     def calculate_stop_loss(self, row: pd.Series | dict[str, Any]) -> float:
         close = float(row.get("close", 0))
@@ -149,7 +169,8 @@ class RiskManager:
         if frame.empty:
             return frame
 
-        risk_pass: list[bool] = []
+        technical_risk_pass: list[bool] = []
+        tradable_pass: list[bool] = []
         risk_reasons: list[str] = []
         position_pct: list[float] = []
         stop_losses: list[float] = []
@@ -157,15 +178,20 @@ class RiskManager:
 
         for _, row in frame.iterrows():
             decision = self.evaluate_candidate(row, current_exposure_pct=current_exposure)
-            allowed = bool(row.get("is_candidate", False)) and decision.allowed
-            if allowed:
+            technical_allowed = _to_bool(row.get("is_candidate")) and decision.allowed
+            blockers = _tradable_blockers(row)
+            tradable_allowed = technical_allowed and not blockers
+            if tradable_allowed:
                 current_exposure += decision.suggested_position_pct
-            risk_pass.append(allowed)
-            risk_reasons.append("；".join(decision.reasons))
-            position_pct.append(decision.suggested_position_pct if allowed else 0.0)
+            technical_risk_pass.append(technical_allowed)
+            tradable_pass.append(tradable_allowed)
+            risk_reasons.append("；".join([*decision.reasons, *blockers]))
+            position_pct.append(decision.suggested_position_pct if tradable_allowed else 0.0)
             stop_losses.append(decision.stop_loss)
 
-        frame["risk_pass"] = risk_pass
+        frame["technical_risk_pass"] = technical_risk_pass
+        frame["tradable_pass"] = tradable_pass
+        frame["risk_pass"] = tradable_pass
         frame["risk_reasons"] = risk_reasons
         frame["suggested_position_pct"] = position_pct
         frame["stop_loss"] = stop_losses
@@ -182,3 +208,43 @@ def _safe_float(value: Any) -> float | None:
     if np.isnan(parsed) or np.isinf(parsed):
         return None
     return parsed
+
+
+def _tradable_blockers(row: pd.Series | dict[str, Any]) -> list[str]:
+    blockers: list[str] = []
+    event_level = str(row.get("event_risk_level", "") or "").strip().upper()
+    if event_level == "HIGH" or _to_bool(row.get("event_blocked")):
+        blockers.append("重大事件或事件風控未通過，禁止交易")
+    if _to_bool(row.get("is_attention_stock")):
+        blockers.append("注意股需人工確認，暫不列入可交易")
+    if _to_bool(row.get("is_disposition_stock")):
+        blockers.append("處置股禁止交易")
+    return blockers
+
+
+def _to_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"true", "1", "yes", "y", "是"}
+
+
+def detect_price_jumps(prices: pd.DataFrame, max_abs_daily_return: float = 0.50) -> pd.DataFrame:
+    required = {"trade_date", "symbol", "close"}
+    if prices.empty or not required.issubset(prices.columns):
+        return pd.DataFrame(columns=["symbol", "trade_date", "close", "prev_close", "return_1d", "reason"])
+    frame = prices.copy()
+    frame["trade_date"] = pd.to_datetime(frame["trade_date"], errors="coerce")
+    frame["symbol"] = frame["symbol"].astype(str).str.strip()
+    frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
+    frame = frame.dropna(subset=["trade_date", "symbol", "close"])
+    frame = frame[frame["close"] > 0].sort_values(["symbol", "trade_date"])
+    frame["prev_close"] = frame.groupby("symbol")["close"].shift(1)
+    frame["return_1d"] = frame["close"] / frame["prev_close"] - 1.0
+    jumps = frame[frame["return_1d"].abs() > max_abs_daily_return].copy()
+    if jumps.empty:
+        return pd.DataFrame(columns=["symbol", "trade_date", "close", "prev_close", "return_1d", "reason"])
+    jumps["reason"] = f"abs(return_1d) > {max_abs_daily_return:.2f}"
+    jumps["trade_date"] = jumps["trade_date"].dt.strftime("%Y-%m-%d")
+    return jumps[["symbol", "trade_date", "close", "prev_close", "return_1d", "reason"]].reset_index(drop=True)

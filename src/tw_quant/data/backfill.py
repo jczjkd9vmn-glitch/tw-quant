@@ -22,6 +22,7 @@ from tw_quant.data.database import (
 )
 from tw_quant.data.exceptions import DataFetchError, DataQualityError
 from tw_quant.data.fetcher import TWSEDailyFetcher
+from tw_quant.data.trading_calendar import filter_trading_days, is_trading_day
 from tw_quant.risk.controls import RiskConfig, RiskManager
 from tw_quant.strategy.scoring import ScoringConfig, StockScorer
 
@@ -141,6 +142,17 @@ def backfill_prices(
 
     for trade_date in trade_dates:
         normalized_date = _to_date(trade_date)
+        if not is_trading_day(normalized_date):
+            day_results.append(
+                BackfillDayResult(
+                    trade_date=normalized_date,
+                    status="skipped",
+                    skipped_reason="non_trading_day",
+                    attempts=0,
+                )
+            )
+            _sleep_after_date(sleep_seconds)
+            continue
         if normalized_date in existing_dates:
             day_results.append(
                 BackfillDayResult(
@@ -231,7 +243,7 @@ def recalculate_latest_scores(
     risk_manager: RiskManager,
     scoring_config: ScoringConfig,
 ) -> _ScoringResult:
-    history = load_price_history(engine)
+    history = filter_trading_days(load_price_history(engine))
     if history.empty:
         return _ScoringResult(
             scored_rows=0,

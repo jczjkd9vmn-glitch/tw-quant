@@ -1,5 +1,4 @@
 ﻿stock_id,stock_name,market_type,latest_relative_mode,fallback_reason,appear_in_candidates_count,appear_in_trading_decisions_count,appear_in_risk_pass_count,appear_in_position_review_count,appear_in_ai_enrichment_count,recent_appearance_count,liquidity_score,avg_volume,turnover_value,last_seen_date,priority_score,priority_level,suggested_action
-912000,晨訊科-DR,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,1,1,0,0,1,3,35.0,1326854.15,8168766.0,2026-06-05,14,HIGH,優先查證並補產業分類
 1262,綠悅-KY,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,92.0,3379490.0,207279280.0,2026-06-05,3,LOW,暫緩補資料
 1704,榮化,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,92.0,7841753.0,371476589.0,2026-06-05,3,LOW,暫緩補資料
 2311,日月光,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,92.0,7476435.0,284463630.0,2026-06-05,3,LOW,暫緩補資料
@@ -94,6 +93,7 @@
 911616,杜康-DR,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,37000.0,37780.0,2026-06-05,0,LOW,暫緩補資料
 911622,泰聚亨-DR,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,108167.7,2116021.0,2026-06-05,0,LOW,暫緩補資料
 911868,同方友友-DR,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,802323.05,890875.0,2026-06-05,0,LOW,暫緩補資料
+912000,晨訊科-DR,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,1326854.15,8168766.0,2026-06-05,0,LOW,暫緩補資料
 912398,友佳-DR,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,15000.0,108000.0,2026-06-05,0,LOW,暫緩補資料
 9157,陽光能源-DR,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,80555.0,111180.0,2026-06-05,0,LOW,暫緩補資料
 9188,精熙-DR,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,160000.0,848100.0,2026-06-05,0,LOW,暫緩補資料

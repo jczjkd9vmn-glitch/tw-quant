@@ -14,6 +14,8 @@ from sqlalchemy import Engine
 
 from tw_quant.config import load_config
 from tw_quant.data.database import create_db_engine, init_db, load_price_history
+from tw_quant.data.trading_calendar import filter_trading_days
+from tw_quant.risk.controls import detect_price_jumps
 
 
 REGIME_COLUMNS = [
@@ -67,13 +69,18 @@ def evaluate_market_regime(
         target = pd.to_datetime(trade_date, errors="coerce")
         if not pd.isna(target):
             frame = frame[frame["trade_date"] <= target].copy()
+    frame = filter_trading_days(frame)
     if frame.empty:
         return _result(None, 50.0, "EMPTY", "指定日期前沒有可用價量資料，市場環境採中性分數", reports_dir)
 
+    frame, price_quality_warning = _remove_price_quality_jumps(frame)
+    if frame.empty:
+        return _result(None, 50.0, "EMPTY", "排除非交易日或價格異常後無可用價量資料，市場環境採中性分數", reports_dir)
+
     latest_date = frame["trade_date"].max()
-    index_frame = _index_frame(frame)
+    index_frame = _official_index_frame(config_path, trade_date or latest_date)
     if not index_frame.empty:
-        result = _score_index_regime(index_frame, latest_date)
+        result = _score_official_index_regime(index_frame, latest_date)
         if result is not None:
             return _write_result(result, reports_dir)
 
@@ -83,19 +90,32 @@ def evaluate_market_regime(
     if not fallback_allowed:
         return _result(latest_date, 50.0, "EMPTY", "缺少指數資料且未啟用全市場 fallback", reports_dir)
     result = _score_equal_weight_regime(frame, latest_date)
+    if price_quality_warning:
+        frame_out = result.frame.copy() if result.frame is not None else pd.DataFrame()
+        warning = _join_warning(result.warning, price_quality_warning)
+        if not frame_out.empty and "warning" in frame_out.columns:
+            frame_out.loc[:, "warning"] = warning
+        result = MarketRegimeResult(
+            result.trade_date,
+            result.market_regime_score,
+            result.source,
+            warning=warning,
+            frame=frame_out,
+        )
     return _write_result(result, reports_dir)
 
 
-def _score_index_regime(frame: pd.DataFrame, latest_date: pd.Timestamp) -> MarketRegimeResult | None:
+def _score_official_index_regime(frame: pd.DataFrame, latest_date: pd.Timestamp) -> MarketRegimeResult | None:
     rows = []
-    for market_name, keywords in {
-        "twse": ["加權", "TAIEX", "TWII", "發行量加權"],
-        "tpex": ["櫃買", "OTC", "TPEX"],
+    for market_name, index_ids in {
+        "twse": ["TAIEX_TR", "TAIEX"],
+        "tpex": ["TPEx", "TPEX"],
     }.items():
-        subset = frame[
-            frame["symbol"].astype(str).str.contains("|".join(keywords), case=False, na=False)
-            | frame["name"].astype(str).str.contains("|".join(keywords), case=False, na=False)
-        ].copy()
+        subset = pd.DataFrame()
+        for index_id in index_ids:
+            subset = frame[frame["index_id"].astype(str).str.strip() == index_id].copy()
+            if not subset.empty:
+                break
         if subset.empty:
             continue
         subset = subset.sort_values("trade_date").drop_duplicates("trade_date", keep="last")
@@ -128,7 +148,7 @@ def _score_index_regime(frame: pd.DataFrame, latest_date: pd.Timestamp) -> Marke
             {
                 "trade_date": latest_date.strftime("%Y-%m-%d"),
                 "market_regime_score": score,
-                "source": "index",
+                "source": "official_index",
                 "twse_above_20ma": twse.get("above20"),
                 "twse_above_60ma": twse.get("above60"),
                 "tpex_above_20ma": tpex.get("above20"),
@@ -137,12 +157,13 @@ def _score_index_regime(frame: pd.DataFrame, latest_date: pd.Timestamp) -> Marke
                 "market_return_20d": _mean([row["return20"] for row in rows]),
                 "market_above_20ma_ratio": "",
                 "market_above_60ma_ratio": "",
-                "warning": "",
+                "warning": _official_index_warning(frame),
             }
         ],
         columns=REGIME_COLUMNS,
     )
-    return MarketRegimeResult(latest_date, score, "index", warning="", frame=output)
+    warning = str(output.iloc[0].get("warning", "") or "")
+    return MarketRegimeResult(latest_date, score, "official_index", warning=warning, frame=output)
 
 
 def _score_equal_weight_regime(frame: pd.DataFrame, latest_date: pd.Timestamp) -> MarketRegimeResult:
@@ -160,25 +181,28 @@ def _score_equal_weight_regime(frame: pd.DataFrame, latest_date: pd.Timestamp) -
         metrics.append(
             {
                 "return5": _period_return(close, 5),
-                "return20": _period_return(close, 20),
-                "above20": bool(len(close) >= 20 and latest_close >= close.rolling(20).mean().iloc[-1]),
-                "above60": bool(len(close) >= 60 and latest_close >= close.rolling(60).mean().iloc[-1]),
+                "return20": _period_return(close, 20) if len(close) > 20 else None,
+                "above20": bool(latest_close >= close.rolling(20).mean().iloc[-1]) if len(close) >= 20 else None,
+                "above60": bool(latest_close >= close.rolling(60).mean().iloc[-1]) if len(close) >= 60 else None,
             }
         )
     if not metrics:
         return _result(latest_date, 50.0, "equal_weight_market", "價量資料不足，市場環境採中性分數", None)
 
     market_return_5d = _mean([row["return5"] for row in metrics])
-    market_return_20d = _mean([row["return20"] for row in metrics])
-    above20 = _mean([1.0 if row["above20"] else 0.0 for row in metrics])
-    above60 = _mean([1.0 if row["above60"] else 0.0 for row in metrics])
+    market_return_20d = _mean_optional([row["return20"] for row in metrics if row["return20"] is not None])
+    above20 = _mean_optional([1.0 if row["above20"] else 0.0 for row in metrics if row["above20"] is not None])
+    above60 = _mean_optional([1.0 if row["above60"] else 0.0 for row in metrics if row["above60"] is not None])
     score = 50.0
     score += 15 if market_return_5d > 0 else -10
-    score += 20 if market_return_20d > 0 else -15
-    score += 12 if above20 >= 0.55 else -12 if above20 < 0.45 else 0
-    score += 10 if above60 >= 0.55 else -10 if above60 < 0.45 else 0
+    if market_return_20d is not None:
+        score += 20 if market_return_20d > 0 else -15
+    if above20 is not None:
+        score += 12 if above20 >= 0.55 else -12 if above20 < 0.45 else 0
+    if above60 is not None:
+        score += 10 if above60 >= 0.55 else -10 if above60 < 0.45 else 0
     score = _bound(score)
-    warning = "缺少加權 / 櫃買指數資料，使用全市場等權報酬 fallback"
+    warning = "缺少正式加權 / 櫃買指數資料，未使用正式大盤指數，使用全市場等權報酬 fallback"
     output = pd.DataFrame(
         [
             {
@@ -190,9 +214,9 @@ def _score_equal_weight_regime(frame: pd.DataFrame, latest_date: pd.Timestamp) -
                 "tpex_above_20ma": "",
                 "tpex_above_60ma": "",
                 "market_return_5d": market_return_5d,
-                "market_return_20d": market_return_20d,
-                "market_above_20ma_ratio": above20,
-                "market_above_60ma_ratio": above60,
+                "market_return_20d": "" if market_return_20d is None else market_return_20d,
+                "market_above_20ma_ratio": "" if above20 is None else above20,
+                "market_above_60ma_ratio": "" if above60 is None else above60,
                 "warning": warning,
             }
         ],
@@ -201,12 +225,76 @@ def _score_equal_weight_regime(frame: pd.DataFrame, latest_date: pd.Timestamp) -
     return MarketRegimeResult(latest_date, score, "equal_weight_market", warning=warning, frame=output)
 
 
-def _index_frame(frame: pd.DataFrame) -> pd.DataFrame:
-    if frame.empty:
-        return frame
-    text = frame["symbol"].astype(str) + " " + frame["name"].astype(str)
-    mask = text.str.contains("加權|櫃買|TAIEX|TWII|TPEX|OTC|發行量加權", case=False, na=False)
-    return frame[mask].copy()
+def _official_index_frame(config_path: str | Path, trade_date: str | pd.Timestamp | None) -> pd.DataFrame:
+    for path in _market_index_paths(config_path):
+        frame = _read_market_indices(path)
+        if frame.empty:
+            continue
+        target = pd.to_datetime(trade_date, errors="coerce")
+        if not pd.isna(target):
+            frame = frame[frame["trade_date"] <= target].copy()
+        if not frame.empty:
+            return frame
+    return pd.DataFrame()
+
+
+def _market_index_paths(config_path: str | Path) -> list[Path]:
+    root = Path(config_path).resolve().parent
+    return [root / "data" / "market_indices.csv", Path("data") / "market_indices.csv"]
+
+
+def _read_market_indices(path: Path) -> pd.DataFrame:
+    if not path.exists():
+        return pd.DataFrame()
+    try:
+        frame = pd.read_csv(path, encoding="utf-8-sig", dtype={"index_id": str})
+    except Exception:
+        return pd.DataFrame()
+    required = {"trade_date", "index_id", "close"}
+    if frame.empty or not required.issubset(frame.columns):
+        return pd.DataFrame()
+    frame = frame.copy()
+    frame["trade_date"] = pd.to_datetime(frame["trade_date"], errors="coerce")
+    frame["index_id"] = frame["index_id"].astype(str).str.strip()
+    frame = frame[frame["index_id"].isin({"TAIEX_TR", "TAIEX", "TPEx", "TPEX"})].copy()
+    if "is_official" in frame.columns:
+        frame = frame[frame["is_official"].apply(_truthy)].copy()
+    frame = filter_trading_days(frame)
+    return frame.dropna(subset=["trade_date"])
+
+
+def _remove_price_quality_jumps(frame: pd.DataFrame) -> tuple[pd.DataFrame, str]:
+    if frame.empty or not {"trade_date", "symbol", "close"}.issubset(frame.columns):
+        return frame, ""
+    jumps = detect_price_jumps(frame[["trade_date", "symbol", "close"]], max_abs_daily_return=0.50)
+    if jumps.empty:
+        return frame, ""
+    keys = set(zip(jumps["symbol"].astype(str), jumps["trade_date"].astype(str)))
+    output = frame.copy()
+    output["_jump_key"] = list(zip(output["symbol"].astype(str), output["trade_date"].dt.strftime("%Y-%m-%d")))
+    output = output[~output["_jump_key"].isin(keys)].drop(columns=["_jump_key"])
+    return output, f"排除 {len(jumps)} 筆跨日價格跳動異常資料"
+
+
+def _official_index_warning(frame: pd.DataFrame) -> str:
+    ids = set(frame.get("index_id", pd.Series(dtype=str)).astype(str).str.strip())
+    if "TAIEX_TR" in ids:
+        return ""
+    if "TAIEX" in ids:
+        return "使用正式 TAIEX 價格指數，非 total return；alpha 需保守解讀。"
+    return ""
+
+
+def _join_warning(*parts: str) -> str:
+    return "；".join(part for part in dict.fromkeys(str(item).strip() for item in parts if str(item or "").strip()))
+
+
+def _truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    return str(value).strip().lower() in {"true", "1", "yes", "y", "是"}
 
 
 def _write_result(result: MarketRegimeResult, reports_dir: str | Path | None) -> MarketRegimeResult:
@@ -257,6 +345,11 @@ def _period_return(close: pd.Series, days: int) -> float:
 def _mean(values: list[float]) -> float:
     clean = [float(value) for value in values if pd.notna(value)]
     return round(sum(clean) / len(clean), 6) if clean else 0.0
+
+
+def _mean_optional(values: list[float]) -> float | None:
+    clean = [float(value) for value in values if pd.notna(value)]
+    return round(sum(clean) / len(clean), 6) if clean else None
 
 
 def _bound(value: float) -> float:

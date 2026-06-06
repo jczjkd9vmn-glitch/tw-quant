@@ -52,6 +52,9 @@ def select_benchmark_snapshot(
             if not quality_warning:
                 return {
                     "source_label": "0050 fallback",
+                    "benchmark_is_official": False,
+                    "fallback_reason": "missing_official_market_index",
+                    "can_judge_alpha": False,
                     "warning": f"{fallback_warning} benchmark fallback 使用 0050。",
                     "returns": returns,
                     "status": "OK_WITH_WARNING",
@@ -71,6 +74,9 @@ def select_benchmark_snapshot(
                 if not quality_warning:
                     return {
                         "source_label": "全市場等權 fallback",
+                        "benchmark_is_official": False,
+                        "fallback_reason": "missing_official_market_index",
+                        "can_judge_alpha": False,
                         "warning": f"{fallback_warning} benchmark fallback 使用全市場等權報酬。",
                         "returns": returns,
                         "status": "OK_WITH_WARNING",
@@ -79,6 +85,9 @@ def select_benchmark_snapshot(
 
     return {
         "source_label": "benchmark 資料不足",
+        "benchmark_is_official": False,
+        "fallback_reason": "missing_official_market_index_and_fallback",
+        "can_judge_alpha": False,
         "warning": f"{fallback_warning} 缺少可信 0050 或全市場等權 fallback，無法計算 benchmark alpha。",
         "returns": {"1d": None, "5d": None, "20d": None, "total": None},
         "status": "DATA_INSUFFICIENT",
@@ -97,6 +106,9 @@ def benchmark_return_for_window(
         "return": _benchmark_value_for_window(returns, window),
         "window": window,
         "source": snapshot.get("source_label", "benchmark 資料不足"),
+        "benchmark_is_official": bool(snapshot.get("benchmark_is_official", False)),
+        "fallback_reason": snapshot.get("fallback_reason", ""),
+        "can_judge_alpha": bool(snapshot.get("can_judge_alpha", False)),
         "warning": snapshot.get("warning", ""),
         "status": snapshot.get("status", "DATA_INSUFFICIENT"),
     }
@@ -144,6 +156,9 @@ def _official_index_snapshot(report_dir: Path, selected_date: pd.Timestamp | Non
             warning = "使用正式 TAIEX 價格指數，非 total return；alpha 需保守解讀。"
         return {
             "source_label": source_label,
+            "benchmark_is_official": True,
+            "fallback_reason": "",
+            "can_judge_alpha": True,
             "warning": warning,
             "returns": returns,
             "status": "OK_WITH_WARNING" if warning else "OK",

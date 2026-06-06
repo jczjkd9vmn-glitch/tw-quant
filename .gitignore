@@ -13,6 +13,8 @@ logs/*
 reports/cache/
 data/cache/anysearch/*
 !data/cache/anysearch/.gitkeep
+data/backups/*
+!data/backups/.gitkeep
 
 # Streamlit runtime logs
 streamlit*.log

@@ -40,6 +40,9 @@ PERFORMANCE_DIAGNOSTICS_COLUMNS = [
     "benchmark_window",
     "alpha",
     "benchmark_source",
+    "benchmark_is_official",
+    "fallback_reason",
+    "can_judge_alpha",
     "benchmark_warning",
     "status",
     "data_quality_warning",
@@ -152,6 +155,7 @@ def _performance_row(
     worst_day, worst_day_return = _extreme_day(frame, returns, "min")
     profit_factor = _profit_factor(returns)
     benchmark_return = _num(benchmark.get("return"))
+    can_judge_alpha = bool(benchmark.get("can_judge_alpha", False))
     alpha = _sub_or_none(cumulative_return, benchmark_return)
 
     warnings: list[str] = []
@@ -159,6 +163,8 @@ def _performance_row(
         warnings.append("DATA_INSUFFICIENT: daily_return_count < 5")
     if benchmark.get("warning"):
         warnings.append(str(benchmark["warning"]))
+    if not can_judge_alpha:
+        warnings.append("NO_OFFICIAL_BENCHMARK: can_judge_alpha=false")
     if benchmark_return is None:
         warnings.append("DATA_INSUFFICIENT: benchmark_return unavailable")
 
@@ -189,6 +195,9 @@ def _performance_row(
         "benchmark_window": benchmark.get("window", ""),
         "alpha": _round(alpha),
         "benchmark_source": benchmark.get("source", "benchmark 資料不足"),
+        "benchmark_is_official": bool(benchmark.get("benchmark_is_official", False)),
+        "fallback_reason": benchmark.get("fallback_reason", ""),
+        "can_judge_alpha": can_judge_alpha,
         "benchmark_warning": benchmark.get("warning", ""),
         "status": status,
         "data_quality_warning": "; ".join(dict.fromkeys(warnings)),

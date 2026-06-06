@@ -249,6 +249,9 @@ COLUMN_LABELS = {
     "win_rate_vs_benchmark": "相對 Benchmark 勝率",
     "max_drawdown": "最大回撤",
     "benchmark_source": "Benchmark 來源",
+    "benchmark_is_official": "Benchmark 是否官方",
+    "fallback_reason": "Fallback 原因",
+    "can_judge_alpha": "can_judge_alpha",
     "benchmark_warning": "Benchmark 警告",
     "source": "資料來源",
     "observation_start": "觀察起日",
@@ -2396,7 +2399,8 @@ def _benchmark_alpha_section(
     system_headline = system_returns.get(headline_window)
     benchmark_headline = benchmark["returns"].get(headline_window)
     alpha = _alpha_return(system_headline, benchmark_headline)
-    beat_text = _beat_market_text(alpha)
+    can_judge_alpha = bool(benchmark.get("can_judge_alpha", False))
+    beat_text = _beat_market_text(alpha, can_judge_alpha=can_judge_alpha)
     alpha_text = _return_text(alpha)
     warning = ""
     if benchmark["warning"]:
@@ -2410,7 +2414,13 @@ def _benchmark_alpha_section(
         ("近 20 日", system_returns.get("20d"), benchmark["returns"].get("20d")),
         ("累計", system_returns.get("total"), benchmark["returns"].get("total")),
     ]
-    detail_table = _benchmark_detail_table(detail_rows)
+    detail_table = _benchmark_detail_table(detail_rows, can_judge_alpha=can_judge_alpha)
+    benchmark_meta = (
+        f"benchmark_source={escape(str(benchmark['source_label']))}；"
+        f"benchmark_is_official={str(bool(benchmark.get('benchmark_is_official', False))).lower()}；"
+        f"fallback_reason={escape(str(benchmark.get('fallback_reason', '') or '-'))}；"
+        f"can_judge_alpha={str(can_judge_alpha).lower()}"
+    )
     content = (
         '<div class="benchmark-summary-grid">'
         + _benchmark_card("打敗大盤", beat_text, headline_window)
@@ -2418,6 +2428,7 @@ def _benchmark_alpha_section(
         + _benchmark_card("本系統總資產報酬率", _return_text(system_returns.get("total")), "相對初始資金")
         + _benchmark_card("Benchmark 報酬率", _return_text(benchmark_headline), str(benchmark["source_label"]))
         + "</div>"
+        + f'<p class="note">{benchmark_meta}</p>'
         + warning
         + _details_block("大盤比較詳細數據", detail_table)
     )
@@ -2430,6 +2441,7 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
     drawdown = _to_float(row.get("max_drawdown"))
     sharpe = _to_float(row.get("sharpe_like_ratio"))
     alpha = _to_float(row.get("alpha"))
+    can_judge_alpha = _truthy(row.get("can_judge_alpha")) if row else False
     warning = _format_cell("data_quality_warning", row.get("data_quality_warning")) if row else "目前尚無 performance diagnostics"
     benchmark_warning = _format_cell("benchmark_warning", row.get("benchmark_warning")) if row else "-"
     status = _format_cell("status", row.get("status")) if row else "資料不足"
@@ -2465,13 +2477,15 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
         ),
         _kpi_card(
             "Alpha",
-            escape(_return_text(alpha)),
+            escape(_return_text(alpha) if can_judge_alpha else "不可正式判定"),
             [
                 ("Benchmark", _format_cell("benchmark_source", row.get("benchmark_source")) if row else "-"),
+                ("benchmark_is_official", _format_cell("benchmark_is_official", row.get("benchmark_is_official")) if row else "false"),
+                ("can_judge_alpha", _format_cell("can_judge_alpha", row.get("can_judge_alpha")) if row else "false"),
                 ("視窗", _format_cell("benchmark_window", row.get("benchmark_window")) if row else "-"),
                 ("Benchmark 報酬", _format_cell("benchmark_return", row.get("benchmark_return")) if row else "-"),
             ],
-            tone="ok" if alpha is not None and alpha >= 0 else "warning",
+            tone="ok" if can_judge_alpha and alpha is not None and alpha >= 0 else "warning",
         ),
     ]
 
@@ -2506,6 +2520,9 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
             "benchmark_window",
             "alpha",
             "benchmark_source",
+            "benchmark_is_official",
+            "fallback_reason",
+            "can_judge_alpha",
             "benchmark_warning",
             "status",
             "data_quality_warning",
@@ -2533,7 +2550,8 @@ def _strategy_diagnostics_section(
 ) -> str:
     benchmark_row = benchmark_diagnostics.iloc[0].to_dict() if not benchmark_diagnostics.empty else {}
     headline_alpha = _first_numeric_from_row(benchmark_row, ["alpha", "alpha_5d", "alpha_20d", "alpha_1d"])
-    beat_benchmark = "資料不足" if headline_alpha is None else ("是" if headline_alpha >= 0 else "否")
+    can_judge_alpha = _truthy(benchmark_row.get("can_judge_alpha")) if benchmark_row else False
+    beat_benchmark = _beat_market_text(headline_alpha, can_judge_alpha=can_judge_alpha)
     sample_sufficiency = _diagnostic_sample_sufficiency(factor_summary)
     guardrail_stance = _guardrail_stance(guardrail_impact)
     best_factors = _factor_rank_text(factor_summary, best=True)
@@ -2548,8 +2566,9 @@ def _strategy_diagnostics_section(
             [
                 ("目前 Alpha", _return_text(headline_alpha)),
                 ("Benchmark 來源", benchmark_source),
+                ("can_judge_alpha", str(can_judge_alpha).lower()),
             ],
-            tone="ok" if headline_alpha is not None and headline_alpha >= 0 else "warning",
+            tone="ok" if can_judge_alpha and headline_alpha is not None and headline_alpha >= 0 else "warning",
         ),
         _kpi_card(
             "最有效因子前 3 名",
@@ -2626,6 +2645,9 @@ def _strategy_diagnostics_section(
             "win_rate_vs_benchmark",
             "max_drawdown",
             "benchmark_source",
+            "benchmark_is_official",
+            "fallback_reason",
+            "can_judge_alpha",
             "benchmark_warning",
             "data_quality_warning",
             "notes",
@@ -2756,6 +2778,9 @@ def _benchmark_snapshot(report_dir: Path, summary: dict[str, object]) -> dict[st
         warning = f"{warning} 不能假裝是正式大盤指數。".strip()
     return {
         "source_label": snapshot.get("source_label", "benchmark 資料不足"),
+        "benchmark_is_official": bool(snapshot.get("benchmark_is_official", False)),
+        "fallback_reason": snapshot.get("fallback_reason", ""),
+        "can_judge_alpha": bool(snapshot.get("can_judge_alpha", False)),
         "warning": warning,
         "returns": snapshot.get("returns", {"1d": None, "5d": None, "20d": None, "total": None}),
     }
@@ -2810,7 +2835,9 @@ def _alpha_return(system_return: float | None, benchmark_return: float | None) -
     return system_return - benchmark_return
 
 
-def _beat_market_text(alpha: float | None) -> str:
+def _beat_market_text(alpha: float | None, *, can_judge_alpha: bool = True) -> str:
+    if not can_judge_alpha:
+        return "不可判定"
     if alpha is None:
         return "資料不足"
     return "是" if alpha >= 0 else "否"
@@ -2827,7 +2854,7 @@ def _benchmark_card(label: str, value: str, note: str, raw_value: float | None =
     )
 
 
-def _benchmark_detail_table(rows: list[tuple[str, float | None, float | None]]) -> str:
+def _benchmark_detail_table(rows: list[tuple[str, float | None, float | None]], *, can_judge_alpha: bool = True) -> str:
     body = []
     for label, system_value, benchmark_value in rows:
         alpha = _alpha_return(system_value, benchmark_value)
@@ -2837,7 +2864,7 @@ def _benchmark_detail_table(rows: list[tuple[str, float | None, float | None]]) 
             f"<td>{escape(_return_text(system_value))}</td>"
             f"<td>{escape(_return_text(benchmark_value))}</td>"
             f'<td class="{_profit_class(alpha)}">{escape(_return_text(alpha))}</td>'
-            f"<td>{escape(_beat_market_text(alpha))}</td>"
+            f"<td>{escape(_beat_market_text(alpha, can_judge_alpha=can_judge_alpha))}</td>"
             "</tr>"
         )
     return (

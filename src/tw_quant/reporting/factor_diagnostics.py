@@ -73,6 +73,9 @@ BENCHMARK_DIAGNOSTICS_COLUMNS = [
     "win_rate_vs_benchmark",
     "max_drawdown",
     "benchmark_source",
+    "benchmark_is_official",
+    "fallback_reason",
+    "can_judge_alpha",
     "benchmark_warning",
     "data_quality_warning",
     "notes",
@@ -381,6 +384,7 @@ def _benchmark_diagnostics(
     summary = paper_summary.iloc[0].to_dict() if not paper_summary.empty else {}
     system_returns = _system_return_snapshot(summary, recent_summaries)
     benchmark_returns = benchmark.get("returns", {}) if isinstance(benchmark.get("returns"), dict) else {}
+    can_judge_alpha = bool(benchmark.get("can_judge_alpha", False))
     alpha_1d = _sub_or_none(system_returns.get("1d"), benchmark_returns.get("1d"))
     alpha_5d = _sub_or_none(system_returns.get("5d"), benchmark_returns.get("5d"))
     alpha_20d = _sub_or_none(system_returns.get("20d"), benchmark_returns.get("20d"))
@@ -389,6 +393,8 @@ def _benchmark_diagnostics(
     warning_parts = []
     if benchmark.get("warning"):
         warning_parts.append(str(benchmark.get("warning")))
+    if not can_judge_alpha:
+        warning_parts.append("NO_OFFICIAL_BENCHMARK: can_judge_alpha=false")
     if not available_alpha and cumulative_alpha is None:
         warning_parts.append("DATA_INSUFFICIENT: benchmark 或系統報酬資料不足")
     row = {
@@ -404,6 +410,9 @@ def _benchmark_diagnostics(
         else None,
         "max_drawdown": _max_drawdown(recent_summaries),
         "benchmark_source": benchmark.get("source_label", "benchmark 資料不足"),
+        "benchmark_is_official": bool(benchmark.get("benchmark_is_official", False)),
+        "fallback_reason": benchmark.get("fallback_reason", ""),
+        "can_judge_alpha": can_judge_alpha,
         "benchmark_warning": benchmark.get("warning", ""),
         "data_quality_warning": "DATA_INSUFFICIENT" if warning_parts else "",
         "notes": "；".join(warning_parts),

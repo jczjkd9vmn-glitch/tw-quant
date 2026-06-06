@@ -30,6 +30,7 @@ DATA_QUALITY_HEALTH_COLUMNS = [
     "source_name",
     "status",
     "fallback_action",
+    "issue_type",
 ]
 
 
@@ -170,6 +171,7 @@ def _row(
     affected_rows: int | None = None,
     affected_symbols: str = "",
     recommendation: str = "",
+    issue_type: str = "",
 ) -> dict[str, object]:
     severity_value = severity or _severity_from_health_status(health_status)
     message = review_reason
@@ -193,13 +195,16 @@ def _row(
         "source_name": source_name,
         "status": status,
         "fallback_action": fallback_action,
+        "issue_type": issue_type,
     }
 
 
 def _system_health_rows(report_dir: Path) -> list[dict[str, object]]:
     rows: list[dict[str, object]] = []
     price_frame = _load_daily_prices(report_dir)
+    quarantine_frame = _load_quarantined_prices(report_dir)
     rows.extend(_price_health_rows(price_frame))
+    rows.extend(_quarantine_health_rows(quarantine_frame))
     rows.extend(_benchmark_health_rows(report_dir))
     rows.append(_official_index_health_row(report_dir))
     return rows
@@ -243,6 +248,7 @@ def _price_health_rows(frame: pd.DataFrame) -> list[dict[str, object]]:
             affected_symbols=_symbol_preview(weekend),
             status="DATA_QUALITY_WARNING" if not weekend.empty else "OK",
             recommendation="後續 backfill/pipeline 應跳過非交易日；舊資料暫不刪除但不可用於 benchmark。",
+            issue_type=_price_issue_type(weekend, prices),
         )
     )
 
@@ -261,6 +267,7 @@ def _price_health_rows(frame: pd.DataFrame) -> list[dict[str, object]]:
             affected_symbols=_symbol_preview(duplicates),
             status="DATA_QUALITY_WARNING" if not duplicates.empty else "OK",
             recommendation="重複資料應人工確認來源，不可靜默覆蓋 benchmark。",
+            issue_type=_price_issue_type(duplicates, prices),
         )
     )
 
@@ -280,6 +287,7 @@ def _price_health_rows(frame: pd.DataFrame) -> list[dict[str, object]]:
             affected_symbols=_symbol_preview(non_positive),
             status="DATA_QUALITY_WARNING" if not non_positive.empty else "OK",
             recommendation="非正 OHLC 不可進入候選評分、market regime 或 benchmark。",
+            issue_type=_price_issue_type(non_positive, prices),
         )
     )
 
@@ -303,6 +311,7 @@ def _price_health_rows(frame: pd.DataFrame) -> list[dict[str, object]]:
             affected_symbols=_symbol_preview(invalid_high_low),
             status="DATA_QUALITY_WARNING" if not invalid_high_low.empty else "OK",
             recommendation="high/low 異常資料不可用於正式診斷。",
+            issue_type=_price_issue_type(invalid_high_low, prices),
         )
     )
 
@@ -321,6 +330,7 @@ def _price_health_rows(frame: pd.DataFrame) -> list[dict[str, object]]:
             affected_symbols=_symbol_preview(negative_volume),
             status="DATA_QUALITY_WARNING" if not negative_volume.empty else "OK",
             recommendation="負成交量應回查資料來源。",
+            issue_type=_price_issue_type(negative_volume, prices),
         )
     )
 
@@ -339,9 +349,38 @@ def _price_health_rows(frame: pd.DataFrame) -> list[dict[str, object]]:
             affected_symbols=_symbol_preview(jumps),
             status="DATA_QUALITY_WARNING" if not jumps.empty else "OK",
             recommendation="跳價可能來自錯價、減資、分割或 ETF 反分割，需人工確認再作正式解讀。",
+            issue_type=_price_issue_type(jumps, prices),
         )
     )
     return output
+
+
+def _quarantine_health_rows(frame: pd.DataFrame) -> list[dict[str, object]]:
+    if frame.empty:
+        return []
+    reason_column = "quarantine_reason" if "quarantine_reason" in frame.columns else ""
+    reasons = ""
+    if reason_column:
+        values = frame[reason_column].fillna("").astype(str).str.strip()
+        reasons = "；".join(value for value in dict.fromkeys(values.tolist()) if value)[:240]
+    return [
+        _row(
+            "daily_prices quarantine",
+            "price_data",
+            "OK_WITH_WARNING",
+            "DATA_REVIEW",
+            f"{len(frame)} 筆歷史污染價量資料已移入 quarantine，不再用於 active benchmark / market regime。",
+            data_issue=True,
+            rows=len(frame),
+            affected_rows=len(frame),
+            affected_symbols_count=_symbol_count(frame),
+            affected_symbols=_symbol_preview(frame),
+            status="REPAIRED_OR_QUARANTINED",
+            recommendation="保留 quarantine 與 SQLite 備份；確認無誤後才考慮後續資料重建。",
+            issue_type="repaired_or_quarantined",
+            fallback_action=reasons,
+        )
+    ]
 
 
 def _benchmark_health_rows(report_dir: Path) -> list[dict[str, object]]:
@@ -365,15 +404,16 @@ def _benchmark_health_rows(report_dir: Path) -> list[dict[str, object]]:
     row = frame.iloc[0]
     source = str(row.get("benchmark_source", "") or "").strip()
     warning = str(row.get("benchmark_warning", "") or row.get("data_quality_warning", "") or "").strip()
+    can_judge_alpha = _truthy(row.get("can_judge_alpha", False))
     missing = source == "" or "資料不足" in source
-    fallback = "fallback" in source.lower()
+    fallback = "fallback" in source.lower() or not can_judge_alpha
     return [
         _row(
             "benchmark source",
             "benchmark",
             "WARNING" if missing else "ATTENTION" if fallback or warning else "OK",
             "DATA_REVIEW" if missing or fallback or warning else "OK",
-            warning or (f"benchmark 使用 {source}" if source else "benchmark source 不足"),
+            warning or (f"benchmark 使用 {source}；can_judge_alpha={str(can_judge_alpha).lower()}" if source else "benchmark source 不足"),
             data_issue=missing or bool(fallback or warning),
             rows=len(frame),
             affected_rows=1 if missing or fallback or warning else 0,
@@ -431,6 +471,40 @@ def _load_daily_prices(report_dir: Path) -> pd.DataFrame:
         except Exception:
             continue
     return pd.DataFrame()
+
+
+def _load_quarantined_prices(report_dir: Path) -> pd.DataFrame:
+    for path in [report_dir.parent / "data" / "tw_quant.sqlite", Path("data") / "tw_quant.sqlite"]:
+        if not path.exists():
+            continue
+        try:
+            with sqlite3.connect(path) as conn:
+                tables = pd.read_sql_query(
+                    "select name from sqlite_master where type='table' and name='daily_prices_quarantine'",
+                    conn,
+                )
+                if tables.empty:
+                    continue
+                return pd.read_sql_query("select * from daily_prices_quarantine", conn)
+        except Exception:
+            continue
+    return pd.DataFrame()
+
+
+def _price_issue_type(issue_frame: pd.DataFrame, all_prices: pd.DataFrame) -> str:
+    if issue_frame.empty:
+        return ""
+    latest = _date_series(all_prices, "trade_date")
+    issue_dates = _date_series(issue_frame, "trade_date")
+    if latest.empty or issue_dates.empty:
+        return "legacy_contamination"
+    return "active_pipeline_error" if issue_dates.max() >= latest.max() else "legacy_contamination"
+
+
+def _date_series(frame: pd.DataFrame, column: str) -> pd.Series:
+    if frame.empty or column not in frame.columns:
+        return pd.Series(dtype="datetime64[ns]")
+    return pd.to_datetime(frame[column], errors="coerce").dropna()
 
 
 def _latest_report(report_dir: Path, pattern: str) -> pd.DataFrame:

@@ -19,6 +19,7 @@ from tw_quant.config import load_config
 from tw_quant.reporting.position_review import generate_position_review_summary
 from tw_quant.reporting.data_quality import write_data_quality_health
 from tw_quant.reporting.benchmark import select_benchmark_snapshot
+from tw_quant.reporting.risk_adjusted_alpha import risk_adjusted_alpha_snapshot
 from tw_quant.reporting.strategy_readiness import strategy_can_judge_window, strategy_readiness_snapshot
 
 
@@ -228,6 +229,9 @@ COLUMN_LABELS = {
     "benchmark_return_1d": "Benchmark 1 日報酬",
     "benchmark_return_5d": "Benchmark 5 日報酬",
     "benchmark_return_20d": "Benchmark 20 日報酬",
+    "benchmark_return_60d": "Benchmark 60 日報酬",
+    "benchmark_return_120d": "Benchmark 120 日報酬",
+    "benchmark_return_252d": "Benchmark 252 日報酬",
     "alpha_1d": "1 日 Alpha",
     "alpha_5d": "5 日 Alpha",
     "alpha_20d": "20 日 Alpha",
@@ -263,6 +267,27 @@ COLUMN_LABELS = {
     "can_judge_strategy_alpha_120d": "策略樣本可判斷 120 日 Alpha",
     "can_judge_strategy_alpha_252d": "策略樣本可判斷 252 日 Alpha",
     "conclusion_status": "Alpha 結論狀態",
+    "primary_alpha_window": "主要 Alpha 視窗",
+    "strategy_return_5d": "策略 5 日報酬",
+    "benchmark_return_5d": "Benchmark 5 日報酬",
+    "excess_return_5d": "5 日 Excess return",
+    "strategy_return_20d": "策略 20 日報酬",
+    "excess_return_20d": "20 日 Excess return",
+    "strategy_return_60d": "策略 60 日報酬",
+    "excess_return_60d": "60 日 Excess return",
+    "strategy_return_120d": "策略 120 日報酬",
+    "excess_return_120d": "120 日 Excess return",
+    "strategy_return_252d": "策略 252 日報酬",
+    "excess_return_252d": "252 日 Excess return",
+    "excess_return": "Excess return",
+    "strategy_max_drawdown": "策略最大回撤",
+    "benchmark_max_drawdown": "Benchmark 最大回撤",
+    "drawdown_ratio": "回撤比率",
+    "strategy_volatility": "策略波動",
+    "benchmark_volatility": "Benchmark 波動",
+    "volatility_ratio": "波動比率",
+    "risk_adjusted_alpha_status": "風險調整 Alpha 狀態",
+    "conclusion_reason": "結論原因",
     "benchmark_warning": "Benchmark 警告",
     "source": "資料來源",
     "observation_start": "觀察起日",
@@ -889,6 +914,29 @@ AMOUNT_COLUMNS.update({"fund_size"})
 PNL_COLUMNS.update({"total_realized_pnl_after_cost", "avg_realized_pnl_after_cost"})
 INTEGER_COLUMNS.update({"stock_count", "trade_count", "total_stock_count", "total_trade_count", "rejected_count", "missed_winner_count", "avoided_loser_count", "observation_count", "daily_return_count"})
 PERCENT_COLUMNS.update({"expense_ratio", "discount_premium"})
+PERCENT_COLUMNS.update(
+    {
+        "strategy_return_5d",
+        "benchmark_return_5d",
+        "excess_return_5d",
+        "strategy_return_20d",
+        "excess_return_20d",
+        "strategy_return_60d",
+        "benchmark_return_60d",
+        "excess_return_60d",
+        "strategy_return_120d",
+        "benchmark_return_120d",
+        "excess_return_120d",
+        "strategy_return_252d",
+        "benchmark_return_252d",
+        "excess_return_252d",
+        "excess_return",
+        "strategy_max_drawdown",
+        "benchmark_max_drawdown",
+        "strategy_volatility",
+        "benchmark_volatility",
+    }
+)
 INTEGER_COLUMNS.update(
     {
         "latest_volume",
@@ -1307,6 +1355,7 @@ def _render_page(
                 anysearch_industry_candidates,
             ),
             _benchmark_alpha_section(report_dir, latest_summary, latest_paper_summary, recent_summaries),
+            _risk_adjusted_alpha_section(performance_diagnostics),
             _performance_diagnostics_section(performance_diagnostics),
             _strategy_diagnostics_section(
                 factor_attribution,
@@ -2418,7 +2467,8 @@ def _benchmark_alpha_section(
     history_days = int(benchmark.get("benchmark_history_days", 0) or 0)
     strategy_history_days = int(strategy_readiness.get("strategy_history_days", 0) or 0)
     valid_trade_count = int(strategy_readiness.get("valid_trade_count", 0) or 0)
-    conclusion_status = _alpha_conclusion_status(benchmark, strategy_readiness, headline_window)
+    risk_alpha = risk_adjusted_alpha_snapshot(report_dir, selected_date, readiness=strategy_readiness)
+    conclusion_status = str(risk_alpha.get("conclusion_status") or _alpha_conclusion_status(benchmark, strategy_readiness, headline_window))
     warning = ""
     if benchmark["warning"]:
         warning = (
@@ -2587,6 +2637,7 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
             "can_judge_strategy_alpha_120d",
             "can_judge_strategy_alpha_252d",
             "conclusion_status",
+            *_risk_adjusted_alpha_columns(),
             "benchmark_warning",
             "status",
             "data_quality_warning",
@@ -2604,6 +2655,77 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
         + _details_block("績效風險診斷明細", detail_table)
     )
     return _section("績效風險分析", content, section_id="performance-diagnostics", class_name="performance-diagnostics-section")
+
+
+def _risk_adjusted_alpha_section(performance_diagnostics: pd.DataFrame) -> str:
+    row = performance_diagnostics.iloc[0].to_dict() if not performance_diagnostics.empty else {}
+    conclusion_status = _format_cell("conclusion_status", row.get("conclusion_status")) if row else "DATA_INSUFFICIENT"
+    risk_status = _format_cell("risk_adjusted_alpha_status", row.get("risk_adjusted_alpha_status")) if row else "DATA_INSUFFICIENT"
+    primary_window = _format_cell("primary_alpha_window", row.get("primary_alpha_window")) if row else "-"
+    excess_return = _to_float(row.get("excess_return"))
+    strategy_return = _to_float(row.get(f"strategy_return_{primary_window}")) if primary_window and primary_window != "-" else None
+    benchmark_return = _to_float(row.get(f"benchmark_return_{primary_window}")) if primary_window and primary_window != "-" else None
+    conclusion_reason = _format_cell("conclusion_reason", row.get("conclusion_reason")) if row else "資料不足"
+    long_term_notice = ""
+    if conclusion_status != "OUTPERFORMING_CONFIRMED":
+        long_term_notice = (
+            '<p class="top-notice benchmark-warning"><strong>Alpha conclusion</strong>'
+            "<span>尚不可正式宣稱 AI 長期打敗大盤</span></p>"
+        )
+    cards = [
+        _kpi_card(
+            "Excess return",
+            escape(_return_text(excess_return)),
+            [
+                ("主要視窗", primary_window),
+                ("策略報酬", _return_text(strategy_return)),
+                ("Benchmark 報酬", _return_text(benchmark_return)),
+            ],
+            tone="ok" if excess_return is not None and excess_return > 0 else "warning",
+        ),
+        _kpi_card(
+            "回撤風險",
+            escape(_format_cell("drawdown_ratio", row.get("drawdown_ratio")) if row else "-"),
+            [
+                ("策略最大回撤", _format_cell("strategy_max_drawdown", row.get("strategy_max_drawdown")) if row else "-"),
+                ("Benchmark 最大回撤", _format_cell("benchmark_max_drawdown", row.get("benchmark_max_drawdown")) if row else "-"),
+            ],
+            tone="warning" if _to_float(row.get("drawdown_ratio")) and _to_float(row.get("drawdown_ratio")) > 1.2 else "info",
+        ),
+        _kpi_card(
+            "波動風險",
+            escape(_format_cell("volatility_ratio", row.get("volatility_ratio")) if row else "-"),
+            [
+                ("策略波動", _format_cell("strategy_volatility", row.get("strategy_volatility")) if row else "-"),
+                ("Benchmark 波動", _format_cell("benchmark_volatility", row.get("benchmark_volatility")) if row else "-"),
+            ],
+            tone="warning" if _to_float(row.get("volatility_ratio")) and _to_float(row.get("volatility_ratio")) > 1.2 else "info",
+        ),
+        _kpi_card(
+            "風險調整後結論",
+            escape(conclusion_status),
+            [
+                ("risk_adjusted_alpha_status", risk_status),
+                ("結論原因", conclusion_reason),
+            ],
+            tone="ok" if conclusion_status == "OUTPERFORMING_CONFIRMED" else "warning",
+        ),
+    ]
+    detail_table = _table(
+        performance_diagnostics,
+        _risk_adjusted_alpha_columns(),
+        "目前尚無風險調整後 Alpha 診斷資料",
+        max_rows=10,
+    )
+    content = (
+        '<div class="benchmark-summary-grid risk-adjusted-alpha-grid">'
+        + "".join(cards)
+        + "</div>"
+        + long_term_notice
+        + '<p class="note">此區為報表診斷，不修改正式買賣策略、出場規則或任何訂單；只有在長期樣本、交易筆數、excess return、回撤與波動都合格時，才可顯示 OUTPERFORMING_CONFIRMED。</p>'
+        + _details_block("風險調整後 Alpha 明細", detail_table)
+    )
+    return _section("風險調整後 Alpha", content, section_id="risk-adjusted-alpha", class_name="risk-adjusted-alpha-section")
 
 
 def _strategy_diagnostics_section(
@@ -2740,6 +2862,7 @@ def _strategy_diagnostics_section(
             "can_judge_strategy_alpha_120d",
             "can_judge_strategy_alpha_252d",
             "conclusion_status",
+            *_risk_adjusted_alpha_columns(),
             "benchmark_warning",
             "data_quality_warning",
             "notes",
@@ -2783,6 +2906,36 @@ def _first_numeric_from_row(row: dict[str, object], columns: list[str]) -> float
         if value is not None:
             return value
     return None
+
+
+def _risk_adjusted_alpha_columns() -> list[str]:
+    return [
+        "primary_alpha_window",
+        "strategy_return_5d",
+        "benchmark_return_5d",
+        "excess_return_5d",
+        "strategy_return_20d",
+        "benchmark_return_20d",
+        "excess_return_20d",
+        "strategy_return_60d",
+        "benchmark_return_60d",
+        "excess_return_60d",
+        "strategy_return_120d",
+        "benchmark_return_120d",
+        "excess_return_120d",
+        "strategy_return_252d",
+        "benchmark_return_252d",
+        "excess_return_252d",
+        "excess_return",
+        "strategy_max_drawdown",
+        "benchmark_max_drawdown",
+        "drawdown_ratio",
+        "strategy_volatility",
+        "benchmark_volatility",
+        "volatility_ratio",
+        "risk_adjusted_alpha_status",
+        "conclusion_reason",
+    ]
 
 
 def _diagnostic_sample_sufficiency(summary: pd.DataFrame) -> str:

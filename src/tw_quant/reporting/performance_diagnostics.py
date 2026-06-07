@@ -15,6 +15,7 @@ import re
 import pandas as pd
 
 from tw_quant.reporting.benchmark import benchmark_return_for_window
+from tw_quant.reporting.risk_adjusted_alpha import RISK_ADJUSTED_ALPHA_COLUMNS, risk_adjusted_alpha_snapshot
 from tw_quant.reporting.strategy_readiness import (
     STRATEGY_ALPHA_WINDOWS,
     strategy_can_judge_window,
@@ -65,6 +66,7 @@ PERFORMANCE_DIAGNOSTICS_COLUMNS = [
     "can_judge_strategy_alpha_120d",
     "can_judge_strategy_alpha_252d",
     "conclusion_status",
+    *[column for column in RISK_ADJUSTED_ALPHA_COLUMNS if column != "conclusion_status"],
     "benchmark_warning",
     "status",
     "data_quality_warning",
@@ -95,7 +97,8 @@ def generate_performance_diagnostics(
     equity_frame, source = _daily_equity_series(report_dir, selected_date)
     benchmark = benchmark_return_for_window(report_dir, selected_date, max(len(equity_frame) - 1, 0))
     readiness = strategy_readiness_snapshot(report_dir, selected_date, equity_frame=equity_frame)
-    row = _performance_row(equity_frame, source, selected_date, benchmark, readiness)
+    risk_alpha = risk_adjusted_alpha_snapshot(report_dir, selected_date, equity_frame=equity_frame, readiness=readiness)
+    row = _performance_row(equity_frame, source, selected_date, benchmark, readiness, risk_alpha)
     frame = pd.DataFrame([row], columns=PERFORMANCE_DIAGNOSTICS_COLUMNS)
     output_path = report_dir / f"performance_diagnostics_{date_label}.csv"
     frame.to_csv(output_path, index=False, encoding="utf-8-sig")
@@ -161,6 +164,7 @@ def _performance_row(
     selected_date: pd.Timestamp | None,
     benchmark: dict[str, object],
     readiness: dict[str, object],
+    risk_alpha: dict[str, object],
 ) -> dict[str, object]:
     if equity_frame.empty:
         return _empty_row(
@@ -168,6 +172,7 @@ def _performance_row(
             "missing",
             "DATA_INSUFFICIENT: no pnl_chart_data or paper_summary equity series",
             readiness,
+            risk_alpha,
         )
 
     frame = equity_frame.copy()
@@ -207,10 +212,18 @@ def _performance_row(
         warnings.append("DATA_INSUFFICIENT: benchmark_return unavailable")
         hard_insufficient = True
 
-    conclusion_status = _conclusion_status(benchmark_can_judge, strategy_can_judge, benchmark_return)
+    conclusion_status = str(risk_alpha.get("conclusion_status") or _conclusion_status(benchmark_can_judge, strategy_can_judge, benchmark_return))
     status = conclusion_status if hard_insufficient else "OK"
     if status == "OK" and warnings:
         status = "OK_WITH_WARNINGS"
+    risk_reason = str(risk_alpha.get("conclusion_reason", "") or "").strip()
+    if risk_reason and risk_reason not in warnings:
+        warnings.append(risk_reason)
+    if conclusion_status in {"DATA_INSUFFICIENT", "OBSERVATION_ONLY"}:
+        hard_insufficient = conclusion_status == "DATA_INSUFFICIENT"
+        status = conclusion_status if hard_insufficient else "OK_WITH_WARNINGS"
+    elif conclusion_status in {"UNDERPERFORMING", "OUTPERFORMING_SHORT_TERM", "OUTPERFORMING_CONFIRMED"} and status == "OK":
+        status = "OK_WITH_WARNINGS" if warnings else "OK"
 
     return {
         "trade_date": _date_text(selected_date or frame["trade_date"].max()),
@@ -245,6 +258,7 @@ def _performance_row(
         "can_judge_alpha_252d": bool(benchmark.get("can_judge_alpha_252d", False)),
         "benchmark_history_days": int(benchmark.get("benchmark_history_days", 0) or 0),
         **_readiness_columns(readiness, benchmark_window),
+        **_risk_alpha_columns(risk_alpha),
         "conclusion_status": conclusion_status,
         "benchmark_warning": benchmark.get("warning", ""),
         "status": status,
@@ -258,9 +272,11 @@ def _empty_row(
     source: str,
     warning: str,
     readiness: dict[str, object] | None = None,
+    risk_alpha: dict[str, object] | None = None,
 ) -> dict[str, object]:
     row = {column: "" for column in PERFORMANCE_DIAGNOSTICS_COLUMNS}
     readiness = readiness or {}
+    risk_alpha = risk_alpha or {}
     row.update(
         {
             "trade_date": _date_text(selected_date) if selected_date is not None else "",
@@ -268,6 +284,7 @@ def _empty_row(
             "observation_count": 0,
             "daily_return_count": 0,
             **_readiness_columns(readiness, ""),
+            **_risk_alpha_columns(risk_alpha),
             "conclusion_status": "DATA_INSUFFICIENT",
             "status": "DATA_INSUFFICIENT",
             "data_quality_warning": warning,
@@ -435,6 +452,10 @@ def _readiness_columns(readiness: dict[str, object], selected_window: str) -> di
         key = f"can_judge_strategy_alpha_{days}d"
         output[key] = bool(readiness.get(key, False))
     return output
+
+
+def _risk_alpha_columns(risk_alpha: dict[str, object]) -> dict[str, object]:
+    return {column: risk_alpha.get(column) for column in RISK_ADJUSTED_ALPHA_COLUMNS}
 
 
 def _conclusion_status(benchmark_can_judge: bool, strategy_can_judge: bool, benchmark_return: object) -> str:

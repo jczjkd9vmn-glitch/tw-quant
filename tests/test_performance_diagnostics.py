@@ -43,7 +43,8 @@ def test_performance_diagnostics_calculates_metrics_from_pnl_chart(tmp_path: Pat
     assert bool(row["can_judge_strategy_alpha"]) is True
     assert bool(row["can_judge_strategy_alpha_5d"]) is True
     assert bool(row["can_judge_strategy_alpha_20d"]) is False
-    assert row["conclusion_status"] == "OK"
+    assert row["risk_adjusted_alpha_status"] == "RISK_TOO_HIGH"
+    assert row["conclusion_status"] == "OBSERVATION_ONLY"
     assert row["status"] == "OK_WITH_WARNINGS"
 
 
@@ -76,7 +77,7 @@ def test_performance_diagnostics_requires_strategy_sample_for_alpha(tmp_path: Pa
     assert bool(row["can_judge_alpha"]) is False
     assert bool(row["can_judge_strategy_alpha"]) is False
     assert pd.isna(row["alpha"])
-    assert row["conclusion_status"] == "NOT_ENOUGH_STRATEGY_HISTORY"
+    assert row["conclusion_status"] == "DATA_INSUFFICIENT"
     assert "NOT_ENOUGH_STRATEGY_HISTORY" in row["data_quality_warning"]
 
 

@@ -1011,6 +1011,8 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert "系統健康檢查" in html
     assert "交易成本摘要" in html
     assert "績效風險分析" in html
+    assert "風險調整後 Alpha" in html
+    assert "尚不可正式宣稱 AI 長期打敗大盤" in html
     assert 'id="performance-diagnostics"' in html
     assert "Sharpe-like" in html
     assert "績效風險診斷明細" in html

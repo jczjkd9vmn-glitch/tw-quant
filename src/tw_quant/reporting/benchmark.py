@@ -17,7 +17,7 @@ from tw_quant.data.trading_calendar import filter_trading_days
 
 
 ACCEPTED_INDEX_IDS = {"TAIEX_TR", "TAIEX", "TPEx", "TPEX"}
-OFFICIAL_INDEX_PRIORITY = ["TAIEX_TR", "TAIEX", "TPEx", "TPEX"]
+OFFICIAL_INDEX_PRIORITY = ["TAIEX", "TAIEX_TR", "TPEx", "TPEX"]
 NO_OFFICIAL_INDEX_WARNING = "缺少正式加權 / 櫃買指數資料，未使用正式加權指數資料，也未使用正式大盤指數。"
 
 
@@ -150,10 +150,7 @@ def _official_index_snapshot(report_dir: Path, selected_date: pd.Timestamp | Non
             "20d": _period_return(close, 20),
             "total": None,
         }
-        warning = ""
-        source_label = "正式加權報酬指數" if index_id == "TAIEX_TR" else "正式加權指數"
-        if index_id != "TAIEX_TR":
-            warning = "使用正式 TAIEX 價格指數，非 total return；alpha 需保守解讀。"
+        source_label, warning = _official_index_label(index_id)
         return {
             "source_label": source_label,
             "benchmark_is_official": True,
@@ -164,6 +161,14 @@ def _official_index_snapshot(report_dir: Path, selected_date: pd.Timestamp | Non
             "status": "OK_WITH_WARNING" if warning else "OK",
         }
     return None
+
+
+def _official_index_label(index_id: str) -> tuple[str, str]:
+    if index_id == "TAIEX_TR":
+        return "正式加權報酬指數", ""
+    if index_id == "TAIEX":
+        return "正式加權指數", "使用正式 TAIEX 價格指數，非 total return；alpha 需保守解讀。"
+    return "正式櫃買指數", "使用正式 TPEx 價格指數，非 total return；alpha 需保守解讀。"
 
 
 def _read_market_indices(report_dir: Path) -> pd.DataFrame:
@@ -177,7 +182,6 @@ def _read_market_indices(report_dir: Path) -> pd.DataFrame:
 def _candidate_market_index_paths(report_dir: Path) -> Iterable[Path]:
     yield report_dir / "market_indices.csv"
     yield report_dir.parent / "data" / "market_indices.csv"
-    yield Path("data") / "market_indices.csv"
 
 
 def _read_sector_strength(report_dir: Path) -> pd.DataFrame:

@@ -15,6 +15,12 @@ import re
 import pandas as pd
 
 from tw_quant.reporting.benchmark import benchmark_return_for_window
+from tw_quant.reporting.strategy_readiness import (
+    STRATEGY_ALPHA_WINDOWS,
+    strategy_can_judge_window,
+    strategy_insufficient_reason,
+    strategy_readiness_snapshot,
+)
 
 
 PERFORMANCE_DIAGNOSTICS_COLUMNS = [
@@ -49,6 +55,16 @@ PERFORMANCE_DIAGNOSTICS_COLUMNS = [
     "can_judge_alpha_120d",
     "can_judge_alpha_252d",
     "benchmark_history_days",
+    "strategy_history_days",
+    "valid_trade_count",
+    "holding_record_count",
+    "can_judge_strategy_alpha",
+    "can_judge_strategy_alpha_5d",
+    "can_judge_strategy_alpha_20d",
+    "can_judge_strategy_alpha_60d",
+    "can_judge_strategy_alpha_120d",
+    "can_judge_strategy_alpha_252d",
+    "conclusion_status",
     "benchmark_warning",
     "status",
     "data_quality_warning",
@@ -78,7 +94,8 @@ def generate_performance_diagnostics(
 
     equity_frame, source = _daily_equity_series(report_dir, selected_date)
     benchmark = benchmark_return_for_window(report_dir, selected_date, max(len(equity_frame) - 1, 0))
-    row = _performance_row(equity_frame, source, selected_date, benchmark)
+    readiness = strategy_readiness_snapshot(report_dir, selected_date, equity_frame=equity_frame)
+    row = _performance_row(equity_frame, source, selected_date, benchmark, readiness)
     frame = pd.DataFrame([row], columns=PERFORMANCE_DIAGNOSTICS_COLUMNS)
     output_path = report_dir / f"performance_diagnostics_{date_label}.csv"
     frame.to_csv(output_path, index=False, encoding="utf-8-sig")
@@ -143,9 +160,15 @@ def _performance_row(
     source: str,
     selected_date: pd.Timestamp | None,
     benchmark: dict[str, object],
+    readiness: dict[str, object],
 ) -> dict[str, object]:
     if equity_frame.empty:
-        return _empty_row(selected_date, "missing", "DATA_INSUFFICIENT: no pnl_chart_data or paper_summary equity series")
+        return _empty_row(
+            selected_date,
+            "missing",
+            "DATA_INSUFFICIENT: no pnl_chart_data or paper_summary equity series",
+            readiness,
+        )
 
     frame = equity_frame.copy()
     returns = frame["equity"].pct_change().replace([float("inf"), float("-inf")], pd.NA).dropna()
@@ -161,7 +184,10 @@ def _performance_row(
     worst_day, worst_day_return = _extreme_day(frame, returns, "min")
     profit_factor = _profit_factor(returns)
     benchmark_return = _num(benchmark.get("return"))
-    can_judge_alpha = bool(benchmark.get("can_judge_alpha", False))
+    benchmark_window = str(benchmark.get("window", "") or "")
+    benchmark_can_judge = bool(benchmark.get("can_judge_alpha", False))
+    strategy_can_judge = strategy_can_judge_window(readiness, benchmark_window)
+    can_judge_alpha = bool(benchmark_can_judge and strategy_can_judge)
     alpha = _sub_or_none(cumulative_return, benchmark_return) if can_judge_alpha else None
 
     warnings: list[str] = []
@@ -171,14 +197,18 @@ def _performance_row(
         hard_insufficient = True
     if benchmark.get("warning"):
         warnings.append(str(benchmark["warning"]))
-    if not can_judge_alpha:
+    if not benchmark_can_judge:
         warnings.append("NO_OFFICIAL_BENCHMARK: can_judge_alpha=false")
+        hard_insufficient = True
+    if benchmark_can_judge and not strategy_can_judge:
+        warnings.append(f"NOT_ENOUGH_STRATEGY_HISTORY: {strategy_insufficient_reason(readiness, benchmark_window)}")
         hard_insufficient = True
     if benchmark_return is None:
         warnings.append("DATA_INSUFFICIENT: benchmark_return unavailable")
         hard_insufficient = True
 
-    status = "DATA_INSUFFICIENT" if hard_insufficient else "OK"
+    conclusion_status = _conclusion_status(benchmark_can_judge, strategy_can_judge, benchmark_return)
+    status = conclusion_status if hard_insufficient else "OK"
     if status == "OK" and warnings:
         status = "OK_WITH_WARNINGS"
 
@@ -202,7 +232,7 @@ def _performance_row(
         "worst_day_return": _round(worst_day_return),
         "profit_factor": _round(profit_factor),
         "benchmark_return": _round(benchmark_return),
-        "benchmark_window": benchmark.get("window", ""),
+        "benchmark_window": benchmark_window,
         "alpha": _round(alpha),
         "benchmark_source": benchmark.get("source", "benchmark 資料不足"),
         "benchmark_is_official": bool(benchmark.get("benchmark_is_official", False)),
@@ -214,6 +244,8 @@ def _performance_row(
         "can_judge_alpha_120d": bool(benchmark.get("can_judge_alpha_120d", False)),
         "can_judge_alpha_252d": bool(benchmark.get("can_judge_alpha_252d", False)),
         "benchmark_history_days": int(benchmark.get("benchmark_history_days", 0) or 0),
+        **_readiness_columns(readiness, benchmark_window),
+        "conclusion_status": conclusion_status,
         "benchmark_warning": benchmark.get("warning", ""),
         "status": status,
         "data_quality_warning": "; ".join(dict.fromkeys(warnings)),
@@ -221,14 +253,22 @@ def _performance_row(
     }
 
 
-def _empty_row(selected_date: pd.Timestamp | None, source: str, warning: str) -> dict[str, object]:
+def _empty_row(
+    selected_date: pd.Timestamp | None,
+    source: str,
+    warning: str,
+    readiness: dict[str, object] | None = None,
+) -> dict[str, object]:
     row = {column: "" for column in PERFORMANCE_DIAGNOSTICS_COLUMNS}
+    readiness = readiness or {}
     row.update(
         {
             "trade_date": _date_text(selected_date) if selected_date is not None else "",
             "source": source,
             "observation_count": 0,
             "daily_return_count": 0,
+            **_readiness_columns(readiness, ""),
+            "conclusion_status": "DATA_INSUFFICIENT",
             "status": "DATA_INSUFFICIENT",
             "data_quality_warning": warning,
             "notes": "報表診斷用途；不修改交易策略、出場規則或訂單。",
@@ -378,6 +418,31 @@ def _sub_or_none(left: object, right: object) -> float | None:
     if left_number is None or right_number is None:
         return None
     return left_number - right_number
+
+
+def _readiness_columns(readiness: dict[str, object], selected_window: str) -> dict[str, object]:
+    output = {
+        "strategy_history_days": int(readiness.get("strategy_history_days", 0) or 0),
+        "valid_trade_count": int(readiness.get("valid_trade_count", 0) or 0),
+        "holding_record_count": int(readiness.get("holding_record_count", 0) or 0),
+        "can_judge_strategy_alpha": bool(strategy_can_judge_window(readiness, selected_window))
+        if selected_window
+        else bool(readiness.get("can_judge_strategy_alpha", False)),
+    }
+    for days in STRATEGY_ALPHA_WINDOWS:
+        if days == 1:
+            continue
+        key = f"can_judge_strategy_alpha_{days}d"
+        output[key] = bool(readiness.get(key, False))
+    return output
+
+
+def _conclusion_status(benchmark_can_judge: bool, strategy_can_judge: bool, benchmark_return: object) -> str:
+    if not benchmark_can_judge or _num(benchmark_return) is None:
+        return "DATA_INSUFFICIENT"
+    if not strategy_can_judge:
+        return "NOT_ENOUGH_STRATEGY_HISTORY"
+    return "OK"
 
 
 def _num(value: object) -> float | None:

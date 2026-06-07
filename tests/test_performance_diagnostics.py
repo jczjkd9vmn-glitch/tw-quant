@@ -22,6 +22,8 @@ def test_performance_diagnostics_no_equity_data_does_not_crash(tmp_path: Path) -
 def test_performance_diagnostics_calculates_metrics_from_pnl_chart(tmp_path: Path) -> None:
     _write_pnl_chart(tmp_path)
     _write_market_indices(tmp_path)
+    _write_valid_trades(tmp_path, count=20)
+    _write_portfolio(tmp_path, count=3)
 
     result = generate_performance_diagnostics(tmp_path, trade_date="2026-06-05")
     row = result.frame.iloc[0]
@@ -35,6 +37,13 @@ def test_performance_diagnostics_calculates_metrics_from_pnl_chart(tmp_path: Pat
     assert row["benchmark_source"] == "正式加權報酬指數"
     assert row["benchmark_return"] == 0.02
     assert row["alpha"] == 0.04
+    assert row["strategy_history_days"] == 6
+    assert row["valid_trade_count"] == 20
+    assert row["holding_record_count"] == 3
+    assert bool(row["can_judge_strategy_alpha"]) is True
+    assert bool(row["can_judge_strategy_alpha_5d"]) is True
+    assert bool(row["can_judge_strategy_alpha_20d"]) is False
+    assert row["conclusion_status"] == "OK"
     assert row["status"] == "OK_WITH_WARNINGS"
 
 
@@ -52,6 +61,23 @@ def test_performance_diagnostics_marks_small_samples_insufficient(tmp_path: Path
 
     assert row["status"] == "DATA_INSUFFICIENT"
     assert "daily_return_count < 5" in row["data_quality_warning"]
+
+
+def test_performance_diagnostics_requires_strategy_sample_for_alpha(tmp_path: Path) -> None:
+    _write_pnl_chart(tmp_path)
+    _write_market_indices(tmp_path)
+
+    result = generate_performance_diagnostics(tmp_path, trade_date="2026-06-05")
+    row = result.frame.iloc[0]
+
+    assert row["benchmark_source"] == "正式加權報酬指數"
+    assert row["strategy_history_days"] == 6
+    assert row["valid_trade_count"] == 0
+    assert bool(row["can_judge_alpha"]) is False
+    assert bool(row["can_judge_strategy_alpha"]) is False
+    assert pd.isna(row["alpha"])
+    assert row["conclusion_status"] == "NOT_ENOUGH_STRATEGY_HISTORY"
+    assert "NOT_ENOUGH_STRATEGY_HISTORY" in row["data_quality_warning"]
 
 
 def test_performance_diagnostics_does_not_trust_market_regime_index_without_official_data(tmp_path: Path) -> None:
@@ -173,3 +199,35 @@ def _write_sector_strength(path: Path) -> None:
             }
         ]
     ).to_csv(path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+
+
+def _write_valid_trades(path: Path, count: int) -> None:
+    rows = []
+    for index in range(count):
+        rows.append(
+            {
+                "trade_date": "2026-06-05",
+                "stock_id": f"23{index:02d}",
+                "stock_name": f"測試{index}",
+                "entry_price": 100 + index,
+                "shares": 1000,
+                "status": "CLOSED",
+                "realized_pnl_pct_after_cost": 0.01,
+            }
+        )
+    pd.DataFrame(rows).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+
+
+def _write_portfolio(path: Path, count: int) -> None:
+    rows = []
+    for index in range(count):
+        rows.append(
+            {
+                "trade_date": "2026-06-05",
+                "stock_id": f"24{index:02d}",
+                "stock_name": f"持倉{index}",
+                "status": "OPEN",
+                "remaining_shares": 100,
+            }
+        )
+    pd.DataFrame(rows).to_csv(path / "paper_portfolio_20260605.csv", index=False, encoding="utf-8-sig")

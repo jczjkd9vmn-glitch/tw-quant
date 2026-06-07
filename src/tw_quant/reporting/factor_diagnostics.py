@@ -67,15 +67,30 @@ BENCHMARK_DIAGNOSTICS_COLUMNS = [
     "system_cumulative_return",
     "benchmark_cumulative_return",
     "alpha",
+    "benchmark_return_1d",
+    "benchmark_return_5d",
+    "benchmark_return_20d",
+    "benchmark_return_60d",
+    "benchmark_return_120d",
+    "benchmark_return_252d",
     "alpha_1d",
     "alpha_5d",
     "alpha_20d",
+    "alpha_60d",
+    "alpha_120d",
+    "alpha_252d",
     "win_rate_vs_benchmark",
     "max_drawdown",
     "benchmark_source",
     "benchmark_is_official",
     "fallback_reason",
     "can_judge_alpha",
+    "can_judge_alpha_5d",
+    "can_judge_alpha_20d",
+    "can_judge_alpha_60d",
+    "can_judge_alpha_120d",
+    "can_judge_alpha_252d",
+    "benchmark_history_days",
     "benchmark_warning",
     "data_quality_warning",
     "notes",
@@ -385,16 +400,22 @@ def _benchmark_diagnostics(
     system_returns = _system_return_snapshot(summary, recent_summaries)
     benchmark_returns = benchmark.get("returns", {}) if isinstance(benchmark.get("returns"), dict) else {}
     can_judge_alpha = bool(benchmark.get("can_judge_alpha", False))
-    alpha_1d = _sub_or_none(system_returns.get("1d"), benchmark_returns.get("1d"))
-    alpha_5d = _sub_or_none(system_returns.get("5d"), benchmark_returns.get("5d"))
-    alpha_20d = _sub_or_none(system_returns.get("20d"), benchmark_returns.get("20d"))
-    cumulative_alpha = _sub_or_none(system_returns.get("total"), benchmark_returns.get("total"))
-    available_alpha = [value for value in [alpha_1d, alpha_5d, alpha_20d] if value is not None]
+    alpha_1d = _window_alpha(system_returns, benchmark_returns, benchmark, "1d")
+    alpha_5d = _window_alpha(system_returns, benchmark_returns, benchmark, "5d")
+    alpha_20d = _window_alpha(system_returns, benchmark_returns, benchmark, "20d")
+    alpha_60d = _window_alpha(system_returns, benchmark_returns, benchmark, "60d")
+    alpha_120d = _window_alpha(system_returns, benchmark_returns, benchmark, "120d")
+    alpha_252d = _window_alpha(system_returns, benchmark_returns, benchmark, "252d")
+    cumulative_alpha = _sub_or_none(system_returns.get("total"), benchmark_returns.get("total")) if can_judge_alpha else None
+    available_alpha = [value for value in [alpha_1d, alpha_5d, alpha_20d, alpha_60d, alpha_120d, alpha_252d] if value is not None]
     warning_parts = []
     if benchmark.get("warning"):
         warning_parts.append(str(benchmark.get("warning")))
     if not can_judge_alpha:
         warning_parts.append("NO_OFFICIAL_BENCHMARK: can_judge_alpha=false")
+    for window in ["20d", "60d", "120d", "252d"]:
+        if bool(benchmark.get("benchmark_is_official", False)) and not _can_judge_window(benchmark, window):
+            warning_parts.append(f"DATA_INSUFFICIENT: {window} alpha")
     if not available_alpha and cumulative_alpha is None:
         warning_parts.append("DATA_INSUFFICIENT: benchmark 或系統報酬資料不足")
     row = {
@@ -402,9 +423,18 @@ def _benchmark_diagnostics(
         "system_cumulative_return": system_returns.get("total"),
         "benchmark_cumulative_return": benchmark_returns.get("total"),
         "alpha": cumulative_alpha,
+        "benchmark_return_1d": benchmark_returns.get("1d") if _can_judge_window(benchmark, "1d") else None,
+        "benchmark_return_5d": benchmark_returns.get("5d") if _can_judge_window(benchmark, "5d") else None,
+        "benchmark_return_20d": benchmark_returns.get("20d") if _can_judge_window(benchmark, "20d") else None,
+        "benchmark_return_60d": benchmark_returns.get("60d") if _can_judge_window(benchmark, "60d") else None,
+        "benchmark_return_120d": benchmark_returns.get("120d") if _can_judge_window(benchmark, "120d") else None,
+        "benchmark_return_252d": benchmark_returns.get("252d") if _can_judge_window(benchmark, "252d") else None,
         "alpha_1d": alpha_1d,
         "alpha_5d": alpha_5d,
         "alpha_20d": alpha_20d,
+        "alpha_60d": alpha_60d,
+        "alpha_120d": alpha_120d,
+        "alpha_252d": alpha_252d,
         "win_rate_vs_benchmark": round(sum(value >= 0 for value in available_alpha) / len(available_alpha), 4)
         if available_alpha
         else None,
@@ -413,6 +443,12 @@ def _benchmark_diagnostics(
         "benchmark_is_official": bool(benchmark.get("benchmark_is_official", False)),
         "fallback_reason": benchmark.get("fallback_reason", ""),
         "can_judge_alpha": can_judge_alpha,
+        "can_judge_alpha_5d": bool(benchmark.get("can_judge_alpha_5d", False)),
+        "can_judge_alpha_20d": bool(benchmark.get("can_judge_alpha_20d", False)),
+        "can_judge_alpha_60d": bool(benchmark.get("can_judge_alpha_60d", False)),
+        "can_judge_alpha_120d": bool(benchmark.get("can_judge_alpha_120d", False)),
+        "can_judge_alpha_252d": bool(benchmark.get("can_judge_alpha_252d", False)),
+        "benchmark_history_days": int(benchmark.get("benchmark_history_days", 0) or 0),
         "benchmark_warning": benchmark.get("warning", ""),
         "data_quality_warning": "DATA_INSUFFICIENT" if warning_parts else "",
         "notes": "；".join(warning_parts),
@@ -481,6 +517,9 @@ def _system_return_snapshot(summary: dict[str, object], recent_summaries: pd.Dat
         "1d": _equity_return_over_recent_window(recent_summaries, 1),
         "5d": _equity_return_over_recent_window(recent_summaries, 5),
         "20d": _equity_return_over_recent_window(recent_summaries, 20),
+        "60d": _equity_return_over_recent_window(recent_summaries, 60),
+        "120d": _equity_return_over_recent_window(recent_summaries, 120),
+        "252d": _equity_return_over_recent_window(recent_summaries, 252),
         "total": total,
     }
 
@@ -747,6 +786,23 @@ def _sub_or_none(left: object, right: object) -> float | None:
     if left_number is None or right_number is None:
         return None
     return round(left_number - right_number, 6)
+
+
+def _window_alpha(
+    system_returns: dict[str, float | None],
+    benchmark_returns: dict[str, object],
+    benchmark: dict[str, object],
+    window: str,
+) -> float | None:
+    if not _can_judge_window(benchmark, window):
+        return None
+    return _sub_or_none(system_returns.get(window), benchmark_returns.get(window))
+
+
+def _can_judge_window(benchmark: dict[str, object], window: str) -> bool:
+    if window == "1d":
+        return bool(benchmark.get("benchmark_is_official", False) and benchmark.get("can_judge_alpha", False))
+    return bool(benchmark.get(f"can_judge_alpha_{window}", False))
 
 
 def _num(value: object) -> float | None:

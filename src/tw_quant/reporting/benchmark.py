@@ -19,6 +19,7 @@ from tw_quant.data.trading_calendar import filter_trading_days
 ACCEPTED_INDEX_IDS = {"TAIEX_TR", "TAIEX", "TPEx", "TPEX"}
 OFFICIAL_INDEX_PRIORITY = ["TAIEX", "TAIEX_TR", "TPEx", "TPEX"]
 NO_OFFICIAL_INDEX_WARNING = "缺少正式加權 / 櫃買指數資料，未使用正式加權指數資料，也未使用正式大盤指數。"
+ALPHA_WINDOWS = [1, 5, 20, 60, 120, 252]
 
 
 def select_benchmark_snapshot(
@@ -46,6 +47,9 @@ def select_benchmark_snapshot(
                 "1d": None,
                 "5d": _normalized_return(etf_0050.iloc[0].get("stock_return_5d")),
                 "20d": _normalized_return(etf_0050.iloc[0].get("stock_return_20d")),
+                "60d": None,
+                "120d": None,
+                "252d": None,
                 "total": None,
             }
             quality_warning = _fallback_quality_warning(returns, "0050 fallback")
@@ -55,6 +59,8 @@ def select_benchmark_snapshot(
                     "benchmark_is_official": False,
                     "fallback_reason": "missing_official_market_index",
                     "can_judge_alpha": False,
+                    **_alpha_flags(0, official=False),
+                    "benchmark_history_days": 0,
                     "warning": f"{fallback_warning} benchmark fallback 使用 0050。",
                     "returns": returns,
                     "status": "OK_WITH_WARNING",
@@ -68,6 +74,9 @@ def select_benchmark_snapshot(
                     "1d": None,
                     "5d": _normalized_return(market_rows.iloc[0].get("market_return_5d")),
                     "20d": _normalized_return(market_rows.iloc[0].get("market_return_20d")),
+                    "60d": None,
+                    "120d": None,
+                    "252d": None,
                     "total": None,
                 }
                 quality_warning = _fallback_quality_warning(returns, "全市場等權 fallback")
@@ -77,6 +86,8 @@ def select_benchmark_snapshot(
                         "benchmark_is_official": False,
                         "fallback_reason": "missing_official_market_index",
                         "can_judge_alpha": False,
+                        **_alpha_flags(0, official=False),
+                        "benchmark_history_days": 0,
                         "warning": f"{fallback_warning} benchmark fallback 使用全市場等權報酬。",
                         "returns": returns,
                         "status": "OK_WITH_WARNING",
@@ -88,8 +99,10 @@ def select_benchmark_snapshot(
         "benchmark_is_official": False,
         "fallback_reason": "missing_official_market_index_and_fallback",
         "can_judge_alpha": False,
+        **_alpha_flags(0, official=False),
+        "benchmark_history_days": 0,
         "warning": f"{fallback_warning} 缺少可信 0050 或全市場等權 fallback，無法計算 benchmark alpha。",
-        "returns": {"1d": None, "5d": None, "20d": None, "total": None},
+        "returns": _empty_returns(),
         "status": "DATA_INSUFFICIENT",
     }
 
@@ -100,17 +113,29 @@ def benchmark_return_for_window(
     return_days: int,
 ) -> dict[str, object]:
     snapshot = select_benchmark_snapshot(report_dir, selected_date)
-    window = "20d" if return_days >= 20 else ("5d" if return_days >= 5 else "1d")
+    window = _window_for_return_days(return_days)
     returns = snapshot.get("returns", {}) if isinstance(snapshot.get("returns"), dict) else {}
+    can_judge = bool(snapshot.get(_alpha_flag_name(window), False))
+    benchmark_return = _benchmark_value_for_window(returns, window)
+    status = snapshot.get("status", "DATA_INSUFFICIENT")
+    warning = str(snapshot.get("warning", "") or "")
+    if bool(snapshot.get("benchmark_is_official", False)) and not can_judge:
+        status = "DATA_INSUFFICIENT"
+        warning = _join_warning(
+            warning,
+            f"DATA_INSUFFICIENT: official benchmark history_days={snapshot.get('benchmark_history_days', 0)} 不足以計算 {window} alpha",
+        )
     return {
-        "return": _benchmark_value_for_window(returns, window),
+        "return": benchmark_return if can_judge or not bool(snapshot.get("benchmark_is_official", False)) else None,
         "window": window,
         "source": snapshot.get("source_label", "benchmark 資料不足"),
         "benchmark_is_official": bool(snapshot.get("benchmark_is_official", False)),
         "fallback_reason": snapshot.get("fallback_reason", ""),
-        "can_judge_alpha": bool(snapshot.get("can_judge_alpha", False)),
-        "warning": snapshot.get("warning", ""),
-        "status": snapshot.get("status", "DATA_INSUFFICIENT"),
+        "can_judge_alpha": can_judge,
+        "benchmark_history_days": int(snapshot.get("benchmark_history_days", 0) or 0),
+        **{_alpha_flag_name(f"{window_days}d"): bool(snapshot.get(_alpha_flag_name(f"{window_days}d"), False)) for window_days in ALPHA_WINDOWS},
+        "warning": warning,
+        "status": status,
     }
 
 
@@ -144,18 +169,20 @@ def _official_index_snapshot(report_dir: Path, selected_date: pd.Timestamp | Non
         if subset.empty:
             continue
         close = subset["close"].reset_index(drop=True)
-        returns = {
-            "1d": _period_return(close, 1),
-            "5d": _period_return(close, 5),
-            "20d": _period_return(close, 20),
-            "total": None,
-        }
+        history_days = int(len(close))
+        returns = {f"{days}d": _period_return(close, days) for days in ALPHA_WINDOWS}
+        returns["total"] = None
+        flags = _alpha_flags(history_days, official=True, returns=returns)
         source_label, warning = _official_index_label(index_id)
+        history_warning = _history_coverage_warning(history_days)
+        warning = _join_warning(warning, history_warning)
         return {
             "source_label": source_label,
             "benchmark_is_official": True,
             "fallback_reason": "",
-            "can_judge_alpha": True,
+            "can_judge_alpha": any(flags.values()),
+            **flags,
+            "benchmark_history_days": history_days,
             "warning": warning,
             "returns": returns,
             "status": "OK_WITH_WARNING" if warning else "OK",
@@ -211,16 +238,7 @@ def _fallback_quality_warning(returns: dict[str, float | None], label: str) -> s
 
 
 def _benchmark_value_for_window(returns: dict[str, object], window: str) -> float | None:
-    candidates = [window]
-    if window == "1d":
-        candidates.extend(["5d", "20d"])
-    elif window == "5d":
-        candidates.append("20d")
-    for candidate in candidates:
-        value = _normalized_return(returns.get(candidate))
-        if value is not None:
-            return value
-    return None
+    return _num(returns.get(window))
 
 
 def _period_return(close: pd.Series, days: int) -> float | None:
@@ -231,6 +249,48 @@ def _period_return(close: pd.Series, days: int) -> float | None:
     if abs(float(base)) < 0.000001:
         return None
     return round(float(clean.iloc[-1] / base - 1.0), 6)
+
+
+def _empty_returns() -> dict[str, None]:
+    returns = {f"{days}d": None for days in ALPHA_WINDOWS}
+    returns["total"] = None
+    return returns
+
+
+def _alpha_flags(
+    history_days: int,
+    *,
+    official: bool,
+    returns: dict[str, object] | None = None,
+) -> dict[str, bool]:
+    values = returns or {}
+    return {
+        _alpha_flag_name(f"{days}d"): bool(official and history_days > days and _num(values.get(f"{days}d")) is not None)
+        for days in ALPHA_WINDOWS
+    }
+
+
+def _alpha_flag_name(window: str) -> str:
+    return f"can_judge_alpha_{window}"
+
+
+def _window_for_return_days(return_days: int) -> str:
+    for days in [252, 120, 60, 20, 5]:
+        if return_days >= days:
+            return f"{days}d"
+    return "1d"
+
+
+def _history_coverage_warning(history_days: int) -> str:
+    insufficient = [f"{days}d" for days in [20, 60, 120, 252] if history_days <= days]
+    if not insufficient:
+        return ""
+    return f"official benchmark history_days={history_days}，{','.join(insufficient)} alpha=DATA_INSUFFICIENT"
+
+
+def _join_warning(*parts: object) -> str:
+    texts = [str(part).strip() for part in parts if str(part or "").strip()]
+    return " ".join(dict.fromkeys(texts))
 
 
 def _normalized_return(value: object) -> float | None:

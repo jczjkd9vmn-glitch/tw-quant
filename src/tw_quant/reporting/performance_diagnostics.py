@@ -43,6 +43,12 @@ PERFORMANCE_DIAGNOSTICS_COLUMNS = [
     "benchmark_is_official",
     "fallback_reason",
     "can_judge_alpha",
+    "can_judge_alpha_5d",
+    "can_judge_alpha_20d",
+    "can_judge_alpha_60d",
+    "can_judge_alpha_120d",
+    "can_judge_alpha_252d",
+    "benchmark_history_days",
     "benchmark_warning",
     "status",
     "data_quality_warning",
@@ -156,19 +162,23 @@ def _performance_row(
     profit_factor = _profit_factor(returns)
     benchmark_return = _num(benchmark.get("return"))
     can_judge_alpha = bool(benchmark.get("can_judge_alpha", False))
-    alpha = _sub_or_none(cumulative_return, benchmark_return)
+    alpha = _sub_or_none(cumulative_return, benchmark_return) if can_judge_alpha else None
 
     warnings: list[str] = []
+    hard_insufficient = False
     if len(returns) < 5:
         warnings.append("DATA_INSUFFICIENT: daily_return_count < 5")
+        hard_insufficient = True
     if benchmark.get("warning"):
         warnings.append(str(benchmark["warning"]))
     if not can_judge_alpha:
         warnings.append("NO_OFFICIAL_BENCHMARK: can_judge_alpha=false")
+        hard_insufficient = True
     if benchmark_return is None:
         warnings.append("DATA_INSUFFICIENT: benchmark_return unavailable")
+        hard_insufficient = True
 
-    status = "DATA_INSUFFICIENT" if any("DATA_INSUFFICIENT" in item for item in warnings) else "OK"
+    status = "DATA_INSUFFICIENT" if hard_insufficient else "OK"
     if status == "OK" and warnings:
         status = "OK_WITH_WARNINGS"
 
@@ -198,6 +208,12 @@ def _performance_row(
         "benchmark_is_official": bool(benchmark.get("benchmark_is_official", False)),
         "fallback_reason": benchmark.get("fallback_reason", ""),
         "can_judge_alpha": can_judge_alpha,
+        "can_judge_alpha_5d": bool(benchmark.get("can_judge_alpha_5d", False)),
+        "can_judge_alpha_20d": bool(benchmark.get("can_judge_alpha_20d", False)),
+        "can_judge_alpha_60d": bool(benchmark.get("can_judge_alpha_60d", False)),
+        "can_judge_alpha_120d": bool(benchmark.get("can_judge_alpha_120d", False)),
+        "can_judge_alpha_252d": bool(benchmark.get("can_judge_alpha_252d", False)),
+        "benchmark_history_days": int(benchmark.get("benchmark_history_days", 0) or 0),
         "benchmark_warning": benchmark.get("warning", ""),
         "status": status,
         "data_quality_warning": "; ".join(dict.fromkeys(warnings)),

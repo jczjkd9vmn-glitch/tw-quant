@@ -10,6 +10,7 @@ from tw_quant.data_sources.official_market_indices import (
     update_market_indices_csv,
 )
 from tw_quant.reporting.benchmark import select_benchmark_snapshot
+from tw_quant.reporting.benchmark import benchmark_return_for_window
 
 
 def test_fetch_official_market_indices_normalizes_twse_and_tpex_payloads() -> None:
@@ -122,7 +123,41 @@ def test_benchmark_uses_official_taiex_before_0050_fallback(tmp_path: Path) -> N
     assert snapshot["benchmark_is_official"] is True
     assert snapshot["fallback_reason"] == ""
     assert snapshot["can_judge_alpha"] is True
+    assert snapshot["benchmark_history_days"] == 6
+    assert snapshot["can_judge_alpha_5d"] is True
+    assert snapshot["can_judge_alpha_20d"] is False
+    assert snapshot["can_judge_alpha_60d"] is False
     assert snapshot["returns"]["5d"] == 0.03
+    assert snapshot["returns"]["20d"] is None
+
+
+def test_benchmark_window_requires_sufficient_official_history(tmp_path: Path) -> None:
+    _write_official_taiex(tmp_path)
+
+    insufficient = benchmark_return_for_window(tmp_path, "2026-06-05", 20)
+
+    assert insufficient["benchmark_is_official"] is True
+    assert insufficient["can_judge_alpha"] is False
+    assert insufficient["return"] is None
+    assert insufficient["status"] == "DATA_INSUFFICIENT"
+    assert "DATA_INSUFFICIENT" in str(insufficient["warning"])
+
+
+def test_benchmark_window_uses_official_history_when_available(tmp_path: Path) -> None:
+    _write_official_taiex_history(tmp_path, periods=61)
+
+    snapshot = select_benchmark_snapshot(tmp_path, "2026-06-05")
+    result_20d = benchmark_return_for_window(tmp_path, "2026-06-05", 20)
+    result_60d = benchmark_return_for_window(tmp_path, "2026-06-05", 60)
+
+    assert snapshot["benchmark_history_days"] == 61
+    assert snapshot["can_judge_alpha_20d"] is True
+    assert snapshot["can_judge_alpha_60d"] is True
+    assert snapshot["can_judge_alpha_120d"] is False
+    assert result_20d["can_judge_alpha"] is True
+    assert result_20d["return"] == snapshot["returns"]["20d"]
+    assert result_60d["can_judge_alpha"] is True
+    assert result_60d["return"] == snapshot["returns"]["60d"]
 
 
 def test_benchmark_falls_back_to_0050_when_official_taiex_missing(tmp_path: Path) -> None:
@@ -144,6 +179,8 @@ def test_benchmark_falls_back_to_0050_when_official_taiex_missing(tmp_path: Path
     assert snapshot["benchmark_is_official"] is False
     assert snapshot["fallback_reason"] == "missing_official_market_index"
     assert snapshot["can_judge_alpha"] is False
+    assert snapshot["benchmark_history_days"] == 0
+    assert snapshot["can_judge_alpha_20d"] is False
 
 
 def test_html_displays_official_benchmark_metadata(tmp_path: Path) -> None:
@@ -157,6 +194,9 @@ def test_html_displays_official_benchmark_metadata(tmp_path: Path) -> None:
     assert "benchmark_is_official=true" in html
     assert "fallback_reason=" in html
     assert "can_judge_alpha=true" in html
+    assert "benchmark_history_days=6" in html
+    assert "can_judge_alpha_20d=false" in html
+    assert "DATA_INSUFFICIENT" in html
     assert "benchmark_source=0050 fallback" not in html
 
 
@@ -194,6 +234,27 @@ def _write_official_taiex(path: Path) -> None:
             {"trade_date": "2026-06-05", "index_id": "TAIEX", "index_name": "發行量加權股價指數", "open": 102, "high": 104, "low": 102, "close": 103.0, "source": "twse_openapi:MI_5MINS_HIST", "is_official": True},
         ]
     ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
+
+
+def _write_official_taiex_history(path: Path, *, periods: int) -> None:
+    dates = pd.bdate_range(end="2026-06-05", periods=periods)
+    rows = []
+    for offset, trade_date in enumerate(dates):
+        close = 100.0 + (offset * 0.1)
+        rows.append(
+            {
+                "trade_date": trade_date.strftime("%Y-%m-%d"),
+                "index_id": "TAIEX",
+                "index_name": "發行量加權股價指數",
+                "open": close,
+                "high": close,
+                "low": close,
+                "close": close,
+                "source": "twse_official:MI_5MINS_HIST_monthly",
+                "is_official": True,
+            }
+        )
+    pd.DataFrame(rows).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
 
 
 def _write_minimal_html_inputs(path: Path) -> None:

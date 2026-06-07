@@ -2395,13 +2395,14 @@ def _benchmark_alpha_section(
 ) -> str:
     benchmark = _benchmark_snapshot(report_dir, summary)
     system_returns = _system_return_snapshot(summary, paper_summary, recent_summaries)
-    headline_window = _best_alpha_window(system_returns, benchmark["returns"])
+    headline_window = _best_alpha_window(system_returns, benchmark)
     system_headline = system_returns.get(headline_window)
     benchmark_headline = benchmark["returns"].get(headline_window)
     alpha = _alpha_return(system_headline, benchmark_headline)
-    can_judge_alpha = bool(benchmark.get("can_judge_alpha", False))
+    can_judge_alpha = _benchmark_can_judge(benchmark, headline_window)
     beat_text = _beat_market_text(alpha, can_judge_alpha=can_judge_alpha)
-    alpha_text = _return_text(alpha)
+    alpha_text = _alpha_text(alpha, can_judge_alpha=can_judge_alpha)
+    history_days = int(benchmark.get("benchmark_history_days", 0) or 0)
     warning = ""
     if benchmark["warning"]:
         warning = (
@@ -2409,17 +2410,26 @@ def _benchmark_alpha_section(
             f'<span>{escape(str(benchmark["warning"]))}</span></p>'
         )
     detail_rows = [
-        ("今日", system_returns.get("1d"), benchmark["returns"].get("1d")),
-        ("近 5 日", system_returns.get("5d"), benchmark["returns"].get("5d")),
-        ("近 20 日", system_returns.get("20d"), benchmark["returns"].get("20d")),
-        ("累計", system_returns.get("total"), benchmark["returns"].get("total")),
+        ("今日", "1d", system_returns.get("1d"), benchmark["returns"].get("1d"), _benchmark_can_judge(benchmark, "1d")),
+        ("近 5 日", "5d", system_returns.get("5d"), benchmark["returns"].get("5d"), _benchmark_can_judge(benchmark, "5d")),
+        ("近 20 日", "20d", system_returns.get("20d"), benchmark["returns"].get("20d"), _benchmark_can_judge(benchmark, "20d")),
+        ("近 60 日", "60d", system_returns.get("60d"), benchmark["returns"].get("60d"), _benchmark_can_judge(benchmark, "60d")),
+        ("近 120 日", "120d", system_returns.get("120d"), benchmark["returns"].get("120d"), _benchmark_can_judge(benchmark, "120d")),
+        ("近 252 日", "252d", system_returns.get("252d"), benchmark["returns"].get("252d"), _benchmark_can_judge(benchmark, "252d")),
+        ("累計", "total", system_returns.get("total"), benchmark["returns"].get("total"), bool(benchmark.get("can_judge_alpha", False))),
     ]
-    detail_table = _benchmark_detail_table(detail_rows, can_judge_alpha=can_judge_alpha)
+    detail_table = _benchmark_detail_table(detail_rows)
     benchmark_meta = (
         f"benchmark_source={escape(str(benchmark['source_label']))}；"
         f"benchmark_is_official={str(bool(benchmark.get('benchmark_is_official', False))).lower()}；"
         f"fallback_reason={escape(str(benchmark.get('fallback_reason', '') or '-'))}；"
-        f"can_judge_alpha={str(can_judge_alpha).lower()}"
+        f"benchmark_history_days={history_days}；"
+        f"can_judge_alpha={str(bool(benchmark.get('can_judge_alpha', False))).lower()}；"
+        f"can_judge_alpha_5d={str(bool(benchmark.get('can_judge_alpha_5d', False))).lower()}；"
+        f"can_judge_alpha_20d={str(bool(benchmark.get('can_judge_alpha_20d', False))).lower()}；"
+        f"can_judge_alpha_60d={str(bool(benchmark.get('can_judge_alpha_60d', False))).lower()}；"
+        f"can_judge_alpha_120d={str(bool(benchmark.get('can_judge_alpha_120d', False))).lower()}；"
+        f"can_judge_alpha_252d={str(bool(benchmark.get('can_judge_alpha_252d', False))).lower()}"
     )
     content = (
         '<div class="benchmark-summary-grid">'
@@ -2427,6 +2437,7 @@ def _benchmark_alpha_section(
         + _benchmark_card("超額報酬 alpha", alpha_text, _benchmark_window_label(headline_window), alpha)
         + _benchmark_card("本系統總資產報酬率", _return_text(system_returns.get("total")), "相對初始資金")
         + _benchmark_card("Benchmark 報酬率", _return_text(benchmark_headline), str(benchmark["source_label"]))
+        + _benchmark_card("官方 benchmark 覆蓋", f"{history_days} 日", "official trading-day history")
         + "</div>"
         + f'<p class="note">{benchmark_meta}</p>'
         + warning
@@ -2477,11 +2488,14 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
         ),
         _kpi_card(
             "Alpha",
-            escape(_return_text(alpha) if can_judge_alpha else "不可正式判定"),
+            escape(_alpha_text(alpha, can_judge_alpha=can_judge_alpha)),
             [
                 ("Benchmark", _format_cell("benchmark_source", row.get("benchmark_source")) if row else "-"),
                 ("benchmark_is_official", _format_cell("benchmark_is_official", row.get("benchmark_is_official")) if row else "false"),
                 ("can_judge_alpha", _format_cell("can_judge_alpha", row.get("can_judge_alpha")) if row else "false"),
+                ("benchmark_history_days", _format_cell("benchmark_history_days", row.get("benchmark_history_days")) if row else "0"),
+                ("can_judge_alpha_20d", _format_cell("can_judge_alpha_20d", row.get("can_judge_alpha_20d")) if row else "false"),
+                ("can_judge_alpha_60d", _format_cell("can_judge_alpha_60d", row.get("can_judge_alpha_60d")) if row else "false"),
                 ("視窗", _format_cell("benchmark_window", row.get("benchmark_window")) if row else "-"),
                 ("Benchmark 報酬", _format_cell("benchmark_return", row.get("benchmark_return")) if row else "-"),
             ],
@@ -2523,6 +2537,12 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
             "benchmark_is_official",
             "fallback_reason",
             "can_judge_alpha",
+            "can_judge_alpha_5d",
+            "can_judge_alpha_20d",
+            "can_judge_alpha_60d",
+            "can_judge_alpha_120d",
+            "can_judge_alpha_252d",
+            "benchmark_history_days",
             "benchmark_warning",
             "status",
             "data_quality_warning",
@@ -2567,6 +2587,9 @@ def _strategy_diagnostics_section(
                 ("目前 Alpha", _return_text(headline_alpha)),
                 ("Benchmark 來源", benchmark_source),
                 ("can_judge_alpha", str(can_judge_alpha).lower()),
+                ("benchmark_history_days", _format_cell("benchmark_history_days", benchmark_row.get("benchmark_history_days")) if benchmark_row else "0"),
+                ("can_judge_alpha_20d", _format_cell("can_judge_alpha_20d", benchmark_row.get("can_judge_alpha_20d")) if benchmark_row else "false"),
+                ("can_judge_alpha_60d", _format_cell("can_judge_alpha_60d", benchmark_row.get("can_judge_alpha_60d")) if benchmark_row else "false"),
             ],
             tone="ok" if can_judge_alpha and headline_alpha is not None and headline_alpha >= 0 else "warning",
         ),
@@ -2642,12 +2665,21 @@ def _strategy_diagnostics_section(
             "alpha_1d",
             "alpha_5d",
             "alpha_20d",
+            "alpha_60d",
+            "alpha_120d",
+            "alpha_252d",
             "win_rate_vs_benchmark",
             "max_drawdown",
             "benchmark_source",
             "benchmark_is_official",
             "fallback_reason",
             "can_judge_alpha",
+            "can_judge_alpha_5d",
+            "can_judge_alpha_20d",
+            "can_judge_alpha_60d",
+            "can_judge_alpha_120d",
+            "can_judge_alpha_252d",
+            "benchmark_history_days",
             "benchmark_warning",
             "data_quality_warning",
             "notes",
@@ -2781,8 +2813,17 @@ def _benchmark_snapshot(report_dir: Path, summary: dict[str, object]) -> dict[st
         "benchmark_is_official": bool(snapshot.get("benchmark_is_official", False)),
         "fallback_reason": snapshot.get("fallback_reason", ""),
         "can_judge_alpha": bool(snapshot.get("can_judge_alpha", False)),
+        "can_judge_alpha_5d": bool(snapshot.get("can_judge_alpha_5d", False)),
+        "can_judge_alpha_20d": bool(snapshot.get("can_judge_alpha_20d", False)),
+        "can_judge_alpha_60d": bool(snapshot.get("can_judge_alpha_60d", False)),
+        "can_judge_alpha_120d": bool(snapshot.get("can_judge_alpha_120d", False)),
+        "can_judge_alpha_252d": bool(snapshot.get("can_judge_alpha_252d", False)),
+        "benchmark_history_days": int(snapshot.get("benchmark_history_days", 0) or 0),
         "warning": warning,
-        "returns": snapshot.get("returns", {"1d": None, "5d": None, "20d": None, "total": None}),
+        "returns": snapshot.get(
+            "returns",
+            {"1d": None, "5d": None, "20d": None, "60d": None, "120d": None, "252d": None, "total": None},
+        ),
     }
 
 
@@ -2799,6 +2840,9 @@ def _system_return_snapshot(
         "1d": _equity_return_over_recent_window(recent_summaries, 1),
         "5d": _equity_return_over_recent_window(recent_summaries, 5),
         "20d": _equity_return_over_recent_window(recent_summaries, 20),
+        "60d": _equity_return_over_recent_window(recent_summaries, 60),
+        "120d": _equity_return_over_recent_window(recent_summaries, 120),
+        "252d": _equity_return_over_recent_window(recent_summaries, 252),
         "total": total,
     }
 
@@ -2822,9 +2866,10 @@ def _equity_return_over_recent_window(recent_summaries: pd.DataFrame, window: in
     return latest / baseline - 1.0
 
 
-def _best_alpha_window(system_returns: dict[str, float | None], benchmark_returns: dict[str, float | None]) -> str:
-    for key in ["5d", "20d", "1d"]:
-        if system_returns.get(key) is not None and benchmark_returns.get(key) is not None:
+def _best_alpha_window(system_returns: dict[str, float | None], benchmark: dict[str, object]) -> str:
+    benchmark_returns = benchmark.get("returns", {}) if isinstance(benchmark.get("returns"), dict) else {}
+    for key in ["20d", "5d", "1d"]:
+        if system_returns.get(key) is not None and benchmark_returns.get(key) is not None and _benchmark_can_judge(benchmark, key):
             return key
     return "total"
 
@@ -2837,10 +2882,16 @@ def _alpha_return(system_return: float | None, benchmark_return: float | None) -
 
 def _beat_market_text(alpha: float | None, *, can_judge_alpha: bool = True) -> str:
     if not can_judge_alpha:
-        return "不可判定"
+        return "DATA_INSUFFICIENT"
     if alpha is None:
         return "資料不足"
     return "是" if alpha >= 0 else "否"
+
+
+def _alpha_text(alpha: float | None, *, can_judge_alpha: bool) -> str:
+    if not can_judge_alpha:
+        return "DATA_INSUFFICIENT"
+    return _return_text(alpha)
 
 
 def _benchmark_card(label: str, value: str, note: str, raw_value: float | None = None) -> str:
@@ -2854,16 +2905,16 @@ def _benchmark_card(label: str, value: str, note: str, raw_value: float | None =
     )
 
 
-def _benchmark_detail_table(rows: list[tuple[str, float | None, float | None]], *, can_judge_alpha: bool = True) -> str:
+def _benchmark_detail_table(rows: list[tuple[str, str, float | None, float | None, bool]]) -> str:
     body = []
-    for label, system_value, benchmark_value in rows:
+    for label, _window, system_value, benchmark_value, can_judge_alpha in rows:
         alpha = _alpha_return(system_value, benchmark_value)
         body.append(
             "<tr>"
             f"<td>{escape(label)}</td>"
             f"<td>{escape(_return_text(system_value))}</td>"
             f"<td>{escape(_return_text(benchmark_value))}</td>"
-            f'<td class="{_profit_class(alpha)}">{escape(_return_text(alpha))}</td>'
+            f'<td class="{_profit_class(alpha)}">{escape(_alpha_text(alpha, can_judge_alpha=can_judge_alpha))}</td>'
             f"<td>{escape(_beat_market_text(alpha, can_judge_alpha=can_judge_alpha))}</td>"
             "</tr>"
         )
@@ -2875,7 +2926,23 @@ def _benchmark_detail_table(rows: list[tuple[str, float | None, float | None]], 
 
 
 def _benchmark_window_label(window: str) -> str:
-    return {"1d": "今日", "5d": "近 5 日", "20d": "近 20 日", "total": "累計"}.get(window, window)
+    return {
+        "1d": "今日",
+        "5d": "近 5 日",
+        "20d": "近 20 日",
+        "60d": "近 60 日",
+        "120d": "近 120 日",
+        "252d": "近 252 日",
+        "total": "累計",
+    }.get(window, window)
+
+
+def _benchmark_can_judge(benchmark: dict[str, object], window: str) -> bool:
+    if window == "total":
+        return bool(benchmark.get("can_judge_alpha", False))
+    if window == "1d":
+        return bool(benchmark.get("benchmark_is_official", False) and benchmark.get("can_judge_alpha", False))
+    return bool(benchmark.get(f"can_judge_alpha_{window}", False))
 
 
 def _return_text(value: float | None) -> str:

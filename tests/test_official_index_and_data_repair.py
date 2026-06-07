@@ -65,7 +65,7 @@ def test_html_fallback_benchmark_does_not_claim_beat_market(tmp_path: Path) -> N
     assert "benchmark_is_official=false" in html
     assert "fallback_reason=missing_official_market_index" in html
     assert "can_judge_alpha=false" in html
-    assert "不可判定" in html
+    assert "DATA_INSUFFICIENT" in html
 
 
 def test_repair_price_data_dry_run_keeps_rows_and_creates_backup(tmp_path: Path) -> None:

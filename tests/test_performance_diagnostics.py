@@ -35,7 +35,7 @@ def test_performance_diagnostics_calculates_metrics_from_pnl_chart(tmp_path: Pat
     assert row["benchmark_source"] == "正式加權報酬指數"
     assert row["benchmark_return"] == 0.02
     assert row["alpha"] == 0.04
-    assert row["status"] == "OK"
+    assert row["status"] == "OK_WITH_WARNINGS"
 
 
 def test_performance_diagnostics_marks_small_samples_insufficient(tmp_path: Path) -> None:

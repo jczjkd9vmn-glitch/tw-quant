@@ -78,7 +78,7 @@ def evaluate_market_regime(
         return _result(None, 50.0, "EMPTY", "排除非交易日或價格異常後無可用價量資料，市場環境採中性分數", reports_dir)
 
     latest_date = frame["trade_date"].max()
-    index_frame = _official_index_frame(config_path, trade_date or latest_date)
+    index_frame = _official_index_frame(config_path, trade_date or latest_date, reports_dir=reports_dir)
     if not index_frame.empty:
         result = _score_official_index_regime(index_frame, latest_date)
         if result is not None:
@@ -225,8 +225,13 @@ def _score_equal_weight_regime(frame: pd.DataFrame, latest_date: pd.Timestamp) -
     return MarketRegimeResult(latest_date, score, "equal_weight_market", warning=warning, frame=output)
 
 
-def _official_index_frame(config_path: str | Path, trade_date: str | pd.Timestamp | None) -> pd.DataFrame:
-    for path in _market_index_paths(config_path):
+def _official_index_frame(
+    config_path: str | Path,
+    trade_date: str | pd.Timestamp | None,
+    *,
+    reports_dir: str | Path | None = None,
+) -> pd.DataFrame:
+    for path in _market_index_paths(config_path, reports_dir=reports_dir):
         frame = _read_market_indices(path)
         if frame.empty:
             continue
@@ -238,9 +243,12 @@ def _official_index_frame(config_path: str | Path, trade_date: str | pd.Timestam
     return pd.DataFrame()
 
 
-def _market_index_paths(config_path: str | Path) -> list[Path]:
+def _market_index_paths(config_path: str | Path, *, reports_dir: str | Path | None = None) -> list[Path]:
+    if reports_dir is not None:
+        report_root = Path(reports_dir).resolve()
+        return [report_root / "market_indices.csv", report_root.parent / "data" / "market_indices.csv"]
     root = Path(config_path).resolve().parent
-    return [root / "data" / "market_indices.csv", Path("data") / "market_indices.csv"]
+    return [root / "data" / "market_indices.csv"]
 
 
 def _read_market_indices(path: Path) -> pd.DataFrame:

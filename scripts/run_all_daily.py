@@ -12,6 +12,7 @@ if str(SRC) not in sys.path:
 
 from tw_quant.workflow.daily import run_all_daily
 from tw_quant.data_sources.official_market_indices import (
+    DEFAULT_HISTORY_DAYS,
     fetch_official_market_indices,
     update_market_indices_csv,
 )
@@ -126,11 +127,17 @@ def main() -> None:
 def _refresh_official_market_indices() -> None:
     output_path = ROOT / "data" / "market_indices.csv"
     try:
-        fetched = fetch_official_market_indices(timeout_seconds=15)
+        fetched = fetch_official_market_indices(timeout_seconds=15, history_days=DEFAULT_HISTORY_DAYS)
         merged = update_market_indices_csv(output_path, fetched)
         official_rows = int(merged["is_official"].astype(bool).sum()) if "is_official" in merged.columns else 0
         index_ids = ",".join(sorted(set(merged["index_id"].astype(str)))) if not merged.empty else ""
-        print(f"market_indices_ingestion OK rows={len(merged)} official_rows={official_rows} index_ids={index_ids}")
+        print(
+            "market_indices_ingestion OK "
+            f"rows={len(merged)} "
+            f"official_rows={official_rows} "
+            f"history_days={DEFAULT_HISTORY_DAYS} "
+            f"index_ids={index_ids}"
+        )
     except Exception as exc:  # noqa: BLE001
         print(f"market_indices_ingestion WARNING {type(exc).__name__}: {exc}; kept existing data/market_indices.csv")
 

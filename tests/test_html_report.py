@@ -1014,6 +1014,10 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert 'id="performance-diagnostics"' in html
     assert "Sharpe-like" in html
     assert "績效風險診斷明細" in html
+    assert "strategy_history_days" in html
+    assert "valid_trade_count" in html
+    assert "can_judge_strategy_alpha" in html
+    assert "conclusion_status" in html
 
 
 def test_generate_html_report_creates_docs_index_for_github_pages(tmp_path: Path) -> None:

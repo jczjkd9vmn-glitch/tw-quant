@@ -19,6 +19,7 @@ from tw_quant.config import load_config
 from tw_quant.reporting.position_review import generate_position_review_summary
 from tw_quant.reporting.data_quality import write_data_quality_health
 from tw_quant.reporting.benchmark import select_benchmark_snapshot
+from tw_quant.reporting.strategy_readiness import strategy_can_judge_window, strategy_readiness_snapshot
 
 
 COLUMN_LABELS = {
@@ -252,6 +253,16 @@ COLUMN_LABELS = {
     "benchmark_is_official": "Benchmark 是否官方",
     "fallback_reason": "Fallback 原因",
     "can_judge_alpha": "can_judge_alpha",
+    "strategy_history_days": "策略有效歷史天數",
+    "valid_trade_count": "有效交易筆數",
+    "holding_record_count": "持倉紀錄數",
+    "can_judge_strategy_alpha": "策略樣本可判斷 Alpha",
+    "can_judge_strategy_alpha_5d": "策略樣本可判斷 5 日 Alpha",
+    "can_judge_strategy_alpha_20d": "策略樣本可判斷 20 日 Alpha",
+    "can_judge_strategy_alpha_60d": "策略樣本可判斷 60 日 Alpha",
+    "can_judge_strategy_alpha_120d": "策略樣本可判斷 120 日 Alpha",
+    "can_judge_strategy_alpha_252d": "策略樣本可判斷 252 日 Alpha",
+    "conclusion_status": "Alpha 結論狀態",
     "benchmark_warning": "Benchmark 警告",
     "source": "資料來源",
     "observation_start": "觀察起日",
@@ -2395,14 +2406,19 @@ def _benchmark_alpha_section(
 ) -> str:
     benchmark = _benchmark_snapshot(report_dir, summary)
     system_returns = _system_return_snapshot(summary, paper_summary, recent_summaries)
-    headline_window = _best_alpha_window(system_returns, benchmark)
+    selected_date = _first_raw(summary.get("trade_date"), summary.get("requested_date"))
+    strategy_readiness = strategy_readiness_snapshot(report_dir, selected_date)
+    headline_window = _best_alpha_window(system_returns, benchmark, strategy_readiness)
     system_headline = system_returns.get(headline_window)
     benchmark_headline = benchmark["returns"].get(headline_window)
     alpha = _alpha_return(system_headline, benchmark_headline)
-    can_judge_alpha = _benchmark_can_judge(benchmark, headline_window)
+    can_judge_alpha = _can_judge_alpha(benchmark, strategy_readiness, headline_window)
     beat_text = _beat_market_text(alpha, can_judge_alpha=can_judge_alpha)
     alpha_text = _alpha_text(alpha, can_judge_alpha=can_judge_alpha)
     history_days = int(benchmark.get("benchmark_history_days", 0) or 0)
+    strategy_history_days = int(strategy_readiness.get("strategy_history_days", 0) or 0)
+    valid_trade_count = int(strategy_readiness.get("valid_trade_count", 0) or 0)
+    conclusion_status = _alpha_conclusion_status(benchmark, strategy_readiness, headline_window)
     warning = ""
     if benchmark["warning"]:
         warning = (
@@ -2410,13 +2426,13 @@ def _benchmark_alpha_section(
             f'<span>{escape(str(benchmark["warning"]))}</span></p>'
         )
     detail_rows = [
-        ("今日", "1d", system_returns.get("1d"), benchmark["returns"].get("1d"), _benchmark_can_judge(benchmark, "1d")),
-        ("近 5 日", "5d", system_returns.get("5d"), benchmark["returns"].get("5d"), _benchmark_can_judge(benchmark, "5d")),
-        ("近 20 日", "20d", system_returns.get("20d"), benchmark["returns"].get("20d"), _benchmark_can_judge(benchmark, "20d")),
-        ("近 60 日", "60d", system_returns.get("60d"), benchmark["returns"].get("60d"), _benchmark_can_judge(benchmark, "60d")),
-        ("近 120 日", "120d", system_returns.get("120d"), benchmark["returns"].get("120d"), _benchmark_can_judge(benchmark, "120d")),
-        ("近 252 日", "252d", system_returns.get("252d"), benchmark["returns"].get("252d"), _benchmark_can_judge(benchmark, "252d")),
-        ("累計", "total", system_returns.get("total"), benchmark["returns"].get("total"), bool(benchmark.get("can_judge_alpha", False))),
+        ("今日", "1d", system_returns.get("1d"), benchmark["returns"].get("1d"), _can_judge_alpha(benchmark, strategy_readiness, "1d")),
+        ("近 5 日", "5d", system_returns.get("5d"), benchmark["returns"].get("5d"), _can_judge_alpha(benchmark, strategy_readiness, "5d")),
+        ("近 20 日", "20d", system_returns.get("20d"), benchmark["returns"].get("20d"), _can_judge_alpha(benchmark, strategy_readiness, "20d")),
+        ("近 60 日", "60d", system_returns.get("60d"), benchmark["returns"].get("60d"), _can_judge_alpha(benchmark, strategy_readiness, "60d")),
+        ("近 120 日", "120d", system_returns.get("120d"), benchmark["returns"].get("120d"), _can_judge_alpha(benchmark, strategy_readiness, "120d")),
+        ("近 252 日", "252d", system_returns.get("252d"), benchmark["returns"].get("252d"), _can_judge_alpha(benchmark, strategy_readiness, "252d")),
+        ("累計", "total", system_returns.get("total"), benchmark["returns"].get("total"), _can_judge_alpha(benchmark, strategy_readiness, "total")),
     ]
     detail_table = _benchmark_detail_table(detail_rows)
     benchmark_meta = (
@@ -2429,7 +2445,17 @@ def _benchmark_alpha_section(
         f"can_judge_alpha_20d={str(bool(benchmark.get('can_judge_alpha_20d', False))).lower()}；"
         f"can_judge_alpha_60d={str(bool(benchmark.get('can_judge_alpha_60d', False))).lower()}；"
         f"can_judge_alpha_120d={str(bool(benchmark.get('can_judge_alpha_120d', False))).lower()}；"
-        f"can_judge_alpha_252d={str(bool(benchmark.get('can_judge_alpha_252d', False))).lower()}"
+        f"can_judge_alpha_252d={str(bool(benchmark.get('can_judge_alpha_252d', False))).lower()}；"
+        f"strategy_history_days={strategy_history_days}；"
+        f"valid_trade_count={valid_trade_count}；"
+        f"holding_record_count={int(strategy_readiness.get('holding_record_count', 0) or 0)}；"
+        f"can_judge_strategy_alpha={str(bool(strategy_readiness.get('can_judge_strategy_alpha', False))).lower()}；"
+        f"can_judge_strategy_alpha_5d={str(bool(strategy_readiness.get('can_judge_strategy_alpha_5d', False))).lower()}；"
+        f"can_judge_strategy_alpha_20d={str(bool(strategy_readiness.get('can_judge_strategy_alpha_20d', False))).lower()}；"
+        f"can_judge_strategy_alpha_60d={str(bool(strategy_readiness.get('can_judge_strategy_alpha_60d', False))).lower()}；"
+        f"can_judge_strategy_alpha_120d={str(bool(strategy_readiness.get('can_judge_strategy_alpha_120d', False))).lower()}；"
+        f"can_judge_strategy_alpha_252d={str(bool(strategy_readiness.get('can_judge_strategy_alpha_252d', False))).lower()}；"
+        f"conclusion_status={escape(conclusion_status)}"
     )
     content = (
         '<div class="benchmark-summary-grid">'
@@ -2438,6 +2464,8 @@ def _benchmark_alpha_section(
         + _benchmark_card("本系統總資產報酬率", _return_text(system_returns.get("total")), "相對初始資金")
         + _benchmark_card("Benchmark 報酬率", _return_text(benchmark_headline), str(benchmark["source_label"]))
         + _benchmark_card("官方 benchmark 覆蓋", f"{history_days} 日", "official trading-day history")
+        + _benchmark_card("策略樣本成熟度", f"{strategy_history_days} 日", f"valid trades {valid_trade_count}")
+        + _benchmark_card("Alpha 結論狀態", conclusion_status, "benchmark + strategy readiness")
         + "</div>"
         + f'<p class="note">{benchmark_meta}</p>'
         + warning
@@ -2456,6 +2484,7 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
     warning = _format_cell("data_quality_warning", row.get("data_quality_warning")) if row else "目前尚無 performance diagnostics"
     benchmark_warning = _format_cell("benchmark_warning", row.get("benchmark_warning")) if row else "-"
     status = _format_cell("status", row.get("status")) if row else "資料不足"
+    conclusion_status = _format_cell("conclusion_status", row.get("conclusion_status")) if row else "DATA_INSUFFICIENT"
 
     cards = [
         _kpi_card(
@@ -2494,8 +2523,13 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
                 ("benchmark_is_official", _format_cell("benchmark_is_official", row.get("benchmark_is_official")) if row else "false"),
                 ("can_judge_alpha", _format_cell("can_judge_alpha", row.get("can_judge_alpha")) if row else "false"),
                 ("benchmark_history_days", _format_cell("benchmark_history_days", row.get("benchmark_history_days")) if row else "0"),
+                ("strategy_history_days", _format_cell("strategy_history_days", row.get("strategy_history_days")) if row else "0"),
+                ("valid_trade_count", _format_cell("valid_trade_count", row.get("valid_trade_count")) if row else "0"),
+                ("holding_record_count", _format_cell("holding_record_count", row.get("holding_record_count")) if row else "0"),
+                ("can_judge_strategy_alpha", _format_cell("can_judge_strategy_alpha", row.get("can_judge_strategy_alpha")) if row else "false"),
                 ("can_judge_alpha_20d", _format_cell("can_judge_alpha_20d", row.get("can_judge_alpha_20d")) if row else "false"),
                 ("can_judge_alpha_60d", _format_cell("can_judge_alpha_60d", row.get("can_judge_alpha_60d")) if row else "false"),
+                ("conclusion_status", conclusion_status),
                 ("視窗", _format_cell("benchmark_window", row.get("benchmark_window")) if row else "-"),
                 ("Benchmark 報酬", _format_cell("benchmark_return", row.get("benchmark_return")) if row else "-"),
             ],
@@ -2543,6 +2577,16 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
             "can_judge_alpha_120d",
             "can_judge_alpha_252d",
             "benchmark_history_days",
+            "strategy_history_days",
+            "valid_trade_count",
+            "holding_record_count",
+            "can_judge_strategy_alpha",
+            "can_judge_strategy_alpha_5d",
+            "can_judge_strategy_alpha_20d",
+            "can_judge_strategy_alpha_60d",
+            "can_judge_strategy_alpha_120d",
+            "can_judge_strategy_alpha_252d",
+            "conclusion_status",
             "benchmark_warning",
             "status",
             "data_quality_warning",
@@ -2578,6 +2622,7 @@ def _strategy_diagnostics_section(
     worst_factors = _factor_rank_text(factor_summary, best=False)
     benchmark_source = _format_cell("benchmark_source", benchmark_row.get("benchmark_source")) if benchmark_row else "資料不足"
     warning = _format_cell("benchmark_warning", benchmark_row.get("benchmark_warning")) if benchmark_row else "缺少 benchmark diagnostics"
+    conclusion_status = _format_cell("conclusion_status", benchmark_row.get("conclusion_status")) if benchmark_row else "DATA_INSUFFICIENT"
 
     cards = [
         _kpi_card(
@@ -2588,8 +2633,13 @@ def _strategy_diagnostics_section(
                 ("Benchmark 來源", benchmark_source),
                 ("can_judge_alpha", str(can_judge_alpha).lower()),
                 ("benchmark_history_days", _format_cell("benchmark_history_days", benchmark_row.get("benchmark_history_days")) if benchmark_row else "0"),
+                ("strategy_history_days", _format_cell("strategy_history_days", benchmark_row.get("strategy_history_days")) if benchmark_row else "0"),
+                ("valid_trade_count", _format_cell("valid_trade_count", benchmark_row.get("valid_trade_count")) if benchmark_row else "0"),
+                ("holding_record_count", _format_cell("holding_record_count", benchmark_row.get("holding_record_count")) if benchmark_row else "0"),
+                ("can_judge_strategy_alpha", _format_cell("can_judge_strategy_alpha", benchmark_row.get("can_judge_strategy_alpha")) if benchmark_row else "false"),
                 ("can_judge_alpha_20d", _format_cell("can_judge_alpha_20d", benchmark_row.get("can_judge_alpha_20d")) if benchmark_row else "false"),
                 ("can_judge_alpha_60d", _format_cell("can_judge_alpha_60d", benchmark_row.get("can_judge_alpha_60d")) if benchmark_row else "false"),
+                ("conclusion_status", conclusion_status),
             ],
             tone="ok" if can_judge_alpha and headline_alpha is not None and headline_alpha >= 0 else "warning",
         ),
@@ -2680,6 +2730,16 @@ def _strategy_diagnostics_section(
             "can_judge_alpha_120d",
             "can_judge_alpha_252d",
             "benchmark_history_days",
+            "strategy_history_days",
+            "valid_trade_count",
+            "holding_record_count",
+            "can_judge_strategy_alpha",
+            "can_judge_strategy_alpha_5d",
+            "can_judge_strategy_alpha_20d",
+            "can_judge_strategy_alpha_60d",
+            "can_judge_strategy_alpha_120d",
+            "can_judge_strategy_alpha_252d",
+            "conclusion_status",
             "benchmark_warning",
             "data_quality_warning",
             "notes",
@@ -2866,10 +2926,18 @@ def _equity_return_over_recent_window(recent_summaries: pd.DataFrame, window: in
     return latest / baseline - 1.0
 
 
-def _best_alpha_window(system_returns: dict[str, float | None], benchmark: dict[str, object]) -> str:
+def _best_alpha_window(
+    system_returns: dict[str, float | None],
+    benchmark: dict[str, object],
+    strategy_readiness: dict[str, object],
+) -> str:
     benchmark_returns = benchmark.get("returns", {}) if isinstance(benchmark.get("returns"), dict) else {}
     for key in ["20d", "5d", "1d"]:
-        if system_returns.get(key) is not None and benchmark_returns.get(key) is not None and _benchmark_can_judge(benchmark, key):
+        if (
+            system_returns.get(key) is not None
+            and benchmark_returns.get(key) is not None
+            and _can_judge_alpha(benchmark, strategy_readiness, key)
+        ):
             return key
     return "total"
 
@@ -2943,6 +3011,18 @@ def _benchmark_can_judge(benchmark: dict[str, object], window: str) -> bool:
     if window == "1d":
         return bool(benchmark.get("benchmark_is_official", False) and benchmark.get("can_judge_alpha", False))
     return bool(benchmark.get(f"can_judge_alpha_{window}", False))
+
+
+def _can_judge_alpha(benchmark: dict[str, object], strategy_readiness: dict[str, object], window: str) -> bool:
+    return bool(_benchmark_can_judge(benchmark, window) and strategy_can_judge_window(strategy_readiness, window))
+
+
+def _alpha_conclusion_status(benchmark: dict[str, object], strategy_readiness: dict[str, object], window: str) -> str:
+    if not _benchmark_can_judge(benchmark, window):
+        return "DATA_INSUFFICIENT"
+    if not strategy_can_judge_window(strategy_readiness, window):
+        return "NOT_ENOUGH_STRATEGY_HISTORY"
+    return "OK"
 
 
 def _return_text(value: float | None) -> str:

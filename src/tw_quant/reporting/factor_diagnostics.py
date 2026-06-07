@@ -15,6 +15,12 @@ from typing import Iterable
 import pandas as pd
 
 from tw_quant.reporting.benchmark import select_benchmark_snapshot
+from tw_quant.reporting.strategy_readiness import (
+    STRATEGY_ALPHA_WINDOWS,
+    strategy_can_judge_window,
+    strategy_insufficient_reason,
+    strategy_readiness_snapshot,
+)
 
 
 FACTOR_ATTRIBUTION_COLUMNS = [
@@ -91,6 +97,16 @@ BENCHMARK_DIAGNOSTICS_COLUMNS = [
     "can_judge_alpha_120d",
     "can_judge_alpha_252d",
     "benchmark_history_days",
+    "strategy_history_days",
+    "valid_trade_count",
+    "holding_record_count",
+    "can_judge_strategy_alpha",
+    "can_judge_strategy_alpha_5d",
+    "can_judge_strategy_alpha_20d",
+    "can_judge_strategy_alpha_60d",
+    "can_judge_strategy_alpha_120d",
+    "can_judge_strategy_alpha_252d",
+    "conclusion_status",
     "benchmark_warning",
     "data_quality_warning",
     "notes",
@@ -170,11 +186,18 @@ def generate_factor_diagnostics(
     paper_summary = _read_latest(report_dir, "paper_summary_*.csv", trade_date)
     recent_summaries = _read_recent_summaries(report_dir)
     trades = _read_csv(report_dir / "paper_trades.csv")
+    portfolio = _read_latest(report_dir, "paper_portfolio_*.csv", trade_date)
     rejected = _read_latest(report_dir, "rejected_paper_orders_*.csv", trade_date)
 
     analysis_frame = _build_analysis_frame(candidates, risk_pass, decisions, market_intel, trades, market_regime)
     trade_returns = _trade_returns(trades)
     benchmark = select_benchmark_snapshot(report_dir, selected_date)
+    readiness = strategy_readiness_snapshot(
+        report_dir,
+        selected_date,
+        trades_frame=trades,
+        portfolio_frame=portfolio,
+    )
 
     warnings: list[str] = []
     if trades.empty:
@@ -189,6 +212,7 @@ def generate_factor_diagnostics(
         paper_summary,
         recent_summaries,
         benchmark,
+        readiness,
     )
     guardrail_impact = _guardrail_impact(rejected, benchmark)
 
@@ -395,40 +419,45 @@ def _benchmark_diagnostics(
     paper_summary: pd.DataFrame,
     recent_summaries: pd.DataFrame,
     benchmark: dict[str, object],
+    readiness: dict[str, object],
 ) -> pd.DataFrame:
     summary = paper_summary.iloc[0].to_dict() if not paper_summary.empty else {}
     system_returns = _system_return_snapshot(summary, recent_summaries)
     benchmark_returns = benchmark.get("returns", {}) if isinstance(benchmark.get("returns"), dict) else {}
-    can_judge_alpha = bool(benchmark.get("can_judge_alpha", False))
-    alpha_1d = _window_alpha(system_returns, benchmark_returns, benchmark, "1d")
-    alpha_5d = _window_alpha(system_returns, benchmark_returns, benchmark, "5d")
-    alpha_20d = _window_alpha(system_returns, benchmark_returns, benchmark, "20d")
-    alpha_60d = _window_alpha(system_returns, benchmark_returns, benchmark, "60d")
-    alpha_120d = _window_alpha(system_returns, benchmark_returns, benchmark, "120d")
-    alpha_252d = _window_alpha(system_returns, benchmark_returns, benchmark, "252d")
+    benchmark_can_judge = bool(benchmark.get("can_judge_alpha", False))
+    can_judge_alpha = bool(benchmark_can_judge and readiness.get("can_judge_strategy_alpha", False))
+    alpha_1d = _window_alpha(system_returns, benchmark_returns, benchmark, readiness, "1d")
+    alpha_5d = _window_alpha(system_returns, benchmark_returns, benchmark, readiness, "5d")
+    alpha_20d = _window_alpha(system_returns, benchmark_returns, benchmark, readiness, "20d")
+    alpha_60d = _window_alpha(system_returns, benchmark_returns, benchmark, readiness, "60d")
+    alpha_120d = _window_alpha(system_returns, benchmark_returns, benchmark, readiness, "120d")
+    alpha_252d = _window_alpha(system_returns, benchmark_returns, benchmark, readiness, "252d")
     cumulative_alpha = _sub_or_none(system_returns.get("total"), benchmark_returns.get("total")) if can_judge_alpha else None
     available_alpha = [value for value in [alpha_1d, alpha_5d, alpha_20d, alpha_60d, alpha_120d, alpha_252d] if value is not None]
     warning_parts = []
     if benchmark.get("warning"):
         warning_parts.append(str(benchmark.get("warning")))
-    if not can_judge_alpha:
+    if not benchmark_can_judge:
         warning_parts.append("NO_OFFICIAL_BENCHMARK: can_judge_alpha=false")
     for window in ["20d", "60d", "120d", "252d"]:
         if bool(benchmark.get("benchmark_is_official", False)) and not _can_judge_window(benchmark, window):
             warning_parts.append(f"DATA_INSUFFICIENT: {window} alpha")
+        if _can_judge_window(benchmark, window) and not strategy_can_judge_window(readiness, window):
+            warning_parts.append(f"NOT_ENOUGH_STRATEGY_HISTORY: {strategy_insufficient_reason(readiness, window)}")
     if not available_alpha and cumulative_alpha is None:
         warning_parts.append("DATA_INSUFFICIENT: benchmark 或系統報酬資料不足")
+    conclusion_status = _conclusion_status(benchmark_can_judge, readiness, available_alpha, cumulative_alpha)
     row = {
         "trade_date": (trade_date or pd.Timestamp.today()).strftime("%Y-%m-%d"),
         "system_cumulative_return": system_returns.get("total"),
         "benchmark_cumulative_return": benchmark_returns.get("total"),
         "alpha": cumulative_alpha,
-        "benchmark_return_1d": benchmark_returns.get("1d") if _can_judge_window(benchmark, "1d") else None,
-        "benchmark_return_5d": benchmark_returns.get("5d") if _can_judge_window(benchmark, "5d") else None,
-        "benchmark_return_20d": benchmark_returns.get("20d") if _can_judge_window(benchmark, "20d") else None,
-        "benchmark_return_60d": benchmark_returns.get("60d") if _can_judge_window(benchmark, "60d") else None,
-        "benchmark_return_120d": benchmark_returns.get("120d") if _can_judge_window(benchmark, "120d") else None,
-        "benchmark_return_252d": benchmark_returns.get("252d") if _can_judge_window(benchmark, "252d") else None,
+        "benchmark_return_1d": benchmark_returns.get("1d") if _can_judge_window(benchmark, "1d") and strategy_can_judge_window(readiness, "1d") else None,
+        "benchmark_return_5d": benchmark_returns.get("5d") if _can_judge_window(benchmark, "5d") and strategy_can_judge_window(readiness, "5d") else None,
+        "benchmark_return_20d": benchmark_returns.get("20d") if _can_judge_window(benchmark, "20d") and strategy_can_judge_window(readiness, "20d") else None,
+        "benchmark_return_60d": benchmark_returns.get("60d") if _can_judge_window(benchmark, "60d") and strategy_can_judge_window(readiness, "60d") else None,
+        "benchmark_return_120d": benchmark_returns.get("120d") if _can_judge_window(benchmark, "120d") and strategy_can_judge_window(readiness, "120d") else None,
+        "benchmark_return_252d": benchmark_returns.get("252d") if _can_judge_window(benchmark, "252d") and strategy_can_judge_window(readiness, "252d") else None,
         "alpha_1d": alpha_1d,
         "alpha_5d": alpha_5d,
         "alpha_20d": alpha_20d,
@@ -449,6 +478,8 @@ def _benchmark_diagnostics(
         "can_judge_alpha_120d": bool(benchmark.get("can_judge_alpha_120d", False)),
         "can_judge_alpha_252d": bool(benchmark.get("can_judge_alpha_252d", False)),
         "benchmark_history_days": int(benchmark.get("benchmark_history_days", 0) or 0),
+        **_readiness_columns(readiness),
+        "conclusion_status": conclusion_status,
         "benchmark_warning": benchmark.get("warning", ""),
         "data_quality_warning": "DATA_INSUFFICIENT" if warning_parts else "",
         "notes": "；".join(warning_parts),
@@ -792,9 +823,10 @@ def _window_alpha(
     system_returns: dict[str, float | None],
     benchmark_returns: dict[str, object],
     benchmark: dict[str, object],
+    readiness: dict[str, object],
     window: str,
 ) -> float | None:
-    if not _can_judge_window(benchmark, window):
+    if not _can_judge_window(benchmark, window) or not strategy_can_judge_window(readiness, window):
         return None
     return _sub_or_none(system_returns.get(window), benchmark_returns.get(window))
 
@@ -803,6 +835,36 @@ def _can_judge_window(benchmark: dict[str, object], window: str) -> bool:
     if window == "1d":
         return bool(benchmark.get("benchmark_is_official", False) and benchmark.get("can_judge_alpha", False))
     return bool(benchmark.get(f"can_judge_alpha_{window}", False))
+
+
+def _readiness_columns(readiness: dict[str, object]) -> dict[str, object]:
+    output = {
+        "strategy_history_days": int(readiness.get("strategy_history_days", 0) or 0),
+        "valid_trade_count": int(readiness.get("valid_trade_count", 0) or 0),
+        "holding_record_count": int(readiness.get("holding_record_count", 0) or 0),
+        "can_judge_strategy_alpha": bool(readiness.get("can_judge_strategy_alpha", False)),
+    }
+    for days in STRATEGY_ALPHA_WINDOWS:
+        if days == 1:
+            continue
+        key = f"can_judge_strategy_alpha_{days}d"
+        output[key] = bool(readiness.get(key, False))
+    return output
+
+
+def _conclusion_status(
+    benchmark_can_judge: bool,
+    readiness: dict[str, object],
+    available_alpha: list[float],
+    cumulative_alpha: float | None,
+) -> str:
+    if not benchmark_can_judge:
+        return "DATA_INSUFFICIENT"
+    if not bool(readiness.get("can_judge_strategy_alpha", False)):
+        return "NOT_ENOUGH_STRATEGY_HISTORY"
+    if not available_alpha and cumulative_alpha is None:
+        return "DATA_INSUFFICIENT"
+    return "OK"
 
 
 def _num(value: object) -> float | None:

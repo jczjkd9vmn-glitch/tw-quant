@@ -1,2 +1,2 @@
 ﻿trade_date,market_regime_score,source,twse_above_20ma,twse_above_60ma,tpex_above_20ma,tpex_above_60ma,market_return_5d,market_return_20d,market_above_20ma_ratio,market_above_60ma_ratio,warning
-2026-06-05,100.0,equal_weight_market,,,,,0.021702,0.071073,0.743571,0.71161,缺少正式加權 / 櫃買指數資料，未使用正式大盤指數，使用全市場等權報酬 fallback；排除 957 筆跨日價格跳動異常資料
+2026-06-05,77.0,official_index,True,True,True,True,-0.010389,0.068081,,,使用正式 TAIEX 價格指數，非 total return；alpha 需保守解讀。

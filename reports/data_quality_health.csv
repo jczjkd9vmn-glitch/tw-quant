@@ -5,7 +5,7 @@
 2026-06-07,,資料來源：monthly_revenue,source,ATTENTION,MEDIUM,DATA_REVIEW,monthly_revenue 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,monthly_revenue 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,,True,False,1078,1078,1078,,monthly_revenue,OK_WITH_FALLBACK,wrote_new_data,
 2026-06-07,,資料來源：valuation,source,OK,LOW,OK,資料來源正常,資料來源正常,,False,False,1078,1078,1078,,valuation,OK,wrote_new_data,
 2026-06-07,,資料來源：financials,source,OK,LOW,OK,資料來源正常,資料來源正常,,False,False,1043,1043,1043,,financials,OK,wrote_new_data,
-2026-06-07,,資料來源：material_events,source,OK,LOW,OK,資料來源正常,資料來源正常,,False,False,197,197,197,,material_events,OK,wrote_new_data,
+2026-06-07,,資料來源：material_events,source,OK,LOW,OK,資料來源正常,資料來源正常,,False,False,2,2,2,,material_events,OK,wrote_new_data,
 2026-06-07,,資料來源：institutional,source,ATTENTION,MEDIUM,DATA_REVIEW,institutional 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,institutional 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,,True,False,1320,1320,0,,institutional,OK_WITH_FALLBACK,kept_existing_csv,
 2026-06-07,,資料來源：margin_short,source,ATTENTION,MEDIUM,DATA_REVIEW,margin_short 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,margin_short 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,,True,False,1273,1273,0,,margin_short,OK_WITH_FALLBACK,kept_existing_csv,
 2026-06-07,,資料來源：attention_disposition,source,OK,LOW,OK,資料來源正常,資料來源正常,,False,False,44,44,0,,attention_disposition,OK,wrote_new_data,

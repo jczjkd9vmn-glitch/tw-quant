@@ -15,6 +15,7 @@ from typing import Iterable
 import pandas as pd
 
 from tw_quant.reporting.benchmark import select_benchmark_snapshot
+from tw_quant.reporting.risk_adjusted_alpha import RISK_ADJUSTED_ALPHA_COLUMNS, risk_adjusted_alpha_snapshot
 from tw_quant.reporting.strategy_readiness import (
     STRATEGY_ALPHA_WINDOWS,
     strategy_can_judge_window,
@@ -107,6 +108,7 @@ BENCHMARK_DIAGNOSTICS_COLUMNS = [
     "can_judge_strategy_alpha_120d",
     "can_judge_strategy_alpha_252d",
     "conclusion_status",
+    *[column for column in RISK_ADJUSTED_ALPHA_COLUMNS if column != "conclusion_status"],
     "benchmark_warning",
     "data_quality_warning",
     "notes",
@@ -198,6 +200,12 @@ def generate_factor_diagnostics(
         trades_frame=trades,
         portfolio_frame=portfolio,
     )
+    risk_alpha = risk_adjusted_alpha_snapshot(
+        report_dir,
+        selected_date,
+        readiness=readiness,
+        benchmark_snapshot=benchmark,
+    )
 
     warnings: list[str] = []
     if trades.empty:
@@ -213,6 +221,7 @@ def generate_factor_diagnostics(
         recent_summaries,
         benchmark,
         readiness,
+        risk_alpha,
     )
     guardrail_impact = _guardrail_impact(rejected, benchmark)
 
@@ -420,6 +429,7 @@ def _benchmark_diagnostics(
     recent_summaries: pd.DataFrame,
     benchmark: dict[str, object],
     readiness: dict[str, object],
+    risk_alpha: dict[str, object],
 ) -> pd.DataFrame:
     summary = paper_summary.iloc[0].to_dict() if not paper_summary.empty else {}
     system_returns = _system_return_snapshot(summary, recent_summaries)
@@ -446,7 +456,10 @@ def _benchmark_diagnostics(
             warning_parts.append(f"NOT_ENOUGH_STRATEGY_HISTORY: {strategy_insufficient_reason(readiness, window)}")
     if not available_alpha and cumulative_alpha is None:
         warning_parts.append("DATA_INSUFFICIENT: benchmark 或系統報酬資料不足")
-    conclusion_status = _conclusion_status(benchmark_can_judge, readiness, available_alpha, cumulative_alpha)
+    conclusion_status = str(risk_alpha.get("conclusion_status") or _conclusion_status(benchmark_can_judge, readiness, available_alpha, cumulative_alpha))
+    risk_reason = str(risk_alpha.get("conclusion_reason", "") or "").strip()
+    if risk_reason:
+        warning_parts.append(risk_reason)
     row = {
         "trade_date": (trade_date or pd.Timestamp.today()).strftime("%Y-%m-%d"),
         "system_cumulative_return": system_returns.get("total"),
@@ -479,6 +492,7 @@ def _benchmark_diagnostics(
         "can_judge_alpha_252d": bool(benchmark.get("can_judge_alpha_252d", False)),
         "benchmark_history_days": int(benchmark.get("benchmark_history_days", 0) or 0),
         **_readiness_columns(readiness),
+        **_risk_alpha_columns(risk_alpha),
         "conclusion_status": conclusion_status,
         "benchmark_warning": benchmark.get("warning", ""),
         "data_quality_warning": "DATA_INSUFFICIENT" if warning_parts else "",
@@ -850,6 +864,10 @@ def _readiness_columns(readiness: dict[str, object]) -> dict[str, object]:
         key = f"can_judge_strategy_alpha_{days}d"
         output[key] = bool(readiness.get(key, False))
     return output
+
+
+def _risk_alpha_columns(risk_alpha: dict[str, object]) -> dict[str, object]:
+    return {column: risk_alpha.get(column) for column in RISK_ADJUSTED_ALPHA_COLUMNS}
 
 
 def _conclusion_status(

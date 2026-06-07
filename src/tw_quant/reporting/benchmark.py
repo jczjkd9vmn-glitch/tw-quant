@@ -139,24 +139,51 @@ def benchmark_return_for_window(
     }
 
 
+def select_official_benchmark_history(
+    report_dir: str | Path,
+    selected_date: str | pd.Timestamp | None = None,
+) -> dict[str, object]:
+    """Return the selected official benchmark close series for diagnostics."""
+
+    report_path = Path(report_dir)
+    target = pd.to_datetime(selected_date, errors="coerce") if selected_date is not None else pd.NaT
+    target_date = None if pd.isna(target) else target
+    frame = _official_index_frame(report_path, target_date)
+    if frame.empty:
+        return {
+            "frame": pd.DataFrame(columns=["trade_date", "close"]),
+            "source_label": "benchmark 資料不足",
+            "benchmark_is_official": False,
+            "warning": NO_OFFICIAL_INDEX_WARNING,
+            "history_days": 0,
+        }
+    for index_id in OFFICIAL_INDEX_PRIORITY:
+        subset = frame[frame["index_id"] == index_id].copy()
+        if subset.empty:
+            continue
+        subset["close"] = pd.to_numeric(subset["close"], errors="coerce")
+        subset = subset.dropna(subset=["close"]).sort_values("trade_date")
+        if subset.empty:
+            continue
+        source_label, warning = _official_index_label(index_id)
+        return {
+            "frame": subset[["trade_date", "close"]].reset_index(drop=True),
+            "source_label": source_label,
+            "benchmark_is_official": True,
+            "warning": warning,
+            "history_days": int(len(subset)),
+        }
+    return {
+        "frame": pd.DataFrame(columns=["trade_date", "close"]),
+        "source_label": "benchmark 資料不足",
+        "benchmark_is_official": False,
+        "warning": NO_OFFICIAL_INDEX_WARNING,
+        "history_days": 0,
+    }
+
+
 def _official_index_snapshot(report_dir: Path, selected_date: pd.Timestamp | None) -> dict[str, object] | None:
-    frame = _read_market_indices(report_dir)
-    if frame.empty:
-        return None
-    frame = frame.copy()
-    frame["trade_date"] = pd.to_datetime(frame["trade_date"], errors="coerce")
-    frame = frame.dropna(subset=["trade_date"])
-    if selected_date is not None:
-        frame = frame[frame["trade_date"] <= selected_date]
-    if frame.empty:
-        return None
-    frame["index_id"] = frame["index_id"].astype(str).str.strip()
-    frame = frame[frame["index_id"].isin(ACCEPTED_INDEX_IDS)].copy()
-    if "is_official" in frame.columns:
-        frame = frame[frame["is_official"].apply(_truthy)].copy()
-    if frame.empty:
-        return None
-    frame = filter_trading_days(frame)
+    frame = _official_index_frame(report_dir, selected_date)
     if frame.empty:
         return None
 
@@ -188,6 +215,26 @@ def _official_index_snapshot(report_dir: Path, selected_date: pd.Timestamp | Non
             "status": "OK_WITH_WARNING" if warning else "OK",
         }
     return None
+
+
+def _official_index_frame(report_dir: Path, selected_date: pd.Timestamp | None) -> pd.DataFrame:
+    frame = _read_market_indices(report_dir)
+    if frame.empty:
+        return pd.DataFrame()
+    frame = frame.copy()
+    frame["trade_date"] = pd.to_datetime(frame["trade_date"], errors="coerce")
+    frame = frame.dropna(subset=["trade_date"])
+    if selected_date is not None:
+        frame = frame[frame["trade_date"] <= selected_date]
+    if frame.empty:
+        return pd.DataFrame()
+    frame["index_id"] = frame["index_id"].astype(str).str.strip()
+    frame = frame[frame["index_id"].isin(ACCEPTED_INDEX_IDS)].copy()
+    if "is_official" in frame.columns:
+        frame = frame[frame["is_official"].apply(_truthy)].copy()
+    if frame.empty:
+        return pd.DataFrame()
+    return filter_trading_days(frame)
 
 
 def _official_index_label(index_id: str) -> tuple[str, str]:

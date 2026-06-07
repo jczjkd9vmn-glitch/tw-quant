@@ -288,6 +288,16 @@ COLUMN_LABELS = {
     "volatility_ratio": "波動比率",
     "risk_adjusted_alpha_status": "風險調整 Alpha 狀態",
     "conclusion_reason": "結論原因",
+    "attribution_type": "歸因類型",
+    "diagnostic_item": "診斷項目",
+    "position_weight": "持倉占比",
+    "cash_ratio": "現金比例",
+    "strategy_value": "策略數值",
+    "benchmark_value": "Benchmark 數值",
+    "pnl_contribution_pct": "損益貢獻占比",
+    "drawdown_contribution": "回撤貢獻",
+    "top3_contribution_pct": "前 3 大貢獻占比",
+    "diagnostic_status": "診斷狀態",
     "benchmark_warning": "Benchmark 警告",
     "source": "資料來源",
     "observation_start": "觀察起日",
@@ -935,6 +945,14 @@ PERCENT_COLUMNS.update(
         "benchmark_max_drawdown",
         "strategy_volatility",
         "benchmark_volatility",
+        "position_weight",
+        "cash_ratio",
+        "strategy_value",
+        "benchmark_value",
+        "pnl_contribution_pct",
+        "drawdown_contribution",
+        "top3_contribution_pct",
+        "alpha",
     }
 )
 INTEGER_COLUMNS.update(
@@ -1040,6 +1058,7 @@ def generate_html_report(
     benchmark_diagnostics = _read_latest_csv(report_dir, "benchmark_diagnostics_*.csv")
     guardrail_impact = _read_latest_csv(report_dir, "guardrail_impact_*.csv")
     performance_diagnostics = _read_latest_csv(report_dir, "performance_diagnostics_*.csv")
+    underperformance_attribution = _read_latest_csv(report_dir, "underperformance_attribution_*.csv")
     market_regime = _read_latest_csv(report_dir, "market_regime_*.csv")
     rejected_orders = _read_latest_csv(report_dir, "rejected_paper_orders_*.csv")
     ai_enrichment = _read_latest_csv(report_dir, "ai_enrichment_*.csv")
@@ -1072,6 +1091,7 @@ def generate_html_report(
         benchmark_diagnostics=benchmark_diagnostics,
         guardrail_impact=guardrail_impact,
         performance_diagnostics=performance_diagnostics,
+        underperformance_attribution=underperformance_attribution,
         market_regime=market_regime,
         rejected_orders=rejected_orders,
         ai_enrichment=ai_enrichment,
@@ -1114,6 +1134,7 @@ def _render_page(
     benchmark_diagnostics: pd.DataFrame,
     guardrail_impact: pd.DataFrame,
     performance_diagnostics: pd.DataFrame,
+    underperformance_attribution: pd.DataFrame,
     market_regime: pd.DataFrame,
     rejected_orders: pd.DataFrame,
     ai_enrichment: pd.DataFrame,
@@ -1356,6 +1377,7 @@ def _render_page(
             ),
             _benchmark_alpha_section(report_dir, latest_summary, latest_paper_summary, recent_summaries),
             _risk_adjusted_alpha_section(performance_diagnostics),
+            _underperformance_attribution_section(underperformance_attribution, performance_diagnostics),
             _performance_diagnostics_section(performance_diagnostics),
             _strategy_diagnostics_section(
                 factor_attribution,
@@ -2936,6 +2958,181 @@ def _risk_adjusted_alpha_columns() -> list[str]:
         "risk_adjusted_alpha_status",
         "conclusion_reason",
     ]
+
+
+def _underperformance_attribution_section(
+    underperformance_attribution: pd.DataFrame,
+    performance_diagnostics: pd.DataFrame,
+) -> str:
+    if underperformance_attribution.empty:
+        content = (
+            _empty("目前尚無 underperformance attribution 診斷")
+            + '<p class="note">此區只做診斷，不修改策略、不修改出場規則，也不代表實盤買賣建議。</p>'
+        )
+        return _section("輸大盤歸因", content, section_id="underperformance-attribution", class_name="underperformance-attribution-section")
+
+    frame = underperformance_attribution.copy()
+    conclusion_status = _format_cell("conclusion_status", _frame_first(performance_diagnostics, "conclusion_status"))
+    largest_drag = _largest_drag_row(frame)
+    largest_contributor = _largest_contributor_row(frame)
+    cash_drag = _first_attribution_row(frame, "cash_drag")
+    concentration = frame[
+        (frame.get("attribution_type", pd.Series(dtype=str)).astype(str) == "position_concentration")
+        & (frame.get("diagnostic_item", pd.Series(dtype=str)).astype(str) == "前 3 大持倉對總損益貢獻")
+    ]
+    concentration_row = concentration.iloc[0].to_dict() if not concentration.empty else {}
+    exit_rows = frame[frame.get("attribution_type", pd.Series(dtype=str)).astype(str) == "exit_timing_diagnostic"]
+    sector_rows = frame[frame.get("attribution_type", pd.Series(dtype=str)).astype(str) == "sector_allocation_alpha"].copy()
+    if not sector_rows.empty:
+        sector_rows["_alpha_sort"] = pd.to_numeric(sector_rows.get("alpha"), errors="coerce")
+        sector_rows = sector_rows.sort_values("_alpha_sort", ascending=True)
+    worst_sector = sector_rows.iloc[0].to_dict() if not sector_rows.empty else {}
+
+    cards = [
+        _kpi_card(
+            "最大拖累股票",
+            escape(_stock_label(largest_drag)),
+            [
+                ("回撤貢獻", _format_cell("drawdown_contribution", largest_drag.get("drawdown_contribution"))),
+                ("損益", _format_cell("pnl_after_cost", largest_drag.get("pnl_after_cost"))),
+                ("狀態", _format_cell("diagnostic_status", largest_drag.get("diagnostic_status"))),
+            ],
+            tone="warning",
+        ),
+        _kpi_card(
+            "最大貢獻股票",
+            escape(_stock_label(largest_contributor)),
+            [
+                ("損益", _format_cell("pnl_after_cost", largest_contributor.get("pnl_after_cost"))),
+                ("貢獻占比", _format_cell("pnl_contribution_pct", largest_contributor.get("pnl_contribution_pct"))),
+                ("狀態", _format_cell("diagnostic_status", largest_contributor.get("diagnostic_status"))),
+            ],
+            tone="ok",
+        ),
+        _kpi_card(
+            "現金比例拖累",
+            escape(_format_cell("alpha", cash_drag.get("alpha"))),
+            [
+                ("現金比例", _format_cell("cash_ratio", cash_drag.get("cash_ratio"))),
+                ("Benchmark 20d", _format_cell("benchmark_value", cash_drag.get("benchmark_value"))),
+                ("結論", _truncate_text(_format_cell("conclusion", cash_drag.get("conclusion")), 60)),
+            ],
+            tone="warning" if _to_float(cash_drag.get("alpha")) is not None and (_to_float(cash_drag.get("alpha")) or 0) < 0 else "neutral",
+        ),
+        _kpi_card(
+            "回撤集中度",
+            escape(_format_cell("top3_contribution_pct", concentration_row.get("top3_contribution_pct"))),
+            [
+                ("是否集中", _truncate_text(_format_cell("conclusion", concentration_row.get("conclusion")), 60)),
+                ("狀態", _format_cell("diagnostic_status", concentration_row.get("diagnostic_status"))),
+            ],
+            tone="warning" if (_to_float(concentration_row.get("top3_contribution_pct")) or 0) >= 0.6 else "neutral",
+        ),
+        _kpi_card(
+            "停損 / 停利規則診斷",
+            escape(_exit_timing_summary(exit_rows)),
+            [("說明", "需出場後 forward return 才能正式判斷")],
+            tone="warning" if not exit_rows.empty else "neutral",
+        ),
+        _kpi_card(
+            "產業配置偏離",
+            escape(_format_cell("industry", worst_sector.get("industry"))),
+            [
+                ("產業 alpha", _format_cell("alpha", worst_sector.get("alpha"))),
+                ("持倉占比", _format_cell("position_weight", worst_sector.get("position_weight"))),
+                ("結論", _truncate_text(_format_cell("conclusion", worst_sector.get("conclusion")), 60)),
+            ],
+            tone="warning" if _to_float(worst_sector.get("alpha")) is not None and (_to_float(worst_sector.get("alpha")) or 0) < 0 else "neutral",
+        ),
+    ]
+
+    detail_table = _table(
+        frame,
+        [
+            "trade_date",
+            "attribution_type",
+            "diagnostic_item",
+            "stock_id",
+            "stock_name",
+            "industry",
+            "window",
+            "position_weight",
+            "cash_ratio",
+            "strategy_value",
+            "benchmark_value",
+            "alpha",
+            "pnl_after_cost",
+            "pnl_contribution_pct",
+            "drawdown_contribution",
+            "top3_contribution_pct",
+            "diagnostic_status",
+            "conclusion",
+            "data_quality_warning",
+            "notes",
+        ],
+        "目前尚無 underperformance attribution 明細",
+        max_rows=120,
+    )
+    status_notice = ""
+    if conclusion_status and conclusion_status != "-":
+        status_notice = (
+            '<p class="top-notice benchmark-warning"><strong>目前 Alpha 結論</strong>'
+            f"<span>{escape(conclusion_status)}；不得因此區診斷直接推論實盤買賣。</span></p>"
+        )
+    content = (
+        '<div class="benchmark-summary-grid underperformance-grid">'
+        + "".join(cards)
+        + "</div>"
+        + status_notice
+        + '<p class="note">此區只做輸大盤原因診斷，不修改策略、不修改出場規則、不建立訂單，也不代表實盤買賣建議。</p>'
+        + _details_block("輸大盤歸因明細", detail_table)
+    )
+    return _section("輸大盤歸因", content, section_id="underperformance-attribution", class_name="underperformance-attribution-section")
+
+
+def _first_attribution_row(frame: pd.DataFrame, attribution_type: str) -> dict[str, object]:
+    if frame.empty or "attribution_type" not in frame.columns:
+        return {}
+    subset = frame[frame["attribution_type"].astype(str) == attribution_type]
+    return subset.iloc[0].to_dict() if not subset.empty else {}
+
+
+def _largest_drag_row(frame: pd.DataFrame) -> dict[str, object]:
+    subset = frame[frame.get("attribution_type", pd.Series(dtype=str)).astype(str) == "drawdown_contribution"].copy()
+    if subset.empty:
+        return {}
+    subset["_drawdown"] = pd.to_numeric(subset.get("drawdown_contribution"), errors="coerce")
+    subset = subset.dropna(subset=["_drawdown"]).sort_values("_drawdown", ascending=True)
+    return subset.iloc[0].to_dict() if not subset.empty else {}
+
+
+def _largest_contributor_row(frame: pd.DataFrame) -> dict[str, object]:
+    subset = frame[
+        (frame.get("attribution_type", pd.Series(dtype=str)).astype(str) == "position_concentration")
+        & (frame.get("diagnostic_item", pd.Series(dtype=str)).astype(str) == "損益貢獻個股")
+    ].copy()
+    if subset.empty:
+        return {}
+    subset["_pnl"] = pd.to_numeric(subset.get("pnl_after_cost"), errors="coerce")
+    subset = subset.dropna(subset=["_pnl"]).sort_values("_pnl", ascending=False)
+    return subset.iloc[0].to_dict() if not subset.empty else {}
+
+
+def _stock_label(row: dict[str, object]) -> str:
+    stock_id = _format_cell("stock_id", row.get("stock_id"))
+    stock_name = _format_cell("stock_name", row.get("stock_name"))
+    if stock_id == "-" and stock_name == "-":
+        return "資料不足"
+    return " ".join(part for part in [stock_id, stock_name] if part != "-")
+
+
+def _exit_timing_summary(exit_rows: pd.DataFrame) -> str:
+    if exit_rows.empty:
+        return "資料不足"
+    statuses = exit_rows.get("diagnostic_status", pd.Series(dtype=str)).astype(str).tolist()
+    if statuses and all(status == "DATA_INSUFFICIENT" for status in statuses):
+        return "出場後資料不足"
+    return "需人工檢查"
 
 
 def _diagnostic_sample_sufficiency(summary: pd.DataFrame) -> str:

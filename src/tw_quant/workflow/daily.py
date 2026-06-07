@@ -27,6 +27,7 @@ from tw_quant.reporting.position_review import generate_position_review_summary
 from tw_quant.reporting.export import export_latest_candidates
 from tw_quant.reporting.factor_diagnostics import generate_factor_diagnostics
 from tw_quant.reporting.performance_diagnostics import generate_performance_diagnostics
+from tw_quant.reporting.underperformance_attribution import generate_underperformance_attribution
 from tw_quant.trading.paper import run_paper_trade
 from tw_quant.trading.paper_update import update_paper_positions
 from tw_quant.trading.pending import execute_pending_orders
@@ -144,6 +145,7 @@ class DailyWorkflowResult:
     market_recap_result: Any | None = None
     factor_diagnostics_result: Any | None = None
     performance_diagnostics_result: Any | None = None
+    underperformance_attribution_result: Any | None = None
 
 
 def run_all_daily(
@@ -172,6 +174,7 @@ def run_all_daily(
     anysearch_industry_research_func: Callable[..., Any] = generate_anysearch_industry_research_report,
     factor_diagnostics_func: Callable[..., Any] = generate_factor_diagnostics,
     performance_diagnostics_func: Callable[..., Any] = generate_performance_diagnostics,
+    underperformance_attribution_func: Callable[..., Any] = generate_underperformance_attribution,
 ) -> DailyWorkflowResult:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -184,6 +187,7 @@ def run_all_daily(
     pnl_chart_result = market_recap_result = None
     factor_diagnostics_result = None
     performance_diagnostics_result = None
+    underperformance_attribution_result = None
 
     try:
         (
@@ -783,6 +787,39 @@ def run_all_daily(
     except Exception as exc:
         messages.append(f"performance_diagnostics warning {type(exc).__name__}: {exc}")
 
+    try:
+        try:
+            underperformance_attribution_result = underperformance_attribution_func(
+                reports_dir=report_dir,
+                trade_date=summary_values["trade_date"],
+            )
+        except TypeError:
+            underperformance_attribution_result = underperformance_attribution_func(reports_dir=report_dir)
+        underperformance_frame = getattr(underperformance_attribution_result, "frame", pd.DataFrame())
+        cash_drag = _frame_first_value(
+            underperformance_frame[underperformance_frame.get("attribution_type", pd.Series(dtype=str)) == "cash_drag"]
+            if not underperformance_frame.empty
+            else pd.DataFrame(),
+            "alpha",
+        )
+        top_drag_frame = (
+            underperformance_frame[underperformance_frame.get("attribution_type", pd.Series(dtype=str)) == "drawdown_contribution"]
+            if not underperformance_frame.empty
+            else pd.DataFrame()
+        )
+        top_drag = _frame_first_value(top_drag_frame, "stock_id")
+        messages.append(
+            "underperformance_attribution "
+            f"{getattr(underperformance_attribution_result, 'status', 'OK')} "
+            f"rows={len(underperformance_frame)} "
+            f"top_drag={_message_value(top_drag)} "
+            f"cash_drag={_message_value(cash_drag)}"
+        )
+        if getattr(underperformance_attribution_result, "warning", ""):
+            messages.append(f"underperformance_attribution warning {underperformance_attribution_result.warning}")
+    except Exception as exc:
+        messages.append(f"underperformance_attribution warning {type(exc).__name__}: {exc}")
+
     summary_values["decision_dashboard_status"] = "OK" if summary_values.get("trading_decisions_status") != "FAILED" else "WARNING"
     summary_values["config_summary_status"] = "OK"
     summary_values["enrichment_evidence_status"] = (
@@ -812,6 +849,7 @@ def run_all_daily(
         market_recap_result=market_recap_result,
         factor_diagnostics_result=factor_diagnostics_result,
         performance_diagnostics_result=performance_diagnostics_result,
+        underperformance_attribution_result=underperformance_attribution_result,
     )
 
 

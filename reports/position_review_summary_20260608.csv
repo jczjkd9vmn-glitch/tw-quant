@@ -1,0 +1,6 @@
+﻿trade_date,stock_id,stock_name,decision,hold,reduce,exit_review,near_stop_loss,near_take_profit,data_quality_warning,current_price,stop_loss_price,unrealized_pnl_pct,risk_light,review_reason
+2026-06-08,6206,飛捷,REDUCE,False,True,False,False,False,False,134.5,110.93,0.130252,,一般人工確認
+2026-06-08,8926,台汽電,REDUCE,False,True,False,False,False,False,66.9,52.98,0.119484,,一般人工確認
+2026-06-08,2030,彰源,HOLD,True,False,False,False,False,False,18.8,16.67,0.026296,,一般人工確認
+2026-06-08,2478,大毅,REDUCE,False,True,False,False,False,False,152.0,88.6,0.578463,,一般人工確認
+2026-06-08,6902,GOGOLOOK,REDUCE,False,True,False,False,False,False,138.0,116.84,0.068699,,一般人工確認

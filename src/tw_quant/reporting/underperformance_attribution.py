@@ -92,7 +92,7 @@ def generate_underperformance_attribution(
 
     frame = pd.DataFrame(rows, columns=UNDERPERFORMANCE_ATTRIBUTION_COLUMNS)
     output_path = report_dir / f"underperformance_attribution_{date_label}.csv"
-    frame.to_csv(output_path, index=False, encoding="utf-8-sig")
+    frame.to_csv(output_path, index=False, encoding="utf-8")
 
     warnings = [str(value) for value in frame.get("data_quality_warning", pd.Series(dtype=str)).dropna().unique() if str(value)]
     status = "OK"

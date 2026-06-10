@@ -25,11 +25,15 @@ def test_daily_github_actions_workflow_exists_and_contains_required_steps() -> N
     assert "git diff --cached --quiet" in text
 
 
-def test_gitignore_keeps_persistent_data_and_reports() -> None:
+def test_gitignore_excludes_runtime_sqlite_and_keeps_reports() -> None:
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
 
+    assert "data/tw_quant.sqlite" in gitignore
     assert "data/*.sqlite" in gitignore
-    assert "!data/tw_quant.sqlite" in gitignore
+    assert "!data/tw_quant.sqlite" not in gitignore
+    assert "data/*.sqlite.local_backup" in gitignore
+    assert "data/*.db" in gitignore
+    assert "data/*.db.local_backup" in gitignore
     assert "reports/*.csv" not in gitignore
     assert "logs/*" in gitignore
     assert "!logs/.gitkeep" in gitignore

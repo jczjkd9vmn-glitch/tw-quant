@@ -3,10 +3,12 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+data/tw_quant.sqlite
 data/*.sqlite
-!data/tw_quant.sqlite
+data/*.sqlite.local_backup
 data/*.sqlite3
 data/*.db
+data/*.db.local_backup
 .env
 logs/*
 !logs/.gitkeep

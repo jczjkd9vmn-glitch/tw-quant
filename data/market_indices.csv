@@ -574,3 +574,4 @@
 2026-06-09,TPEx,櫃買指數,414.05,424.71,413.54,424.71,tpex_openapi:tpex_index,True
 2026-06-10,TAIEX,發行量加權股價指數,44581.45,44676.49,43225.54,43225.54,twse_official:MI_5MINS_HIST_monthly,True
 2026-06-10,TPEx,櫃買指數,422.75,426.9,405.4,405.91,tpex_openapi:tpex_index,True
+2026-06-11,TPEx,櫃買指數,405.68,411.07,392.56,407.09,tpex_openapi:tpex_index,True

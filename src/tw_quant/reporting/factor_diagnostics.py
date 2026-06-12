@@ -108,7 +108,19 @@ BENCHMARK_DIAGNOSTICS_COLUMNS = [
     "can_judge_strategy_alpha_120d",
     "can_judge_strategy_alpha_252d",
     "conclusion_status",
-    *[column for column in RISK_ADJUSTED_ALPHA_COLUMNS if column != "conclusion_status"],
+    *[
+        column
+        for column in RISK_ADJUSTED_ALPHA_COLUMNS
+        if column
+        not in {
+            "conclusion_status",
+            "benchmark_return_5d",
+            "benchmark_return_20d",
+            "benchmark_return_60d",
+            "benchmark_return_120d",
+            "benchmark_return_252d",
+        }
+    ],
     "benchmark_warning",
     "data_quality_warning",
     "notes",
@@ -231,10 +243,10 @@ def generate_factor_diagnostics(
         "benchmark_diagnostics": report_dir / f"benchmark_diagnostics_{date_label}.csv",
         "guardrail_impact": report_dir / f"guardrail_impact_{date_label}.csv",
     }
-    factor_attribution.to_csv(output_paths["factor_attribution"], index=False, encoding="utf-8-sig")
-    factor_summary.to_csv(output_paths["factor_summary"], index=False, encoding="utf-8-sig")
-    benchmark_diagnostics.to_csv(output_paths["benchmark_diagnostics"], index=False, encoding="utf-8-sig")
-    guardrail_impact.to_csv(output_paths["guardrail_impact"], index=False, encoding="utf-8-sig")
+    factor_attribution.to_csv(output_paths["factor_attribution"], index=False, encoding="utf-8")
+    factor_summary.to_csv(output_paths["factor_summary"], index=False, encoding="utf-8")
+    benchmark_diagnostics.to_csv(output_paths["benchmark_diagnostics"], index=False, encoding="utf-8")
+    guardrail_impact.to_csv(output_paths["guardrail_impact"], index=False, encoding="utf-8")
 
     return FactorDiagnosticsResult(
         trade_date=selected_date,
@@ -437,12 +449,15 @@ def _benchmark_diagnostics(
     benchmark_can_judge = bool(benchmark.get("can_judge_alpha", False))
     can_judge_alpha = bool(benchmark_can_judge and readiness.get("can_judge_strategy_alpha", False))
     alpha_1d = _window_alpha(system_returns, benchmark_returns, benchmark, readiness, "1d")
-    alpha_5d = _window_alpha(system_returns, benchmark_returns, benchmark, readiness, "5d")
-    alpha_20d = _window_alpha(system_returns, benchmark_returns, benchmark, readiness, "20d")
-    alpha_60d = _window_alpha(system_returns, benchmark_returns, benchmark, readiness, "60d")
-    alpha_120d = _window_alpha(system_returns, benchmark_returns, benchmark, readiness, "120d")
-    alpha_252d = _window_alpha(system_returns, benchmark_returns, benchmark, readiness, "252d")
-    cumulative_alpha = _sub_or_none(system_returns.get("total"), benchmark_returns.get("total")) if can_judge_alpha else None
+    alpha_5d = _risk_excess_or_window_alpha(risk_alpha, system_returns, benchmark_returns, benchmark, readiness, "5d")
+    alpha_20d = _risk_excess_or_window_alpha(risk_alpha, system_returns, benchmark_returns, benchmark, readiness, "20d")
+    alpha_60d = _risk_excess_or_window_alpha(risk_alpha, system_returns, benchmark_returns, benchmark, readiness, "60d")
+    alpha_120d = _risk_excess_or_window_alpha(risk_alpha, system_returns, benchmark_returns, benchmark, readiness, "120d")
+    alpha_252d = _risk_excess_or_window_alpha(risk_alpha, system_returns, benchmark_returns, benchmark, readiness, "252d")
+    primary_alpha = _num(risk_alpha.get("excess_return"))
+    if primary_alpha is None:
+        primary_window = str(risk_alpha.get("primary_alpha_window") or "")
+        primary_alpha = _num(risk_alpha.get(f"excess_return_{primary_window}")) if primary_window else None
     available_alpha = [value for value in [alpha_1d, alpha_5d, alpha_20d, alpha_60d, alpha_120d, alpha_252d] if value is not None]
     warning_parts = []
     if benchmark.get("warning"):
@@ -454,9 +469,9 @@ def _benchmark_diagnostics(
             warning_parts.append(f"DATA_INSUFFICIENT: {window} alpha")
         if _can_judge_window(benchmark, window) and not strategy_can_judge_window(readiness, window):
             warning_parts.append(f"NOT_ENOUGH_STRATEGY_HISTORY: {strategy_insufficient_reason(readiness, window)}")
-    if not available_alpha and cumulative_alpha is None:
+    if not available_alpha and primary_alpha is None:
         warning_parts.append("DATA_INSUFFICIENT: benchmark 或系統報酬資料不足")
-    conclusion_status = str(risk_alpha.get("conclusion_status") or _conclusion_status(benchmark_can_judge, readiness, available_alpha, cumulative_alpha))
+    conclusion_status = str(risk_alpha.get("conclusion_status") or _conclusion_status(benchmark_can_judge, readiness, available_alpha, primary_alpha))
     risk_reason = str(risk_alpha.get("conclusion_reason", "") or "").strip()
     if risk_reason:
         warning_parts.append(risk_reason)
@@ -464,13 +479,13 @@ def _benchmark_diagnostics(
         "trade_date": (trade_date or pd.Timestamp.today()).strftime("%Y-%m-%d"),
         "system_cumulative_return": system_returns.get("total"),
         "benchmark_cumulative_return": benchmark_returns.get("total"),
-        "alpha": cumulative_alpha,
+        "alpha": primary_alpha,
         "benchmark_return_1d": benchmark_returns.get("1d") if _can_judge_window(benchmark, "1d") and strategy_can_judge_window(readiness, "1d") else None,
-        "benchmark_return_5d": benchmark_returns.get("5d") if _can_judge_window(benchmark, "5d") and strategy_can_judge_window(readiness, "5d") else None,
-        "benchmark_return_20d": benchmark_returns.get("20d") if _can_judge_window(benchmark, "20d") and strategy_can_judge_window(readiness, "20d") else None,
-        "benchmark_return_60d": benchmark_returns.get("60d") if _can_judge_window(benchmark, "60d") and strategy_can_judge_window(readiness, "60d") else None,
-        "benchmark_return_120d": benchmark_returns.get("120d") if _can_judge_window(benchmark, "120d") and strategy_can_judge_window(readiness, "120d") else None,
-        "benchmark_return_252d": benchmark_returns.get("252d") if _can_judge_window(benchmark, "252d") and strategy_can_judge_window(readiness, "252d") else None,
+        "benchmark_return_5d": _risk_benchmark_or_snapshot_return(risk_alpha, benchmark_returns, benchmark, readiness, "5d"),
+        "benchmark_return_20d": _risk_benchmark_or_snapshot_return(risk_alpha, benchmark_returns, benchmark, readiness, "20d"),
+        "benchmark_return_60d": _risk_benchmark_or_snapshot_return(risk_alpha, benchmark_returns, benchmark, readiness, "60d"),
+        "benchmark_return_120d": _risk_benchmark_or_snapshot_return(risk_alpha, benchmark_returns, benchmark, readiness, "120d"),
+        "benchmark_return_252d": _risk_benchmark_or_snapshot_return(risk_alpha, benchmark_returns, benchmark, readiness, "252d"),
         "alpha_1d": alpha_1d,
         "alpha_5d": alpha_5d,
         "alpha_20d": alpha_20d,
@@ -843,6 +858,35 @@ def _window_alpha(
     if not _can_judge_window(benchmark, window) or not strategy_can_judge_window(readiness, window):
         return None
     return _sub_or_none(system_returns.get(window), benchmark_returns.get(window))
+
+
+def _risk_excess_or_window_alpha(
+    risk_alpha: dict[str, object],
+    system_returns: dict[str, float | None],
+    benchmark_returns: dict[str, object],
+    benchmark: dict[str, object],
+    readiness: dict[str, object],
+    window: str,
+) -> float | None:
+    primary_value = _num(risk_alpha.get(f"excess_return_{window}"))
+    if primary_value is not None:
+        return primary_value
+    return _window_alpha(system_returns, benchmark_returns, benchmark, readiness, window)
+
+
+def _risk_benchmark_or_snapshot_return(
+    risk_alpha: dict[str, object],
+    benchmark_returns: dict[str, object],
+    benchmark: dict[str, object],
+    readiness: dict[str, object],
+    window: str,
+) -> float | None:
+    if not (_can_judge_window(benchmark, window) and strategy_can_judge_window(readiness, window)):
+        return None
+    primary_value = _num(risk_alpha.get(f"benchmark_return_{window}"))
+    if primary_value is not None:
+        return primary_value
+    return _num(benchmark_returns.get(window))
 
 
 def _can_judge_window(benchmark: dict[str, object], window: str) -> bool:

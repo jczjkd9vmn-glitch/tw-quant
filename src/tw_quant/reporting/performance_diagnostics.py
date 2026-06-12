@@ -101,7 +101,7 @@ def generate_performance_diagnostics(
     row = _performance_row(equity_frame, source, selected_date, benchmark, readiness, risk_alpha)
     frame = pd.DataFrame([row], columns=PERFORMANCE_DIAGNOSTICS_COLUMNS)
     output_path = report_dir / f"performance_diagnostics_{date_label}.csv"
-    frame.to_csv(output_path, index=False, encoding="utf-8-sig")
+    frame.to_csv(output_path, index=False, encoding="utf-8")
 
     status = str(row.get("status") or "OK")
     warning = str(row.get("data_quality_warning") or "")
@@ -193,7 +193,13 @@ def _performance_row(
     benchmark_can_judge = bool(benchmark.get("can_judge_alpha", False))
     strategy_can_judge = strategy_can_judge_window(readiness, benchmark_window)
     can_judge_alpha = bool(benchmark_can_judge and strategy_can_judge)
-    alpha = _sub_or_none(cumulative_return, benchmark_return) if can_judge_alpha else None
+    primary_window = str(risk_alpha.get("primary_alpha_window") or benchmark_window)
+    primary_benchmark_return = _num(risk_alpha.get(f"benchmark_return_{primary_window}")) if primary_window else None
+    primary_alpha = _num(risk_alpha.get("excess_return"))
+    if primary_alpha is None and primary_window:
+        primary_alpha = _num(risk_alpha.get(f"excess_return_{primary_window}"))
+    if primary_benchmark_return is None:
+        primary_benchmark_return = benchmark_return
 
     warnings: list[str] = []
     hard_insufficient = False
@@ -244,9 +250,9 @@ def _performance_row(
         "worst_day": worst_day,
         "worst_day_return": _round(worst_day_return),
         "profit_factor": _round(profit_factor),
-        "benchmark_return": _round(benchmark_return),
-        "benchmark_window": benchmark_window,
-        "alpha": _round(alpha),
+        "benchmark_return": _round(primary_benchmark_return),
+        "benchmark_window": primary_window,
+        "alpha": _round(primary_alpha if can_judge_alpha else None),
         "benchmark_source": benchmark.get("source", "benchmark 資料不足"),
         "benchmark_is_official": bool(benchmark.get("benchmark_is_official", False)),
         "fallback_reason": benchmark.get("fallback_reason", ""),

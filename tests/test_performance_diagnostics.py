@@ -48,6 +48,23 @@ def test_performance_diagnostics_calculates_metrics_from_pnl_chart(tmp_path: Pat
     assert row["status"] == "OK_WITH_WARNINGS"
 
 
+def test_performance_diagnostics_reports_primary_alpha_window(tmp_path: Path) -> None:
+    _write_equity_series(tmp_path, _compound_series(1_000_000, [0.001] * 21))
+    _write_market_index_series(tmp_path, _compound_series(100, [0.003] * 21))
+    _write_valid_trades(tmp_path, count=20)
+    _write_portfolio(tmp_path, count=3)
+
+    result = generate_performance_diagnostics(tmp_path, trade_date="2026-06-30")
+    row = result.frame.iloc[0]
+
+    assert row["primary_alpha_window"] == "20d"
+    assert row["benchmark_window"] == "20d"
+    assert row["benchmark_return"] == row["benchmark_return_20d"]
+    assert row["alpha"] == row["excess_return_20d"]
+    assert row["alpha"] < 0
+    assert row["conclusion_status"] == "UNDERPERFORMING"
+
+
 def test_performance_diagnostics_marks_small_samples_insufficient(tmp_path: Path) -> None:
     pd.DataFrame(
         [
@@ -158,6 +175,45 @@ def _write_pnl_chart(path: Path) -> None:
             {"trade_date": "2026-06-05", "total_equity_after_cost": 1_060_000, "total_return_pct": 0.06},
         ]
     ).to_csv(path / "pnl_chart_data_20260605.csv", index=False, encoding="utf-8-sig")
+
+
+def _compound_series(start: float, returns: list[float]) -> list[float]:
+    values = [start]
+    current = start
+    for value in returns:
+        current *= 1 + value
+        values.append(round(current, 6))
+    return values
+
+
+def _write_equity_series(path: Path, values: list[float]) -> None:
+    dates = pd.bdate_range("2026-06-01", periods=len(values))
+    pd.DataFrame(
+        [
+            {
+                "trade_date": day.strftime("%Y-%m-%d"),
+                "total_equity_after_cost": value,
+                "total_return_pct": value / values[0] - 1.0,
+            }
+            for day, value in zip(dates, values)
+        ]
+    ).to_csv(path / f"pnl_chart_data_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8-sig")
+
+
+def _write_market_index_series(path: Path, values: list[float]) -> None:
+    dates = pd.bdate_range("2026-06-01", periods=len(values))
+    pd.DataFrame(
+        [
+            {
+                "trade_date": day.strftime("%Y-%m-%d"),
+                "index_id": "TAIEX_TR",
+                "index_name": "發行量加權報酬指數",
+                "close": value,
+                "is_official": True,
+            }
+            for day, value in zip(dates, values)
+        ]
+    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
 
 
 def _write_market_regime(path: Path) -> None:

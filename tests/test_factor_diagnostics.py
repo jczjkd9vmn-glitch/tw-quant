@@ -129,6 +129,24 @@ def test_benchmark_diagnostics_uses_0050_fallback_with_warning(tmp_path: Path) -
     assert "fallback" in row["benchmark_warning"]
 
 
+def test_benchmark_diagnostics_uses_primary_alpha_without_duplicate_columns(tmp_path: Path) -> None:
+    _write_minimal_candidates(tmp_path)
+    _write_equity_series(tmp_path, _compound_series(1_000_000, [0.001] * 21))
+    _write_market_index_series(tmp_path, _compound_series(100, [0.003] * 21))
+    _write_valid_trades(tmp_path, count=20)
+    _write_portfolio(tmp_path)
+
+    result = generate_factor_diagnostics(tmp_path, trade_date="2026-06-30")
+    row = result.benchmark_diagnostics.iloc[0]
+
+    assert len(BENCHMARK_DIAGNOSTICS_COLUMNS) == len(set(BENCHMARK_DIAGNOSTICS_COLUMNS))
+    assert len(result.benchmark_diagnostics.columns) == len(set(result.benchmark_diagnostics.columns))
+    assert row["primary_alpha_window"] == "20d"
+    assert row["alpha"] == row["excess_return_20d"]
+    assert row["alpha_20d"] == row["excess_return_20d"]
+    assert row["conclusion_status"] == "UNDERPERFORMING"
+
+
 def _write_minimal_candidates(path: Path) -> None:
     pd.DataFrame(
         [
@@ -178,3 +196,89 @@ def _write_minimal_benchmark_inputs(path: Path) -> None:
             }
         ]
     ).to_csv(path / "market_recap_20260604.csv", index=False, encoding="utf-8-sig")
+
+
+def _compound_series(start: float, returns: list[float]) -> list[float]:
+    values = [start]
+    current = start
+    for value in returns:
+        current *= 1 + value
+        values.append(round(current, 6))
+    return values
+
+
+def _write_equity_series(path: Path, values: list[float]) -> None:
+    dates = pd.bdate_range("2026-06-01", periods=len(values))
+    pd.DataFrame(
+        [
+            {
+                "trade_date": day.strftime("%Y-%m-%d"),
+                "total_capital": values[0],
+                "total_equity_after_cost": value,
+                "total_equity": value,
+            }
+            for day, value in zip(dates, values)
+        ]
+    ).to_csv(path / f"daily_summary_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": day.strftime("%Y-%m-%d"),
+                "total_equity_after_cost": value,
+                "total_return_pct": value / values[0] - 1.0,
+            }
+            for day, value in zip(dates, values)
+        ]
+    ).to_csv(path / f"pnl_chart_data_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": dates[-1].strftime("%Y-%m-%d"),
+                "total_capital": values[0],
+                "total_equity_after_cost": values[-1],
+            }
+        ]
+    ).to_csv(path / f"paper_summary_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8-sig")
+
+
+def _write_market_index_series(path: Path, values: list[float]) -> None:
+    dates = pd.bdate_range("2026-06-01", periods=len(values))
+    pd.DataFrame(
+        [
+            {
+                "trade_date": day.strftime("%Y-%m-%d"),
+                "index_id": "TAIEX_TR",
+                "index_name": "發行量加權報酬指數",
+                "close": value,
+                "is_official": True,
+            }
+            for day, value in zip(dates, values)
+        ]
+    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
+
+
+def _write_valid_trades(path: Path, count: int) -> None:
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-06-01",
+                "stock_id": f"23{index:02d}",
+                "entry_price": 100 + index,
+                "shares": 100,
+                "status": "CLOSED",
+            }
+            for index in range(count)
+        ]
+    ).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+
+
+def _write_portfolio(path: Path) -> None:
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-06-30",
+                "stock_id": "2330",
+                "status": "OPEN",
+            }
+        ]
+    ).to_csv(path / "paper_portfolio_20260630.csv", index=False, encoding="utf-8-sig")

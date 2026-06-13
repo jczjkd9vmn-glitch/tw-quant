@@ -1377,7 +1377,7 @@ def _render_page(
                 missing_industry_priority,
                 anysearch_industry_candidates,
             ),
-            _freshness_readiness_dashboard(report_dir, latest_summary, performance_diagnostics),
+            _freshness_readiness_dashboard(report_dir, latest_summary, performance_diagnostics, market_intel),
             _benchmark_alpha_section(report_dir, latest_summary, latest_paper_summary, recent_summaries),
             _risk_adjusted_alpha_section(performance_diagnostics),
             _underperformance_attribution_section(underperformance_attribution, performance_diagnostics),
@@ -1626,16 +1626,17 @@ def _overview_dashboard(
     anysearch_candidates: pd.DataFrame,
 ) -> str:
     data_frame = market_intel
-    requested = _format_cell("requested_date", summary.get("requested_date") or summary.get("trade_date"))
-    trade_date = _format_cell("trade_date", summary.get("trade_date"))
-    actual_data_date = _market_intel_actual_data_date(summary, data_frame)
-    freshness_level = _market_intel_freshness_level(summary, data_frame)
+    freshness = _freshness_snapshot(summary, data_frame)
+    requested = _format_cell("requested_date", freshness["requested_date"])
+    trade_date = _format_cell("trade_date", freshness["trade_date"])
+    actual_data_date = _format_cell("actual_data_date", freshness["actual_data_date"])
+    freshness_level = str(freshness["data_freshness_level"])
     market_status = _first_raw(summary.get("market_intel_status"), _frame_first(data_frame, "market_intel_status"), summary.get("status"))
     guardrail_status = _first_raw(summary.get("guardrail_status"), "UNKNOWN")
     using_cache = str(summary.get("market_intel_status", "")).strip().upper() == "CACHE"
     if not data_frame.empty and "market_intel_status" in data_frame.columns:
         using_cache = using_cache or data_frame["market_intel_status"].fillna("").astype(str).str.upper().eq("CACHE").any()
-    stale = _market_intel_is_stale(summary, data_frame) or freshness_level in {"STALE", "CACHE"} or using_cache
+    stale = bool(freshness["is_stale_data"]) or using_cache
     freshness_note = (
         "市場資料過期，不建議短線進場"
         if stale
@@ -1678,7 +1679,7 @@ def _overview_dashboard(
                 ("報表日期", requested),
                 ("實際交易日", trade_date),
                 ("實際資料日", actual_data_date),
-                ("快取 / 資料年齡", _market_intel_cache_age_text(summary, data_frame)),
+                ("快取 / 資料年齡", freshness["cache_age_text"]),
             ],
             tone="danger" if stale else "ok",
         ),
@@ -1751,6 +1752,7 @@ def _freshness_readiness_dashboard(
     report_dir: Path,
     summary: dict[str, object],
     performance_diagnostics: pd.DataFrame,
+    market_intel: pd.DataFrame | None = None,
 ) -> str:
     if not summary:
         return _section(
@@ -1775,23 +1777,14 @@ def _freshness_readiness_dashboard(
     except Exception:
         risk_alpha = {}
 
-    requested_raw = _first_raw(summary.get("requested_trade_date"), summary.get("requested_date"), summary.get("trade_date"))
-    trade_raw = _first_raw(summary.get("trade_date"), requested_raw)
-    actual_raw = _first_raw(summary.get("actual_data_date"), summary.get("fallback_date"), trade_raw)
-    cache_age_days = _freshness_cache_age_days(summary, requested_raw, trade_raw, actual_raw)
-    freshness_level = _first_raw(summary.get("data_freshness_level"), "CURRENT")
-    is_stale = (
-        _truthy(summary.get("is_stale_data"))
-        or cache_age_days > 0
-        or str(freshness_level).strip().upper() in {"STALE", "CACHE"}
-        or _uses_recent_data(summary)
-    )
-    display_freshness_level = "STALE" if is_stale else freshness_level
-    used_latest = (
-        _truthy(summary.get("used_latest_available"))
-        or not _is_blank(summary.get("fallback_date"))
-        or is_stale
-    )
+    freshness = _freshness_snapshot(summary, market_intel if market_intel is not None else pd.DataFrame())
+    requested_raw = freshness["requested_date"]
+    trade_raw = freshness["trade_date"]
+    actual_raw = freshness["actual_data_date"]
+    cache_age_days = int(freshness["cache_age_days"])
+    display_freshness_level = freshness["data_freshness_level"]
+    is_stale = bool(freshness["is_stale_data"])
+    used_latest = bool(freshness["used_latest_available"])
     freshness_primary = "資料非最新交易日" if is_stale else "資料最新或可用"
     freshness_note = (
         f"資料非最新交易日；使用最近有效資料；資料落後 {cache_age_days} 天。"
@@ -1862,8 +1855,8 @@ def _freshness_readiness_dashboard(
             "Fallback / 最近有效資料",
             escape(f"使用最近有效資料：{'是' if used_latest else '否'}"),
             [
-                ("使用替代交易日", _format_cell("fallback_date", summary.get("fallback_date"))),
-                ("Fallback 原因", _format_cell("fallback_reason", summary.get("fallback_reason"))),
+                ("使用替代交易日", _format_cell("fallback_date", freshness["fallback_date"])),
+                ("Fallback 原因", _format_cell("fallback_reason", freshness["fallback_reason"])),
                 ("是否過期資料", "是" if is_stale else "否"),
                 ("資料鮮度等級", _format_cell("data_freshness_level", display_freshness_level)),
             ],
@@ -1918,23 +1911,36 @@ def _freshness_readiness_dashboard(
     )
 
 
-def _freshness_cache_age_days(
-    summary: dict[str, object],
-    requested_date: object,
-    trade_date: object,
-    actual_data_date: object,
-) -> int:
-    ages = []
-    summary_age = _to_float(summary.get("cache_age_days"))
-    if summary_age is not None:
-        ages.append(int(summary_age))
-    trade_gap = _date_gap_days(trade_date, actual_data_date)
-    requested_gap = _date_gap_days(requested_date, actual_data_date)
-    if trade_gap > 0:
-        ages.append(trade_gap)
-    if requested_gap > 0:
-        ages.append(requested_gap)
-    return max(ages) if ages else 0
+def _freshness_snapshot(summary: dict[str, object], market_intel: pd.DataFrame) -> dict[str, object]:
+    frame = market_intel if market_intel is not None else pd.DataFrame()
+    requested = _market_intel_requested_date(summary, frame)
+    trade_date = _market_intel_reference_date(summary, frame)
+    actual_data_date = _market_intel_actual_data_date(summary, frame)
+    fallback_date = _market_intel_fallback_date(summary, frame)
+    fallback_reason = _market_intel_fallback_reason(summary, frame)
+    cache_age_days = _market_intel_cache_age_days(summary, frame)
+    age = int(cache_age_days) if cache_age_days is not None else 0
+    freshness_level = _market_intel_freshness_level(summary, frame)
+    is_stale = _market_intel_is_stale(summary, frame) or age > 0
+    if is_stale and freshness_level in {"UNKNOWN", "CURRENT", "RECENT"}:
+        freshness_level = "STALE"
+    used_latest = (
+        _truthy(summary.get("used_latest_available"))
+        or bool(_clean_text(fallback_date))
+        or is_stale
+    )
+    return {
+        "requested_date": requested,
+        "trade_date": trade_date,
+        "actual_data_date": actual_data_date,
+        "fallback_date": fallback_date,
+        "fallback_reason": fallback_reason,
+        "cache_age_days": age,
+        "cache_age_text": f"{age:,.0f} 天" if cache_age_days is not None else "-",
+        "data_freshness_level": freshness_level,
+        "is_stale_data": is_stale,
+        "used_latest_available": used_latest,
+    }
 
 
 def _strategy_window_ready(perf_row: dict[str, object], readiness: dict[str, object], window: str) -> bool:
@@ -5489,6 +5495,8 @@ def _market_intel_stale_notice(summary: dict[str, object], frame: pd.DataFrame) 
 
 
 def _market_intel_is_stale(summary: dict[str, object], frame: pd.DataFrame) -> bool:
+    if _date_gap_days(_market_intel_reference_date(summary, frame), _market_intel_actual_data_date(summary, frame)) > 0:
+        return True
     if _truthy(summary.get("is_stale_data")):
         return True
     if _market_intel_freshness_level(summary, frame) in {"STALE", "CACHE"}:
@@ -5509,6 +5517,8 @@ def _market_intel_freshness_level(summary: dict[str, object], frame: pd.DataFram
             if text in {"CURRENT", "RECENT"} and _date_gap_days(requested, actual) > 0:
                 return "STALE"
             return text
+    if _date_gap_days(_market_intel_reference_date(summary, frame), _market_intel_actual_data_date(summary, frame)) > 0:
+        return "STALE"
     return "UNKNOWN"
 
 
@@ -5549,7 +5559,7 @@ def _market_intel_reference_date(summary: dict[str, object], frame: pd.DataFrame
 
 
 def _market_intel_actual_data_date(summary: dict[str, object], frame: pd.DataFrame) -> str:
-    return _first_non_blank(summary.get("actual_data_date"), _frame_first(frame, "actual_data_date"), summary.get("trade_date"))
+    return _first_non_blank(summary.get("actual_data_date"), _frame_first(frame, "actual_data_date"))
 
 
 def _market_intel_fallback_date(summary: dict[str, object], frame: pd.DataFrame) -> str:
@@ -5561,6 +5571,13 @@ def _market_intel_fallback_reason(summary: dict[str, object], frame: pd.DataFram
 
 
 def _market_intel_cache_age_text(summary: dict[str, object], frame: pd.DataFrame) -> str:
+    cache_age_days = _market_intel_cache_age_days(summary, frame)
+    if cache_age_days is None:
+        return "-"
+    return f"{cache_age_days:,.0f} 天"
+
+
+def _market_intel_cache_age_days(summary: dict[str, object], frame: pd.DataFrame) -> int | None:
     values: list[float] = []
     summary_age = _to_float(summary.get("cache_age_days"))
     if summary_age is not None:
@@ -5572,8 +5589,8 @@ def _market_intel_cache_age_text(summary: dict[str, object], frame: pd.DataFrame
     if gap_days > 0:
         values.append(float(gap_days))
     if not values:
-        return "-"
-    return f"{int(max(values)):,.0f} 天"
+        return None
+    return int(max(values))
 
 
 def _frame_first(frame: pd.DataFrame, column: str) -> object:

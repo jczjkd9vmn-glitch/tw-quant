@@ -181,6 +181,89 @@ def test_generate_html_report_corrects_stale_actual_data_date(tmp_path: Path) ->
     assert "目前最新交易日資料" not in html
 
 
+def test_freshness_dashboards_share_market_intel_source_when_summary_actual_blank(tmp_path: Path) -> None:
+    pd.DataFrame(
+        [
+            {
+                "requested_date": "2026-06-13",
+                "trade_date": "2026-06-12",
+                "status": "OK_WITH_FALLBACK",
+                "total_capital": 1_000_000,
+                "total_equity_after_cost": 1_000_000,
+                "actual_data_date": "",
+                "fallback_date": "2026-06-12",
+                "fallback_reason": "no trading data",
+                "used_latest_available": False,
+                "cache_age_days": "",
+                "is_stale_data": False,
+                "data_freshness_level": "CURRENT",
+                "market_intel_status": "OK",
+            }
+        ]
+    ).to_csv(tmp_path / "daily_summary_20260612.csv", index=False, encoding="utf-8")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-06-12",
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "requested_date": "2026-06-13",
+                "actual_data_date": "2026-06-09",
+                "fallback_date": "2026-06-12",
+                "fallback_reason": "no trading data",
+                "cache_age_days": 3,
+                "is_stale_data": False,
+                "data_freshness_level": "CURRENT",
+                "market_intel_status": "OK",
+                "final_market_score": 50,
+                "confidence_score": 50,
+            }
+        ]
+    ).to_csv(tmp_path / "market_intel_20260612.csv", index=False, encoding="utf-8")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-06-12",
+                "primary_alpha_window": "20d",
+                "strategy_return_20d": 0.01,
+                "benchmark_return_20d": 0.03,
+                "excess_return_20d": -0.02,
+                "excess_return": -0.02,
+                "alpha": -0.02,
+                "conclusion_status": "UNDERPERFORMING",
+                "risk_adjusted_alpha_status": "UNDERPERFORMING",
+                "benchmark_history_days": 180,
+                "strategy_history_days": 27,
+                "valid_trade_count": 25,
+                "holding_record_count": 8,
+                "can_judge_alpha": True,
+                "can_judge_alpha_20d": True,
+                "can_judge_strategy_alpha_5d": True,
+                "can_judge_strategy_alpha_20d": True,
+                "can_judge_strategy_alpha_60d": False,
+                "can_judge_strategy_alpha_120d": False,
+                "can_judge_strategy_alpha_252d": False,
+            }
+        ]
+    ).to_csv(tmp_path / "performance_diagnostics_20260612.csv", index=False, encoding="utf-8")
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+    overview = html.split('<section id="dashboard-overview"')[1].split('<section id="freshness-readiness-dashboard"')[0]
+    freshness = html.split('<section id="freshness-readiness-dashboard"')[1].split('<section id="benchmark-alpha"')[0]
+
+    assert "<b>實際資料日</b><em>2026-06-09</em>" in overview
+    assert "<b>快取 / 資料年齡</b><em>3 天</em>" in overview
+    assert "<b>實際資料日</b><em>2026-06-09</em>" in freshness
+    assert "<b>資料落後</b><em>3 天</em>" in freshness
+    assert "資料過期" in overview
+    assert "資料過期" in freshness
+    assert "使用最近有效資料：是" in freshness
+    assert "20d primary_excess_return 未高於 0，目前不可顯示打敗大盤" in freshness
+    assert "正式長期打敗大盤：否" in freshness
+    assert "正式長期打敗大盤：是" not in freshness
+
+
 def test_freshness_readiness_dashboard_marks_stale_cache_age_and_windows(tmp_path: Path) -> None:
     pd.DataFrame(
         [

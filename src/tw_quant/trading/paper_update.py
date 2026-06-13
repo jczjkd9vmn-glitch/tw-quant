@@ -224,7 +224,7 @@ def update_paper_positions(
     )
     summary = _build_summary(updated, selected_date, capital)
     report_dir.mkdir(parents=True, exist_ok=True)
-    updated.to_csv(trades_path, index=False, encoding="utf-8-sig")
+    updated.to_csv(trades_path, index=False, encoding="utf-8")
     portfolio_path, summary_path = _write_reports(report_dir, selected_date, updated, summary)
 
     return PaperUpdateResult(
@@ -621,8 +621,8 @@ def _write_reports(
     label = trade_date.strftime("%Y%m%d")
     portfolio_path = report_dir / f"paper_portfolio_{label}.csv"
     summary_path = report_dir / f"paper_summary_{label}.csv"
-    portfolio.to_csv(portfolio_path, index=False, encoding="utf-8-sig")
-    summary.to_csv(summary_path, index=False, encoding="utf-8-sig")
+    portfolio.to_csv(portfolio_path, index=False, encoding="utf-8")
+    summary.to_csv(summary_path, index=False, encoding="utf-8")
     return portfolio_path, summary_path
 
 

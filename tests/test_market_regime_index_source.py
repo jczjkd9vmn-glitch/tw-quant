@@ -30,7 +30,7 @@ def test_market_regime_uses_official_market_indices_when_available(tmp_path: Pat
     save_daily_prices(engine, _fake_index_like_etf_prices())
     data_dir = tmp_path / "data"
     data_dir.mkdir()
-    _official_index_prices().to_csv(data_dir / "market_indices.csv", index=False, encoding="utf-8-sig")
+    _official_index_prices().to_csv(data_dir / "market_indices.csv", index=False, encoding="utf-8")
 
     result = evaluate_market_regime(
         engine=engine,

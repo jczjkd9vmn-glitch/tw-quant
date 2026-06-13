@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,field_value,evidence_summary,fallback_used,confidence_impact
+trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,field_value,evidence_summary,fallback_used,confidence_impact
 2026-06-10,1342,八貫,candidate,csv,2026-06-10,candidate_grade,B,candidate_grade=B,False,0.8
 2026-06-10,1342,八貫,candidate,csv,2026-06-10,decision,WATCH_ONLY,decision=WATCH_ONLY,False,0.8
 2026-06-10,1342,八貫,candidate,csv,2026-06-10,pe_ratio,18.82,pe_ratio=18.82,False,0.8

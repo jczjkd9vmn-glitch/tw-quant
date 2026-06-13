@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,is_etf,market_type,decision,candidate_grade,review_level,has_industry,has_valuation,has_financials,has_revenue,has_institutional,has_margin,has_event_data,has_etf_metadata,missing_fields
+trade_date,stock_id,stock_name,is_etf,market_type,decision,candidate_grade,review_level,has_industry,has_valuation,has_financials,has_revenue,has_institutional,has_margin,has_event_data,has_etf_metadata,missing_fields
 2026-05-28,00913,兆豐台灣晶圓製造,True,nan,WATCH_ONLY,C,RISK_REVIEW,True,True,True,True,True,True,False,False,EVENT_DATA_MISSING；ETF_METADATA_MISSING
 2026-05-28,1409,新纖,False,nan,WATCH_ONLY,B,RISK_REVIEW,True,True,False,True,True,True,False,True,FINANCIAL_MISSING；EVENT_DATA_MISSING
 2026-05-28,2881,富邦金,False,nan,WATCH_ONLY,B,DATA_REVIEW,True,True,False,True,True,True,False,True,FINANCIAL_MISSING；EVENT_DATA_MISSING

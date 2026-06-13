@@ -149,7 +149,7 @@ def _write_risk_report(path: Path, stop_loss: float) -> None:
                 "candidate_grade": "A",
             }
         ]
-    ).to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8")
 
 
 def _price_frame(trade_date: str, open_price: float, close: float) -> pd.DataFrame:

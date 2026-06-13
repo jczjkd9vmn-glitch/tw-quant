@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,foreign_net_buy,investment_trust_net_buy,dealer_net_buy,total_institutional_net_buy,foreign_buy_days,investment_trust_buy_days,institutional_buy_ratio,institutional_warning
+trade_date,stock_id,stock_name,foreign_net_buy,investment_trust_net_buy,dealer_net_buy,total_institutional_net_buy,foreign_buy_days,investment_trust_buy_days,institutional_buy_ratio,institutional_warning
 2026-06-12,00403A,主動統一升級50,140223490.0,0.0,0.0,326545026.0,,,,
 2026-06-12,2887,台新新光金,85214384.0,10101196.0,0.0,91934686.0,,,,
 2026-06-12,00631L,元大台灣50正2,27082298.0,0.0,0.0,57224602.0,,,,

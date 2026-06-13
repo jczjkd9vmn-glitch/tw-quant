@@ -103,7 +103,7 @@ def test_generate_html_report_shows_market_intel_cache_warning(tmp_path: Path) -
                 "affected_symbols_count": 1,
             }
         ]
-    ).to_csv(tmp_path / "data_fetch_status_20260527.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "data_fetch_status_20260527.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -123,7 +123,7 @@ def test_generate_html_report_shows_market_intel_cache_warning(tmp_path: Path) -
                 "confidence_score": 70,
             }
         ]
-    ).to_csv(tmp_path / "market_intel_20260527.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "market_intel_20260527.csv", index=False, encoding="utf-8")
 
     output_path = generate_html_report(tmp_path)
     html = output_path.read_text(encoding="utf-8")
@@ -153,7 +153,7 @@ def test_generate_html_report_corrects_stale_actual_data_date(tmp_path: Path) ->
                 "market_intel_status": "OK",
             }
         ]
-    ).to_csv(tmp_path / "daily_summary_20260612.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "daily_summary_20260612.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -169,7 +169,7 @@ def test_generate_html_report_corrects_stale_actual_data_date(tmp_path: Path) ->
                 "confidence_score": 50,
             }
         ]
-    ).to_csv(tmp_path / "market_intel_20260612.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "market_intel_20260612.csv", index=False, encoding="utf-8")
 
     output_path = generate_html_report(tmp_path)
     html = output_path.read_text(encoding="utf-8")
@@ -345,7 +345,7 @@ def test_benchmark_alpha_uses_0050_fallback_and_shows_summary(tmp_path: Path) ->
                     "market_regime_score": 65.0,
                 }
             ]
-        ).to_csv(tmp_path / f"daily_summary_2026050{index}.csv", index=False, encoding="utf-8-sig")
+        ).to_csv(tmp_path / f"daily_summary_2026050{index}.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -358,7 +358,7 @@ def test_benchmark_alpha_uses_0050_fallback_and_shows_summary(tmp_path: Path) ->
                 "market_return_20d": 0.015,
             }
         ]
-    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8")
 
     output_path = generate_html_report(tmp_path)
     html = output_path.read_text(encoding="utf-8")
@@ -390,7 +390,7 @@ def test_asset_donut_falls_back_when_position_allocation_is_missing(tmp_path: Pa
                 "market_intel_status": "OK",
             }
         ]
-    ).to_csv(tmp_path / "daily_summary_20260510.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "daily_summary_20260510.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -401,7 +401,7 @@ def test_asset_donut_falls_back_when_position_allocation_is_missing(tmp_path: Pa
                 "realized_pnl_after_cost": 0.0,
             }
         ]
-    ).to_csv(tmp_path / "paper_summary_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "paper_summary_20260508.csv", index=False, encoding="utf-8")
 
     output_path = generate_html_report(tmp_path)
     html = output_path.read_text(encoding="utf-8")
@@ -461,7 +461,7 @@ def _write_reports(path: Path) -> None:
                 "market_regime_score": 65.0,
             }
         ]
-    ).to_csv(path / "daily_summary_20260510.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "daily_summary_20260510.csv", index=False, encoding="utf-8")
 
     candidates = pd.DataFrame(
         [
@@ -518,8 +518,8 @@ def _write_reports(path: Path) -> None:
             }
         ]
     )
-    candidates.to_csv(path / "candidates_20260508.csv", index=False, encoding="utf-8-sig")
-    candidates.to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8-sig")
+    candidates.to_csv(path / "candidates_20260508.csv", index=False, encoding="utf-8")
+    candidates.to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -553,7 +553,7 @@ def _write_reports(path: Path) -> None:
                 "warning": "",
             }
         ]
-    ).to_csv(path / "pending_orders_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "pending_orders_20260508.csv", index=False, encoding="utf-8")
 
     pd.DataFrame(
         [
@@ -733,7 +733,7 @@ def _write_reports(path: Path) -> None:
                 "exit_reason": "TIME_EXIT",
             },
         ]
-    ).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8")
 
     pd.DataFrame(
         [
@@ -753,7 +753,7 @@ def _write_reports(path: Path) -> None:
                 "closed_positions": 0,
             }
         ]
-    ).to_csv(path / "paper_summary_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "paper_summary_20260508.csv", index=False, encoding="utf-8")
 
     pd.DataFrame(
         [
@@ -783,7 +783,7 @@ def _write_reports(path: Path) -> None:
                 "data_quality_note": "資料品質已檢查；仍需人工確認",
             }
         ]
-    ).to_csv(path / "trading_decisions_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "trading_decisions_20260508.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -803,7 +803,7 @@ def _write_reports(path: Path) -> None:
                 "notes": "",
             }
         ]
-    ).to_csv(path / "strategy_validation_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "strategy_validation_20260508.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -819,7 +819,7 @@ def _write_reports(path: Path) -> None:
                 "warning": "",
             }
         ]
-    ).to_csv(path / "market_regime_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "market_regime_20260508.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -835,7 +835,7 @@ def _write_reports(path: Path) -> None:
                 "data_quality_note": "測試用 fallback",
             }
         ]
-    ).to_csv(path / "market_recap_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "market_recap_20260508.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -848,7 +848,7 @@ def _write_reports(path: Path) -> None:
                 "market_return_20d": 0.015,
             }
         ]
-    ).to_csv(path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "sector_strength.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -883,7 +883,7 @@ def _write_reports(path: Path) -> None:
                 "suggested_action": "暫緩補資料",
             },
         ]
-    ).to_csv(path / "missing_industry_priority.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "missing_industry_priority.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -917,7 +917,7 @@ def _write_reports(path: Path) -> None:
                 "checked_at": "2026-05-08T09:00:00",
             },
         ]
-    ).to_csv(path / "anysearch_industry_candidates.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "anysearch_industry_candidates.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -948,7 +948,7 @@ def _write_reports(path: Path) -> None:
                 "notes": "測試資料",
             }
         ]
-    ).to_csv(path / "factor_attribution_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "factor_attribution_20260508.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -968,7 +968,7 @@ def _write_reports(path: Path) -> None:
                 "notes": "測試摘要",
             }
         ]
-    ).to_csv(path / "factor_attribution_summary_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "factor_attribution_summary_20260508.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -987,7 +987,7 @@ def _write_reports(path: Path) -> None:
                 "notes": "測試 benchmark",
             }
         ]
-    ).to_csv(path / "benchmark_diagnostics_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "benchmark_diagnostics_20260508.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -1002,7 +1002,7 @@ def _write_reports(path: Path) -> None:
                 "notes": "DATA_INSUFFICIENT",
             }
         ]
-    ).to_csv(path / "guardrail_impact_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "guardrail_impact_20260508.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -1034,7 +1034,7 @@ def _write_reports(path: Path) -> None:
                 "notes": "測試績效診斷",
             }
         ]
-    ).to_csv(path / "performance_diagnostics_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "performance_diagnostics_20260508.csv", index=False, encoding="utf-8")
 
 
 def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path) -> None:
@@ -1119,7 +1119,7 @@ def test_missing_industry_low_priority_is_collapsed_outside_overview(tmp_path: P
                 "suggested_action": "暫緩補資料",
             },
         ]
-    ).to_csv(tmp_path / "missing_industry_priority.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "missing_industry_priority.csv", index=False, encoding="utf-8")
 
     output_path = generate_html_report(tmp_path)
     html = output_path.read_text(encoding="utf-8")

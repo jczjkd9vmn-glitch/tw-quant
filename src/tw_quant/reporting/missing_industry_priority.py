@@ -64,7 +64,7 @@ def generate_missing_industry_priority_report(
     )
     report_dir.mkdir(parents=True, exist_ok=True)
     output_path = report_dir / "missing_industry_priority.csv"
-    priority.to_csv(output_path, index=False, encoding="utf-8-sig")
+    priority.to_csv(output_path, index=False, encoding="utf-8")
     warning = "no market_relative_fallback rows" if priority.empty else ""
     return MissingIndustryPriorityResult(priority=priority, output_path=output_path, warning=warning)
 
@@ -348,6 +348,6 @@ def _read_csv(path: Path | None) -> pd.DataFrame:
     if path is None or not path.exists():
         return pd.DataFrame()
     try:
-        return pd.read_csv(path, encoding="utf-8-sig", dtype={"stock_id": str})
+        return pd.read_csv(path, encoding="utf-8", dtype={"stock_id": str})
     except Exception:
         return pd.DataFrame()

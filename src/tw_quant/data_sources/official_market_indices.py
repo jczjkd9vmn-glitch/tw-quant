@@ -240,7 +240,7 @@ def update_market_indices_csv(
     frames: list[pd.DataFrame] = []
     if merge_existing and path.exists():
         try:
-            frames.append(pd.read_csv(path, encoding="utf-8-sig", dtype={"index_id": str}))
+            frames.append(pd.read_csv(path, encoding="utf-8", dtype={"index_id": str}))
         except Exception:
             frames.append(pd.DataFrame(columns=MARKET_INDEX_COLUMNS))
     frames.append(fetched)
@@ -251,7 +251,7 @@ def update_market_indices_csv(
         merged = merged.sort_values(["trade_date", "index_id"]).reset_index(drop=True)
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    merged.to_csv(path, index=False, encoding="utf-8-sig")
+    merged.to_csv(path, index=False, encoding="utf-8")
     return merged
 
 

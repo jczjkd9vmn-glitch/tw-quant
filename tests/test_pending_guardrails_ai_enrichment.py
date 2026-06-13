@@ -66,7 +66,7 @@ def test_max_open_positions_blocks_execution_without_touching_closed_trades(tmp_
     for index in range(8):
         trades.append({"stock_id": f"10{index}", "stock_name": "測試", "status": "OPEN", "position_value": 10_000})
     trades.append({"stock_id": "9999", "stock_name": "舊平倉", "status": "CLOSED", "exit_reason": "STOP_LOSS"})
-    pd.DataFrame(trades).to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(trades).to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8")
     engine = _engine_with_prices(tmp_path, ["2026-05-16"])
 
     execute_pending_orders(engine, reports_dir=tmp_path, capital=1_000_000, config=_config())
@@ -142,10 +142,10 @@ def test_generate_ai_enrichment_and_industry_map_use_rule_based_fallback(tmp_pat
                 "risk_flags": "PE 偏高",
             }
         ]
-    ).to_csv(reports / "trading_decisions_20260515.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(reports / "trading_decisions_20260515.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [{"stock_id": "2330", "stock_name": "台積電", "industry": "半導體"}]
-    ).to_csv(data / "valuation.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(data / "valuation.csv", index=False, encoding="utf-8")
 
     path, status, rows = update_industry_map(data_dir=data, config_path=tmp_path / "missing.yaml")
     result = generate_ai_enrichment(reports_dir=reports, data_dir=data, config_path=tmp_path / "missing.yaml", trade_date="2026-05-15")
@@ -215,11 +215,11 @@ def test_update_industry_map_uses_reference_map_when_no_local_industry(tmp_path:
                 "updated_at": "2026-05-28",
             }
         ]
-    ).to_csv(reference / "stock_industry_map.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(reference / "stock_industry_map.csv", index=False, encoding="utf-8")
 
     path, status, rows = update_industry_map(data_dir=data, config_path=tmp_path / "missing.yaml")
 
-    result = pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8-sig")
+    result = pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8")
     assert status == "OK"
     assert rows == 1
     assert result.loc[0, "stock_id"] == "2330"
@@ -247,14 +247,14 @@ def test_html_report_shows_pending_distribution_and_enrichment(tmp_path: Path) -
                 "industry_map_status": "OK",
             }
         ]
-    ).to_csv(tmp_path / "daily_summary_20260515.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "daily_summary_20260515.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {"signal_date": "2026-05-15", "stock_id": "2330", "stock_name": "台積電", "status": "PENDING"},
             {"signal_date": "2026-05-14", "stock_id": "2317", "stock_name": "鴻海", "status": "EXPIRED"},
             {"signal_date": "2026-05-14", "stock_id": "2603", "stock_name": "長榮", "status": "CANCELLED_BY_GUARDRAIL"},
         ]
-    ).to_csv(tmp_path / "pending_orders_20260515.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "pending_orders_20260515.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -265,7 +265,7 @@ def test_html_report_shows_pending_distribution_and_enrichment(tmp_path: Path) -
                 "rejection_reason": "guardrail BLOCKED",
             }
         ]
-    ).to_csv(tmp_path / "rejected_paper_orders_20260515.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "rejected_paper_orders_20260515.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -281,7 +281,7 @@ def test_html_report_shows_pending_distribution_and_enrichment(tmp_path: Path) -
                 "source_evidence_json": '[{"source_name":"reports"}]',
             }
         ]
-    ).to_csv(tmp_path / "ai_enrichment_20260515.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "ai_enrichment_20260515.csv", index=False, encoding="utf-8")
 
     output = generate_html_report(reports_dir=tmp_path, docs_dir=tmp_path / "docs")
     html = output.read_text(encoding="utf-8")
@@ -305,7 +305,7 @@ def test_discord_message_includes_pending_and_enrichment_summary(tmp_path: Path)
                 "candidate_grade": "A",
             }
         ]
-    ).to_csv(tmp_path / "trading_decisions_20260515.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "trading_decisions_20260515.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -315,7 +315,7 @@ def test_discord_message_includes_pending_and_enrichment_summary(tmp_path: Path)
                 "risk_explanation": "資料不足時不做強結論",
             }
         ]
-    ).to_csv(tmp_path / "ai_enrichment_20260515.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "ai_enrichment_20260515.csv", index=False, encoding="utf-8")
     summary = {
         "trade_date": "2026-05-15",
         "requested_date": "2026-05-15",
@@ -379,7 +379,7 @@ def _write_pending(
                 "event_blocked": event_blocked,
             }
         ]
-    ).to_csv(path / "pending_orders_20260515.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "pending_orders_20260515.csv", index=False, encoding="utf-8")
 
 
 def _engine_with_prices(tmp_path: Path, dates: list[str]):

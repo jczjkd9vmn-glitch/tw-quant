@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,is_etf,market_type,decision,candidate_grade,review_level,has_industry,has_valuation,has_financials,has_revenue,has_institutional,has_margin,has_event_data,has_etf_metadata,missing_fields
+trade_date,stock_id,stock_name,is_etf,market_type,decision,candidate_grade,review_level,has_industry,has_valuation,has_financials,has_revenue,has_institutional,has_margin,has_event_data,has_etf_metadata,missing_fields
 2026-06-04,6585,鼎基,False,nan,WATCH_ONLY,B,RISK_REVIEW,True,True,True,True,True,True,False,True,EVENT_DATA_MISSING
 2026-06-04,6957,裕慶-KY,False,nan,WATCH_ONLY,B,RISK_REVIEW,True,True,True,True,True,True,False,True,EVENT_DATA_MISSING
 2026-06-04,00962,台新AI優息動能,True,nan,WATCH_ONLY,C,DATA_REVIEW,True,True,True,True,True,True,False,False,EVENT_DATA_MISSING；ETF_METADATA_MISSING

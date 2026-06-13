@@ -276,7 +276,7 @@ def test_disposition_from_provider_blocks_when_config_enabled(tmp_path: Path) ->
         columns=ATTENTION_DISPOSITION_COLUMNS,
     )
 
-    frame.to_csv(path, index=False, encoding="utf-8-sig")
+    frame.to_csv(path, index=False, encoding="utf-8")
     row = score_attention_disposition_for_symbols(["1597"], path, {"block_disposition_stock": True}).iloc[0]
 
     assert bool(row["event_blocked"]) is True

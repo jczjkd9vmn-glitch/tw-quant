@@ -33,7 +33,7 @@ def test_factor_diagnostics_missing_factor_columns_do_not_crash(tmp_path: Path) 
     pd.DataFrame([{"trade_date": "2026-06-04", "stock_id": "2330", "stock_name": "台積電"}]).to_csv(
         tmp_path / "candidates_20260604.csv",
         index=False,
-        encoding="utf-8-sig",
+        encoding="utf-8",
     )
     _write_minimal_benchmark_inputs(tmp_path)
 
@@ -63,7 +63,7 @@ def test_factor_diagnostics_marks_small_samples_insufficient(tmp_path: Path) -> 
                 "entry_price_source": "OPEN",
             }
         ]
-    ).to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8")
 
     result = generate_factor_diagnostics(tmp_path, trade_date="2026-06-04")
 
@@ -84,7 +84,7 @@ def test_guardrail_impact_schema_with_rejected_orders(tmp_path: Path) -> None:
                 "rejected_reason": "market_regime_score 低於門檻",
             }
         ]
-    ).to_csv(tmp_path / "rejected_paper_orders_20260604.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "rejected_paper_orders_20260604.csv", index=False, encoding="utf-8")
 
     result = generate_factor_diagnostics(tmp_path, trade_date="2026-06-04")
 
@@ -103,13 +103,13 @@ def test_benchmark_diagnostics_uses_0050_fallback_with_warning(tmp_path: Path) -
                 "total_equity_after_cost": 1_020_000,
             }
         ]
-    ).to_csv(tmp_path / "paper_summary_20260604.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "paper_summary_20260604.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {"trade_date": "2026-06-03", "total_equity_after_cost": 1_000_000},
             {"trade_date": "2026-06-04", "total_equity_after_cost": 1_020_000},
         ]
-    ).to_csv(tmp_path / "daily_summary_20260604.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "daily_summary_20260604.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -120,7 +120,7 @@ def test_benchmark_diagnostics_uses_0050_fallback_with_warning(tmp_path: Path) -
                 "stock_return_20d": 0.02,
             }
         ]
-    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8")
 
     result = generate_factor_diagnostics(tmp_path, trade_date="2026-06-04")
 
@@ -193,7 +193,7 @@ def _write_minimal_candidates(path: Path) -> None:
                 "is_disposition_stock": False,
             }
         ]
-    ).to_csv(path / "candidates_20260604.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "candidates_20260604.csv", index=False, encoding="utf-8")
 
 
 def _write_minimal_benchmark_inputs(path: Path) -> None:
@@ -207,7 +207,7 @@ def _write_minimal_benchmark_inputs(path: Path) -> None:
                 "market_return_20d": 0.02,
             }
         ]
-    ).to_csv(path / "market_regime_20260604.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "market_regime_20260604.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -216,7 +216,7 @@ def _write_minimal_benchmark_inputs(path: Path) -> None:
                 "fallback_used": False,
             }
         ]
-    ).to_csv(path / "market_recap_20260604.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "market_recap_20260604.csv", index=False, encoding="utf-8")
 
 
 def _compound_series(start: float, returns: list[float]) -> list[float]:
@@ -240,7 +240,7 @@ def _write_equity_series(path: Path, values: list[float]) -> None:
             }
             for day, value in zip(dates, values)
         ]
-    ).to_csv(path / f"daily_summary_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / f"daily_summary_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -250,7 +250,7 @@ def _write_equity_series(path: Path, values: list[float]) -> None:
             }
             for day, value in zip(dates, values)
         ]
-    ).to_csv(path / f"pnl_chart_data_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / f"pnl_chart_data_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -259,7 +259,7 @@ def _write_equity_series(path: Path, values: list[float]) -> None:
                 "total_equity_after_cost": values[-1],
             }
         ]
-    ).to_csv(path / f"paper_summary_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / f"paper_summary_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8")
 
 
 def _write_market_index_series(path: Path, values: list[float]) -> None:
@@ -275,7 +275,7 @@ def _write_market_index_series(path: Path, values: list[float]) -> None:
             }
             for day, value in zip(dates, values)
         ]
-    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8")
 
 
 def _write_valid_trades(path: Path, count: int) -> None:
@@ -290,7 +290,7 @@ def _write_valid_trades(path: Path, count: int) -> None:
             }
             for index in range(count)
         ]
-    ).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8")
 
 
 def _write_portfolio(path: Path) -> None:
@@ -302,4 +302,4 @@ def _write_portfolio(path: Path) -> None:
                 "status": "OPEN",
             }
         ]
-    ).to_csv(path / "paper_portfolio_20260630.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "paper_portfolio_20260630.csv", index=False, encoding="utf-8")

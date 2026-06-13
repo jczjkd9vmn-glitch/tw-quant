@@ -255,7 +255,7 @@ def _read_market_indices(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
     try:
-        frame = pd.read_csv(path, encoding="utf-8-sig", dtype={"index_id": str})
+        frame = pd.read_csv(path, encoding="utf-8", dtype={"index_id": str})
     except Exception:
         return pd.DataFrame()
     required = {"trade_date", "index_id", "close"}
@@ -311,7 +311,7 @@ def _write_result(result: MarketRegimeResult, reports_dir: str | Path | None) ->
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
     path = report_dir / f"market_regime_{result.trade_date.strftime('%Y%m%d')}.csv"
-    result.frame.to_csv(path, index=False, encoding="utf-8-sig")
+    result.frame.to_csv(path, index=False, encoding="utf-8")
     return MarketRegimeResult(
         result.trade_date,
         result.market_regime_score,

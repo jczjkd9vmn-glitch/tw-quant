@@ -254,8 +254,8 @@ def export_latest_candidates(
     risk_pass_path = report_dir / f"risk_pass_candidates_{date_label}.csv"
     data_fetch_status_path = write_data_fetch_status(report_dir, latest_date, data_fetch_status)
     write_data_quality_health(report_dir, candidates, data_fetch_status)
-    candidates.to_csv(candidates_path, index=False, encoding="utf-8-sig")
-    risk_pass_candidates.to_csv(risk_pass_path, index=False, encoding="utf-8-sig")
+    candidates.to_csv(candidates_path, index=False, encoding="utf-8")
+    risk_pass_candidates.to_csv(risk_pass_path, index=False, encoding="utf-8")
 
     return CandidateExportResult(
         trade_date=latest_date,

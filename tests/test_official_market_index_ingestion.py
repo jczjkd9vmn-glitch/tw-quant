@@ -78,7 +78,7 @@ def test_update_market_indices_csv_merges_and_deduplicates(tmp_path: Path) -> No
                 "is_official": True,
             }
         ]
-    ).to_csv(output_path, index=False, encoding="utf-8-sig")
+    ).to_csv(output_path, index=False, encoding="utf-8")
 
     fetched = pd.DataFrame(
         [
@@ -115,7 +115,7 @@ def test_benchmark_uses_official_taiex_before_0050_fallback(tmp_path: Path) -> N
                 "stock_return_20d": 0.99,
             }
         ]
-    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8")
 
     snapshot = select_benchmark_snapshot(tmp_path, "2026-06-05")
 
@@ -171,7 +171,7 @@ def test_benchmark_falls_back_to_0050_when_official_taiex_missing(tmp_path: Path
                 "stock_return_20d": 0.02,
             }
         ]
-    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8")
 
     snapshot = select_benchmark_snapshot(tmp_path, "2026-06-05")
 
@@ -233,7 +233,7 @@ def _write_official_taiex(path: Path) -> None:
             {"trade_date": "2026-06-04", "index_id": "TAIEX", "index_name": "發行量加權股價指數", "open": 101, "high": 103, "low": 101, "close": 102.0, "source": "twse_openapi:MI_5MINS_HIST", "is_official": True},
             {"trade_date": "2026-06-05", "index_id": "TAIEX", "index_name": "發行量加權股價指數", "open": 102, "high": 104, "low": 102, "close": 103.0, "source": "twse_openapi:MI_5MINS_HIST", "is_official": True},
         ]
-    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8")
 
 
 def _write_official_taiex_history(path: Path, *, periods: int) -> None:
@@ -254,7 +254,7 @@ def _write_official_taiex_history(path: Path, *, periods: int) -> None:
                 "is_official": True,
             }
         )
-    pd.DataFrame(rows).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(rows).to_csv(path / "market_indices.csv", index=False, encoding="utf-8")
 
 
 def _write_minimal_html_inputs(path: Path) -> None:
@@ -270,4 +270,4 @@ def _write_minimal_html_inputs(path: Path) -> None:
                 "market_regime_score": 65.0,
             }
         ]
-    ).to_csv(path / "daily_summary_20260605.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "daily_summary_20260605.csv", index=False, encoding="utf-8")

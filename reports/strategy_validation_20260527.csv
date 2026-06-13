@@ -1,4 +1,4 @@
-﻿validation_date,trade_date,model_name,description,candidate_count,selected_count,simulated_trades,win_rate,avg_return_pct,median_return_pct,total_return_pct,max_drawdown_pct,avg_holding_days,stop_loss_count,take_profit_count,trailing_stop_count,ma_exit_count,max_holding_exit_count,profit_factor,expectancy,consecutive_loss_count,notes
+validation_date,trade_date,model_name,description,candidate_count,selected_count,simulated_trades,win_rate,avg_return_pct,median_return_pct,total_return_pct,max_drawdown_pct,avg_holding_days,stop_loss_count,take_profit_count,trailing_stop_count,ma_exit_count,max_holding_exit_count,profit_factor,expectancy,consecutive_loss_count,notes
 2026-05-28,2026-05-27,baseline_total_score,原始 total_score / risk_pass baseline,20,6,0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0.0,0.0,0,歷史交易樣本不足：0/10
 2026-05-28,2026-05-27,multi_factor_rank,以 multi_factor_score 作為排序參考,20,6,0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0.0,0.0,0,歷史交易樣本不足：0/10
 2026-05-28,2026-05-27,confidence_filter,排除 confidence_score < 60,20,3,0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,0,0,0,0.0,0.0,0,歷史交易樣本不足：0/10

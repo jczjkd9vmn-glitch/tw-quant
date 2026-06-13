@@ -112,7 +112,7 @@ def _write_trades(path) -> None:
                 "realized_pnl": -50,
             },
         ]
-    ).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8")
 
 
 def _write_summary(
@@ -139,4 +139,4 @@ def _write_summary(
                 "closed_positions": closed_positions,
             }
         ]
-    ).to_csv(path, index=False, encoding="utf-8-sig")
+    ).to_csv(path, index=False, encoding="utf-8")

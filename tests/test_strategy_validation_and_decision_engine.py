@@ -13,8 +13,8 @@ from tw_quant.validation.strategy_validation import generate_strategy_validation
 def test_strategy_validation_generates_models_and_filters(tmp_path: Path) -> None:
     _write_candidate_reports(tmp_path)
     trades_path = tmp_path / "paper_trades.csv"
-    _paper_trades().to_csv(trades_path, index=False, encoding="utf-8-sig")
-    original_trades = trades_path.read_text(encoding="utf-8-sig")
+    _paper_trades().to_csv(trades_path, index=False, encoding="utf-8")
+    original_trades = trades_path.read_text(encoding="utf-8")
 
     result = generate_strategy_validation(tmp_path, min_trades_required=10)
     validation = result.validation
@@ -35,7 +35,7 @@ def test_strategy_validation_generates_models_and_filters(tmp_path: Path) -> Non
     assert counts["sector_strength_filter"] < counts["baseline_total_score"]
     assert counts["event_risk_filter"] < counts["baseline_total_score"]
     assert "歷史交易樣本不足" in validation.set_index("model_name").loc["baseline_total_score", "notes"]
-    assert trades_path.read_text(encoding="utf-8-sig") == original_trades
+    assert trades_path.read_text(encoding="utf-8") == original_trades
     assert not list(tmp_path.glob("pending_orders_*.csv"))
 
 
@@ -58,7 +58,7 @@ def test_candidate_grading_rules() -> None:
 
 def test_decision_engine_outputs_advisory_decisions(tmp_path: Path) -> None:
     _write_candidate_reports(tmp_path)
-    _paper_trades(open_position=True).to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    _paper_trades(open_position=True).to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8")
     config_path = tmp_path / "config.yaml"
     config_path.write_text("", encoding="utf-8")
 
@@ -96,8 +96,8 @@ def test_decision_engine_downgrades_buy_candidate_when_market_data_stale(tmp_pat
             )
         ]
     )
-    candidates.to_csv(tmp_path / "candidates_20260515.csv", index=False, encoding="utf-8-sig")
-    pd.DataFrame().to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    candidates.to_csv(tmp_path / "candidates_20260515.csv", index=False, encoding="utf-8")
+    pd.DataFrame().to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8")
     config_path = tmp_path / "config.yaml"
     config_path.write_text("", encoding="utf-8")
 
@@ -136,8 +136,8 @@ def _write_candidate_reports(path: Path) -> None:
             _candidate("2303", "聯電", confidence_score=75, liquidity_score=70, sector_strength_score=40),
         ]
     )
-    candidates.to_csv(path / "candidates_20260515.csv", index=False, encoding="utf-8-sig")
-    candidates[candidates["risk_pass"] == 1].to_csv(path / "risk_pass_candidates_20260515.csv", index=False, encoding="utf-8-sig")
+    candidates.to_csv(path / "candidates_20260515.csv", index=False, encoding="utf-8")
+    candidates[candidates["risk_pass"] == 1].to_csv(path / "risk_pass_candidates_20260515.csv", index=False, encoding="utf-8")
 
 
 def _candidate(symbol: str, name: str = "測試股", **overrides) -> dict:

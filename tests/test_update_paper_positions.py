@@ -112,7 +112,7 @@ def test_update_paper_positions_handles_legacy_float_text_columns(tmp_path) -> N
             }
         ]
     )
-    legacy_frame.to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    legacy_frame.to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8")
     save_daily_prices(engine, _prices("20260510", {"2330": 70}))
 
     result = update_paper_positions(engine, reports_dir=tmp_path, trade_date="20260510", capital=10_000)
@@ -125,7 +125,7 @@ def test_update_paper_positions_handles_legacy_float_text_columns(tmp_path) -> N
 
 def _write_trades(path, rows: list[dict]) -> None:
     frame = pd.DataFrame(rows)
-    frame.to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    frame.to_csv(path / "paper_trades.csv", index=False, encoding="utf-8")
 
 
 def _trade(stock_id: str, entry_price: float, shares: int, stop_loss: float) -> dict:

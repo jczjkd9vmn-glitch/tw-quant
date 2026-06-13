@@ -322,7 +322,7 @@ def _write_cache(path: Path, frame: pd.DataFrame) -> None:
 
 def _write_csv(report_dir: Path, date_label: str, frame: pd.DataFrame) -> None:
     report_dir.mkdir(parents=True, exist_ok=True)
-    frame.to_csv(report_dir / f"market_intel_{date_label}.csv", index=False, encoding="utf-8-sig")
+    frame.to_csv(report_dir / f"market_intel_{date_label}.csv", index=False, encoding="utf-8")
 
 
 def _apply_freshness(

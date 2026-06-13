@@ -332,7 +332,7 @@ def write_data_fetch_status(
 ) -> Path:
     path = Path(report_dir) / f"data_fetch_status_{pd.to_datetime(trade_date).strftime('%Y%m%d')}.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
-    statuses.to_csv(path, index=False, encoding="utf-8-sig")
+    statuses.to_csv(path, index=False, encoding="utf-8")
     return path
 
 

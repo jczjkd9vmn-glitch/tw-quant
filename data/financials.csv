@@ -1,4 +1,4 @@
-﻿stock_id,stock_name,financial_quarter,eps,eps_yoy,roe,gross_margin,operating_margin,net_margin,debt_ratio,operating_cash_flow,financial_source,financial_source_status,financial_period
+stock_id,stock_name,financial_quarter,eps,eps_yoy,roe,gross_margin,operating_margin,net_margin,debt_ratio,operating_cash_flow,financial_source,financial_source_status,financial_period
 1101,台泥,115Q1,0.1,,,18.7179,8.4183,3.6322,,,TWSE OpenAPI t187ap06_L_ci,OK,115Q1
 1102,亞泥,115Q1,0.56,,,13.002,7.9853,12.0793,,,TWSE OpenAPI t187ap06_L_ci,OK,115Q1
 1103,嘉泥,115Q1,0.08,,,21.1488,2.2941,7.456,,,TWSE OpenAPI t187ap06_L_ci,OK,115Q1

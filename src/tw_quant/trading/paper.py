@@ -274,9 +274,9 @@ def run_paper_trade(
 
     new_pending = pd.DataFrame(pending_rows, columns=PENDING_ORDER_COLUMNS)
     all_pending = _merge_pending_orders(existing_pending, new_pending)
-    all_pending.to_csv(pending_path, index=False, encoding="utf-8-sig")
+    all_pending.to_csv(pending_path, index=False, encoding="utf-8")
     rejected = _merge_rejected_orders(_load_rejected_orders(rejected_path), pd.DataFrame(rejected_rows))
-    rejected.to_csv(rejected_path, index=False, encoding="utf-8-sig")
+    rejected.to_csv(rejected_path, index=False, encoding="utf-8")
 
     return PaperTradeResult(
         trade_date=trade_date,

@@ -111,7 +111,7 @@ def test_sector_strength_provider_chooses_mode_per_stock(tmp_path: Path) -> None
                 "updated_at": "2026-05-15",
             }
         ]
-    ).to_csv(reference_dir / "stock_industry_map.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(reference_dir / "stock_industry_map.csv", index=False, encoding="utf-8")
     config_path = tmp_path / "config.yaml"
     config_path.write_text(
         "\n".join(

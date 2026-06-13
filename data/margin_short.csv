@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,margin_balance,margin_change,short_balance,short_change,securities_lending_sell_volume,securities_lending_balance
+trade_date,stock_id,stock_name,margin_balance,margin_change,short_balance,short_change,securities_lending_sell_volume,securities_lending_balance
 2026-06-12,00400A,主動國泰動能高息,11072.0,614.0,86.0,30.0,,
 2026-06-12,00401A,主動摩根台灣鑫收,911.0,16.0,3.0,0.0,,
 2026-06-12,00402A,主動安聯美國科技,3345.0,-1507.0,0.0,0.0,,

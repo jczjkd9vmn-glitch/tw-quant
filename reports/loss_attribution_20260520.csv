@@ -1,4 +1,4 @@
-﻿candidate_grade,decision,entry_date,exit_date,stock_id,stock_name,entry_price,exit_price,realized_pnl_pct,unrealized_pnl_pct,exit_reason,holding_days,liquidity_score,sector_strength_score,confidence_score,market_regime_score,gap_pct,max_favorable_excursion,max_adverse_excursion,loss_bucket,likely_loss_reason
+candidate_grade,decision,entry_date,exit_date,stock_id,stock_name,entry_price,exit_price,realized_pnl_pct,unrealized_pnl_pct,exit_reason,holding_days,liquidity_score,sector_strength_score,confidence_score,market_regime_score,gap_pct,max_favorable_excursion,max_adverse_excursion,loss_bucket,likely_loss_reason
 -,-,2026-05-08,2026-05-11,3528,安馳,91.0,82.4175,-0.098321,0.0,STOP_LOSS,3.0,50.0,50.0,50.0,45.0,,0.0,-0.098321,large_loss,停損出場；市場環境偏弱；資料可信度偏低
 B,REDUCE,2026-05-08,2026-05-20,3033,威健,43.85,51.3486,0.085536,0.172178,take_profit_2,9.0,92.0,86.0,90.0,45.0,,0.172178,0.0,profitable_or_flat,目前非虧損交易
 -,EXIT,2026-05-08,,2376,技嘉,317.0,,,-0.047319,,9.0,50.0,50.0,50.0,45.0,,0.042587,-0.047319,unrealized_loss,市場環境偏弱；資料可信度偏低

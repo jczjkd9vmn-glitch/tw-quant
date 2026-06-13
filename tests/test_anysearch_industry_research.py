@@ -105,7 +105,7 @@ def test_anysearch_disabled_preserves_existing_candidate_csv(tmp_path: Path, mon
         ]
     )
     output_path = reports / "anysearch_industry_candidates.csv"
-    existing.to_csv(output_path, index=False, encoding="utf-8-sig")
+    existing.to_csv(output_path, index=False, encoding="utf-8")
 
     result = generate_anysearch_industry_research_report(
         reports_dir=reports,
@@ -134,7 +134,7 @@ def test_anysearch_no_priority_targets_preserves_existing_candidate_csv(tmp_path
                 "status": "PENDING_REVIEW",
             }
         ]
-    ).to_csv(reports / "anysearch_industry_candidates.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(reports / "anysearch_industry_candidates.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -144,7 +144,7 @@ def test_anysearch_no_priority_targets_preserves_existing_candidate_csv(tmp_path
                 "priority_score": 3,
             }
         ]
-    ).to_csv(reports / "missing_industry_priority.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(reports / "missing_industry_priority.csv", index=False, encoding="utf-8")
     client = _FakeAnySearchClient(raise_on_call=True)
 
     result = generate_anysearch_industry_research_report(
@@ -255,7 +255,7 @@ def test_html_contains_anysearch_candidate_section(tmp_path: Path, monkeypatch) 
                 "checked_at": "2026-05-31T00:00:00+00:00",
             }
         ]
-    ).to_csv(reports / "anysearch_industry_candidates.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(reports / "anysearch_industry_candidates.csv", index=False, encoding="utf-8")
 
     html = generate_html_report(reports, docs_dir=None).read_text(encoding="utf-8")
 
@@ -315,7 +315,7 @@ def _write_priority(reports_dir: Path) -> None:
                 "priority_score": 3,
             },
         ]
-    ).to_csv(reports_dir / "missing_industry_priority.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(reports_dir / "missing_industry_priority.csv", index=False, encoding="utf-8")
 
 
 def _config(tmp_path: Path) -> str:

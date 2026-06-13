@@ -1,4 +1,4 @@
-﻿stock_id,stock_name,market_type,latest_relative_mode,fallback_reason,appear_in_candidates_count,appear_in_trading_decisions_count,appear_in_risk_pass_count,appear_in_position_review_count,appear_in_ai_enrichment_count,recent_appearance_count,liquidity_score,avg_volume,turnover_value,last_seen_date,priority_score,priority_level,suggested_action
+stock_id,stock_name,market_type,latest_relative_mode,fallback_reason,appear_in_candidates_count,appear_in_trading_decisions_count,appear_in_risk_pass_count,appear_in_position_review_count,appear_in_ai_enrichment_count,recent_appearance_count,liquidity_score,avg_volume,turnover_value,last_seen_date,priority_score,priority_level,suggested_action
 9136,巨騰-DR,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,1,1,0,0,1,3,92.0,6204388.428571428,96664297.0,2026-06-12,17,HIGH,優先查證並補產業分類
 9103,美德醫療-DR,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,1,1,0,0,1,3,60.0,6421681.0,10356747.0,2026-06-12,15,HIGH,優先查證並補產業分類
 00402A,主動安聯美國科技,ETF,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,92.0,85576853.5,320888825.0,2026-06-12,3,LOW,暫緩補資料

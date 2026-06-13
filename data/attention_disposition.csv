@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,is_attention_stock,attention_reason,is_disposition_stock,disposition_start_date,disposition_end_date,disposition_reason
+trade_date,stock_id,stock_name,is_attention_stock,attention_reason,is_disposition_stock,disposition_start_date,disposition_end_date,disposition_reason
 2026-06-01,050503,緯穎中信5A購05,False,,True,2026-06-02,2026-06-15,"連續三次；第一次處置；１處置原因：該有價證券之交易，連續三個營業日達本公司「公布注意交易資訊」標準。
 ２處置期間：自民國一百十五年六月二日起至一百十五年六月十五日﹝十個營業日，如遇：ａ有價證券最後交易日在處置期間，僅處置至最後交易日，ｂ有價證券停止買賣、全日暫停交易則順延執行，ｃ開休市日變動則調整處置迄日〕。
 ３處置措施：

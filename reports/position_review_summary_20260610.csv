@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,decision,hold,reduce,exit_review,near_stop_loss,near_take_profit,data_quality_warning,current_price,stop_loss_price,unrealized_pnl_pct,risk_light,review_reason
+trade_date,stock_id,stock_name,decision,hold,reduce,exit_review,near_stop_loss,near_take_profit,data_quality_warning,current_price,stop_loss_price,unrealized_pnl_pct,risk_light,review_reason
 2026-06-10,6206,飛捷,REDUCE,False,True,False,False,False,False,132.5,110.93,0.113445,,一般人工確認
 2026-06-10,8926,台汽電,REDUCE,False,True,False,False,False,False,75.0,52.98,0.255026,,一般人工確認
 2026-06-10,2030,彰源,HOLD,True,False,False,False,False,False,18.65,16.67,0.018108,,一般人工確認

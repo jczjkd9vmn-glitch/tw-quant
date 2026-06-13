@@ -79,7 +79,7 @@ def test_pending_order_skips_when_existing_open_position_and_preserves_old_trade
             }
         ]
     )
-    old_trade.to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    old_trade.to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8")
     run_paper_trade(reports_dir=tmp_path, capital=1_000_000)
     engine = _engine_with_prices(tmp_path, [_price_frame("20260509", open_price=1010.0, close=1015.0)])
 
@@ -121,7 +121,7 @@ def _write_risk_report(path: Path) -> None:
                 "candidate_grade": "A",
             }
         ]
-    ).to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8")
 
 
 def _price_frame(trade_date: str, open_price: float, close: float) -> pd.DataFrame:

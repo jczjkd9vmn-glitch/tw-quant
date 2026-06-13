@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,decision,hold,reduce,exit_review,near_stop_loss,near_take_profit,data_quality_warning,current_price,stop_loss_price,unrealized_pnl_pct,risk_light,review_reason
+trade_date,stock_id,stock_name,decision,hold,reduce,exit_review,near_stop_loss,near_take_profit,data_quality_warning,current_price,stop_loss_price,unrealized_pnl_pct,risk_light,review_reason
 2026-05-28,2376,技嘉,HOLD,True,False,False,False,False,False,337.5,293.43,0.064669,,一般人工確認
 2026-05-28,6206,飛捷,REDUCE,False,True,False,False,False,False,138.5,110.93,0.163866,,一般人工確認
 2026-05-28,1256,鮮活果汁-KY,HOLD,True,False,False,False,False,False,198.0,175.07,-0.006019,,一般人工確認

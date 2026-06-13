@@ -335,8 +335,8 @@ def test_pending_orders_are_split_between_waiting_and_skipped(tmp_path: Path) ->
 
 def test_open_position_can_enrich_from_market_intel_when_not_candidate(tmp_path: Path) -> None:
     _write_reports(tmp_path)
-    _candidates().iloc[[1]].to_csv(tmp_path / "candidates_20260508.csv", index=False, encoding="utf-8-sig")
-    _candidates().iloc[[1]].to_csv(tmp_path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8-sig")
+    _candidates().iloc[[1]].to_csv(tmp_path / "candidates_20260508.csv", index=False, encoding="utf-8")
+    _candidates().iloc[[1]].to_csv(tmp_path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -349,7 +349,7 @@ def test_open_position_can_enrich_from_market_intel_when_not_candidate(tmp_path:
                 "market_intel_source": "official",
             }
         ]
-    ).to_csv(tmp_path / "market_intel_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "market_intel_20260508.csv", index=False, encoding="utf-8")
 
     html = generate_html_report(tmp_path).read_text(encoding="utf-8")
 
@@ -360,8 +360,8 @@ def test_open_position_can_enrich_from_market_intel_when_not_candidate(tmp_path:
 
 def test_open_position_without_any_market_context_shows_missing_message(tmp_path: Path) -> None:
     _write_reports(tmp_path)
-    _candidates().iloc[[1]].to_csv(tmp_path / "candidates_20260508.csv", index=False, encoding="utf-8-sig")
-    _candidates().iloc[[1]].to_csv(tmp_path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8-sig")
+    _candidates().iloc[[1]].to_csv(tmp_path / "candidates_20260508.csv", index=False, encoding="utf-8")
+    _candidates().iloc[[1]].to_csv(tmp_path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8")
 
     html = generate_html_report(tmp_path).read_text(encoding="utf-8")
 
@@ -440,13 +440,13 @@ def _write_reports(
         "error_message": "",
     }
     summary.update(summary_overrides or {})
-    pd.DataFrame([summary]).to_csv(path / "daily_summary_20260510.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame([summary]).to_csv(path / "daily_summary_20260510.csv", index=False, encoding="utf-8")
 
     candidates = _candidates()
-    candidates.to_csv(path / "candidates_20260508.csv", index=False, encoding="utf-8-sig")
-    candidates.head(1).to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8-sig")
-    _pending_orders().to_csv(path / "pending_orders_20260508.csv", index=False, encoding="utf-8-sig")
-    _paper_trades().to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    candidates.to_csv(path / "candidates_20260508.csv", index=False, encoding="utf-8")
+    candidates.head(1).to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8")
+    _pending_orders().to_csv(path / "pending_orders_20260508.csv", index=False, encoding="utf-8")
+    _paper_trades().to_csv(path / "paper_trades.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -463,11 +463,11 @@ def _write_reports(
                 "total_equity_after_cost": 1_001_400.0,
             }
         ]
-    ).to_csv(path / "paper_summary_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "paper_summary_20260508.csv", index=False, encoding="utf-8")
     (data_fetch_status if data_fetch_status is not None else _status_frame([("institutional", "OK", 2, "best_effort", "wrote_new_data")])).to_csv(
         path / "data_fetch_status_20260508.csv",
         index=False,
-        encoding="utf-8-sig",
+        encoding="utf-8",
     )
 
 

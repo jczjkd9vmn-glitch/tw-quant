@@ -477,14 +477,14 @@ def _empty_candidates() -> pd.DataFrame:
 
 def _write_candidates(path: Path, frame: pd.DataFrame) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    frame.reindex(columns=ANYSEARCH_INDUSTRY_COLUMNS).to_csv(path, index=False, encoding="utf-8-sig")
+    frame.reindex(columns=ANYSEARCH_INDUSTRY_COLUMNS).to_csv(path, index=False, encoding="utf-8")
 
 
 def _read_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
     try:
-        return pd.read_csv(path, encoding="utf-8-sig", dtype={"stock_id": str})
+        return pd.read_csv(path, encoding="utf-8", dtype={"stock_id": str})
     except Exception:
         return pd.DataFrame()
 

@@ -1,4 +1,4 @@
-﻿trade_date,total_equity,unrealized_pnl,realized_pnl_after_cost,total_equity_after_cost,today_total_pnl,total_return_pct,data_quality_note
+trade_date,total_equity,unrealized_pnl,realized_pnl_after_cost,total_equity_after_cost,today_total_pnl,total_return_pct,data_quality_note
 2026-05-12,991650.68,-6329.42,0.0,991650.68,-6329.42,-0.008349319999999948,
 2026-05-13,973959.17,-11884.11,-12258.16,973959.17,-24142.27,-0.02604082999999996,
 2026-05-14,980977.74,3780.91,-8761.02,980977.74,-4980.110000000001,-0.01902226000000001,

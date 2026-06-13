@@ -94,7 +94,7 @@ def test_performance_diagnostics_marks_small_samples_insufficient(tmp_path: Path
             {"trade_date": "2026-06-04", "total_equity_after_cost": 1_000_000, "total_return_pct": 0.0},
             {"trade_date": "2026-06-05", "total_equity_after_cost": 1_010_000, "total_return_pct": 0.01},
         ]
-    ).to_csv(tmp_path / "pnl_chart_data_20260605.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "pnl_chart_data_20260605.csv", index=False, encoding="utf-8")
     _write_market_regime(tmp_path)
 
     result = generate_performance_diagnostics(tmp_path, trade_date="2026-06-05")
@@ -148,7 +148,7 @@ def test_performance_diagnostics_rejects_abnormal_0050_fallback(tmp_path: Path) 
                 "market_return_20d": "",
             }
         ]
-    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8")
 
     result = generate_performance_diagnostics(tmp_path, trade_date="2026-06-05")
     row = result.frame.iloc[0]
@@ -175,7 +175,7 @@ def test_performance_diagnostics_falls_back_to_paper_summary(tmp_path: Path) -> 
                     "total_equity_after_cost": equity,
                 }
             ]
-        ).to_csv(tmp_path / f"paper_summary_{day.replace('-', '')}.csv", index=False, encoding="utf-8-sig")
+        ).to_csv(tmp_path / f"paper_summary_{day.replace('-', '')}.csv", index=False, encoding="utf-8")
     _write_sector_strength(tmp_path)
 
     result = generate_performance_diagnostics(tmp_path, trade_date="2026-06-06")
@@ -197,7 +197,7 @@ def _write_pnl_chart(path: Path) -> None:
             {"trade_date": "2026-06-04", "total_equity_after_cost": 1_030_000, "total_return_pct": 0.03},
             {"trade_date": "2026-06-05", "total_equity_after_cost": 1_060_000, "total_return_pct": 0.06},
         ]
-    ).to_csv(path / "pnl_chart_data_20260605.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "pnl_chart_data_20260605.csv", index=False, encoding="utf-8")
 
 
 def _compound_series(start: float, returns: list[float]) -> list[float]:
@@ -220,7 +220,7 @@ def _write_equity_series(path: Path, values: list[float]) -> None:
             }
             for day, value in zip(dates, values)
         ]
-    ).to_csv(path / f"pnl_chart_data_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / f"pnl_chart_data_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8")
 
 
 def _write_market_index_series(path: Path, values: list[float]) -> None:
@@ -236,7 +236,7 @@ def _write_market_index_series(path: Path, values: list[float]) -> None:
             }
             for day, value in zip(dates, values)
         ]
-    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8")
 
 
 def _write_market_regime(path: Path) -> None:
@@ -249,7 +249,7 @@ def _write_market_regime(path: Path) -> None:
                 "market_return_20d": 5.0,
             }
         ]
-    ).to_csv(path / "market_regime_20260605.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "market_regime_20260605.csv", index=False, encoding="utf-8")
 
 
 def _write_market_indices(path: Path) -> None:
@@ -262,7 +262,7 @@ def _write_market_indices(path: Path) -> None:
             {"trade_date": "2026-06-04", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 101.8, "is_official": True},
             {"trade_date": "2026-06-05", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 102.0, "is_official": True},
         ]
-    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8")
 
 
 def _write_sector_strength(path: Path) -> None:
@@ -278,7 +278,7 @@ def _write_sector_strength(path: Path) -> None:
                 "market_return_20d": 0.03,
             }
         ]
-    ).to_csv(path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "sector_strength.csv", index=False, encoding="utf-8")
 
 
 def _write_valid_trades(path: Path, count: int) -> None:
@@ -295,7 +295,7 @@ def _write_valid_trades(path: Path, count: int) -> None:
                 "realized_pnl_pct_after_cost": 0.01,
             }
         )
-    pd.DataFrame(rows).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(rows).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8")
 
 
 def _write_portfolio(path: Path, count: int) -> None:
@@ -310,4 +310,4 @@ def _write_portfolio(path: Path, count: int) -> None:
                 "remaining_shares": 100,
             }
         )
-    pd.DataFrame(rows).to_csv(path / "paper_portfolio_20260605.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(rows).to_csv(path / "paper_portfolio_20260605.csv", index=False, encoding="utf-8")

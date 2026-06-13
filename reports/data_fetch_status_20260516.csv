@@ -1,4 +1,4 @@
-﻿source_name,provider_maturity,status,rows,warning,error_message,fallback_action
+source_name,provider_maturity,status,rows,warning,error_message,fallback_action
 monthly_revenue,best_effort,FAILED,0,"provider failed; fallback to local csv or neutral scores; provider failed, kept existing empty csv",HTTPError: 404 Client Error: for url: https://mops.twse.com.tw/nas/t21/sii/t21sc03_115_5_0.html,kept_existing_csv
 valuation,csv_fallback,EMPTY,0,"official valuation source not configured; provider empty, kept existing empty csv",,kept_existing_csv
 financials,csv_fallback,EMPTY,0,"official financial source not configured; provider empty, kept existing empty csv",,kept_existing_csv

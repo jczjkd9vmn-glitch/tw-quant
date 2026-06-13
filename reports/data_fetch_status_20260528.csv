@@ -1,4 +1,4 @@
-﻿source_name,status,rows,warning,error_message,requested_period,actual_period,latest_available_period,source_url_or_name,is_real_data,is_mock,is_stale,data_age_days,coverage_ratio,affected_symbols_count,fallback_reason,fallback_action
+source_name,status,rows,warning,error_message,requested_period,actual_period,latest_available_period,source_url_or_name,is_real_data,is_mock,is_stale,data_age_days,coverage_ratio,affected_symbols_count,fallback_reason,fallback_action
 monthly_revenue,OK,1078,,,,,,,False,False,False,,,,,
 valuation,OK,1077,,,,,,,False,False,False,,,,,
 financials,OK,1042,,,,,,,False,False,False,,,,,

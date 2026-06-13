@@ -1,4 +1,4 @@
-﻿trade_date,index_id,index_name,open,high,low,close,source,is_official
+trade_date,index_id,index_name,open,high,low,close,source,is_official
 2025-02-19,TAIEX,發行量加權股價指數,23589.44,23683.46,23550.99,23604.08,twse_official:MI_5MINS_HIST_monthly,True
 2025-02-20,TAIEX,發行量加權股價指數,23530.97,23576.71,23400.75,23487.46,twse_official:MI_5MINS_HIST_monthly,True
 2025-02-21,TAIEX,發行量加權股價指數,23526.13,23732.58,23488.42,23730.25,twse_official:MI_5MINS_HIST_monthly,True

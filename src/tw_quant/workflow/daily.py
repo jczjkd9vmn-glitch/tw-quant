@@ -1049,7 +1049,7 @@ def _refresh_local_sector_strength(
             messages.append(f"sector_strength refresh warning {warning}")
             return
         data_dir.mkdir(parents=True, exist_ok=True)
-        data.to_csv(data_dir / "sector_strength.csv", index=False, encoding="utf-8-sig")
+        data.to_csv(data_dir / "sector_strength.csv", index=False, encoding="utf-8")
         messages.append(f"sector_strength refresh {getattr(result, 'status', 'OK')} rows={len(data)}")
         if getattr(result, "warning", ""):
             messages.append(f"sector_strength refresh warning {result.warning}")
@@ -1369,7 +1369,7 @@ def _write_summary(report_dir: Path, summary: DailyWorkflowSummary) -> Path:
     if summary.requested_date and summary.requested_date != summary.trade_date:
         paths.append(report_dir / f"daily_summary_{_date_label(summary.requested_date)}.csv")
     for path in paths:
-        frame.to_csv(path, index=False, encoding="utf-8-sig")
+        frame.to_csv(path, index=False, encoding="utf-8")
     return paths[-1]
 
 

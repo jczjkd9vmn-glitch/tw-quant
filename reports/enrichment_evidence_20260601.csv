@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,field_value,evidence_summary,fallback_used,confidence_impact
+trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,field_value,evidence_summary,fallback_used,confidence_impact
 2026-06-01,00918,大華優利高填息30,candidate,csv,2026-06-01,candidate_grade,C,candidate_grade=C,False,0.8
 2026-06-01,00918,大華優利高填息30,candidate,csv,2026-06-01,decision,WATCH_ONLY,decision=WATCH_ONLY,False,0.8
 2026-06-01,00918,大華優利高填息30,candidate,csv,2026-06-01,margin_change_5d,3774.0,margin_change_5d=3774.0,False,0.8

@@ -210,7 +210,7 @@ def _write_attribution(report_dir: Path, trade_date: pd.Timestamp | None, frame:
     report_dir.mkdir(parents=True, exist_ok=True)
     target_date = trade_date or pd.Timestamp.today()
     path = report_dir / f"loss_attribution_{target_date.strftime('%Y%m%d')}.csv"
-    frame.to_csv(path, index=False, encoding="utf-8-sig")
+    frame.to_csv(path, index=False, encoding="utf-8")
     return path
 
 
@@ -256,7 +256,7 @@ def _read_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
     try:
-        return pd.read_csv(path, encoding="utf-8-sig", dtype={"stock_id": str})
+        return pd.read_csv(path, encoding="utf-8", dtype={"stock_id": str})
     except Exception:
         return pd.DataFrame()
 

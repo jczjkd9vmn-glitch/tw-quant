@@ -191,7 +191,7 @@ def _engine():
 
 
 def _write_trades(path, rows: list[dict]) -> None:
-    pd.DataFrame(rows).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(rows).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8")
 
 
 def _trade(

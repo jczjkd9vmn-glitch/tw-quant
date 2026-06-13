@@ -1,4 +1,4 @@
-﻿source_name,provider_maturity,status,rows,warning,error_message,fallback_action,requested_period,actual_period,latest_available_period,source_url_or_name,is_real_data,is_mock,is_stale,data_age_days,coverage_ratio,affected_symbols_count
+source_name,provider_maturity,status,rows,warning,error_message,fallback_action,requested_period,actual_period,latest_available_period,source_url_or_name,is_real_data,is_mock,is_stale,data_age_days,coverage_ratio,affected_symbols_count
 monthly_revenue,best_effort,OK_WITH_FALLBACK,1078,requested month 202606 unavailable; used latest available month 202604,,wrote_new_data,202606,202604,202604,https://openapi.twse.com.tw/v1/opendata/t187ap05_L,True,False,False,67.0,1.0,1078.0
 valuation,best_effort,OK,1078,,,wrote_new_data,,2026-06-05,2026-06-05,https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL,True,False,False,2.0,1.0,1078.0
 financials,best_effort,OK,1043,,,wrote_new_data,,115Q1,115Q1,https://openapi.twse.com.tw/v1/opendata/t187ap06_L_ci,True,False,False,,1.0,1043.0

@@ -76,7 +76,7 @@ def generate_candidate_coverage_report(
 
     report_dir.mkdir(parents=True, exist_ok=True)
     output_path = report_dir / f"candidate_coverage_report_{selected_date.strftime('%Y%m%d')}.csv"
-    coverage.to_csv(output_path, index=False, encoding="utf-8-sig")
+    coverage.to_csv(output_path, index=False, encoding="utf-8")
     return CandidateCoverageResult(selected_date, coverage, output_path)
 
 
@@ -340,6 +340,6 @@ def _read_csv(path: Path | None) -> pd.DataFrame:
     if path is None or not path.exists():
         return pd.DataFrame()
     try:
-        return pd.read_csv(path, encoding="utf-8-sig", dtype={"stock_id": str})
+        return pd.read_csv(path, encoding="utf-8", dtype={"stock_id": str})
     except Exception:
         return pd.DataFrame()

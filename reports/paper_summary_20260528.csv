@@ -1,2 +1,2 @@
-﻿trade_date,total_capital,invested_value,market_value,cash,unrealized_pnl,realized_pnl,total_equity,total_cost,realized_pnl_after_cost,total_equity_after_cost,take_profit_exits,stop_loss_exits,trailing_stop_exits,trend_exit_exits,time_exit_exits,realized_pnl_after_cost_today,open_positions,closed_positions
+trade_date,total_capital,invested_value,market_value,cash,unrealized_pnl,realized_pnl,total_equity,total_cost,realized_pnl_after_cost,total_equity_after_cost,take_profit_exits,stop_loss_exits,trailing_stop_exits,trend_exit_exits,time_exit_exits,realized_pnl_after_cost_today,open_positions,closed_positions
 2026-05-28,1000000.0,484267.51,497152.25,509208.95,12884.74,-6376.940000000002,1006361.2,8689.91,-6376.940000000002,1006361.2,0,0,1,0,0,6074.05,14,13

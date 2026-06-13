@@ -284,13 +284,13 @@ def execute_pending_orders(
             open_ids.add(stock_id)
             executed_rows.append(orders.loc[index].to_dict())
 
-        orders.to_csv(pending_path, index=False, encoding="utf-8-sig")
+        orders.to_csv(pending_path, index=False, encoding="utf-8")
         all_pending_frames.append(orders)
 
     rejected_frame = _write_execution_rejections(report_dir, rejected_rows)
     if not trades.empty:
         report_dir.mkdir(parents=True, exist_ok=True)
-        trades.to_csv(trades_path, index=False, encoding="utf-8-sig")
+        trades.to_csv(trades_path, index=False, encoding="utf-8")
 
     pending_orders = (
         pd.concat(all_pending_frames, ignore_index=True)
@@ -548,7 +548,7 @@ def _write_execution_rejections(report_dir: Path, rows: list[dict]) -> pd.DataFr
         label_date = parsed if not pd.isna(parsed) else pd.Timestamp.today()
         path = report_dir / f"rejected_paper_orders_{label_date.strftime('%Y%m%d')}.csv"
         merged = _merge_rejected_orders(_load_rejected_orders(path), group)
-        merged.to_csv(path, index=False, encoding="utf-8-sig")
+        merged.to_csv(path, index=False, encoding="utf-8")
         output_frames.append(merged)
     return pd.concat(output_frames, ignore_index=True) if output_frames else pd.DataFrame(columns=REJECTED_ORDER_COLUMNS)
 

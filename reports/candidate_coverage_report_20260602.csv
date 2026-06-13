@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,is_etf,market_type,decision,candidate_grade,review_level,has_industry,has_valuation,has_financials,has_revenue,has_institutional,has_margin,has_event_data,has_etf_metadata,missing_fields
+trade_date,stock_id,stock_name,is_etf,market_type,decision,candidate_grade,review_level,has_industry,has_valuation,has_financials,has_revenue,has_institutional,has_margin,has_event_data,has_etf_metadata,missing_fields
 2026-06-02,00961,FT臺灣永續高息,True,nan,WATCH_ONLY,C,RISK_REVIEW,False,True,True,True,True,True,False,False,INDUSTRY_MISSING；EVENT_DATA_MISSING；ETF_METADATA_MISSING
 2026-06-02,00918,大華優利高填息30,True,nan,WATCH_ONLY,C,RISK_REVIEW,True,True,True,True,True,True,False,False,EVENT_DATA_MISSING；ETF_METADATA_MISSING
 2026-06-02,00962,台新AI優息動能,True,nan,WATCH_ONLY,C,DATA_REVIEW,True,True,True,True,True,True,False,False,EVENT_DATA_MISSING；ETF_METADATA_MISSING

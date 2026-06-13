@@ -19,7 +19,7 @@ def test_calendar_csv_can_override_weekday(tmp_path: Path) -> None:
             {"date": "2026-06-05", "is_trading_day": False, "reason": "holiday"},
             {"date": "2026-06-06", "is_trading_day": True, "reason": "makeup trading"},
         ]
-    ).to_csv(calendar, index=False, encoding="utf-8-sig")
+    ).to_csv(calendar, index=False, encoding="utf-8")
 
     assert is_trading_day("2026-06-05", calendar) is False
     assert is_trading_day("2026-06-06", calendar) is True

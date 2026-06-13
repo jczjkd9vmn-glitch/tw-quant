@@ -1,4 +1,4 @@
-﻿stock_id,stock_name,year_month,revenue,revenue_yoy,revenue_mom,accumulated_revenue,accumulated_revenue_yoy,revenue_data_month,requested_revenue_month,latest_available_month,revenue_source_status
+stock_id,stock_name,year_month,revenue,revenue_yoy,revenue_mom,accumulated_revenue,accumulated_revenue_yoy,revenue_data_month,requested_revenue_month,latest_available_month,revenue_source_status
 1101,台泥,202605,12612013.0,-0.059289218784111405,3.265468208769286,58084626.0,-3.63083235275394,202605,202606,202605,OK_WITH_FALLBACK
 1102,亞泥,202605,6296531.0,-1.155981889962417,10.57294468183896,26820476.0,-8.278297583764248,202605,202606,202605,OK_WITH_FALLBACK
 1103,嘉泥,202605,230485.0,-7.503350964355371,11.011838822475461,1126476.0,-11.526188099410083,202605,202606,202605,OK_WITH_FALLBACK

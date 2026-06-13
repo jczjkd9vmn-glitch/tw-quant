@@ -44,9 +44,9 @@ def generate_ai_enrichment(
     if base.empty:
         frame = pd.DataFrame(columns=ENRICHMENT_COLUMNS)
         output_path = report_dir / f"ai_enrichment_{_date_label(target_date)}.csv"
-        frame.to_csv(output_path, index=False, encoding="utf-8-sig")
+        frame.to_csv(output_path, index=False, encoding="utf-8")
         evidence_path = report_dir / f"enrichment_evidence_{_date_label(target_date)}.csv"
-        _evidence_frame(frame, target_date).to_csv(evidence_path, index=False, encoding="utf-8-sig")
+        _evidence_frame(frame, target_date).to_csv(evidence_path, index=False, encoding="utf-8")
         return EnrichmentResult(
             target_date,
             output_path,
@@ -69,9 +69,9 @@ def generate_ai_enrichment(
         warning = f"AI enrichment failed; used rule-based fallback: {type(exc).__name__}: {exc}"
 
     output_path = report_dir / f"ai_enrichment_{_date_label(target_date)}.csv"
-    enrichment.to_csv(output_path, index=False, encoding="utf-8-sig")
+    enrichment.to_csv(output_path, index=False, encoding="utf-8")
     evidence_path = report_dir / f"enrichment_evidence_{_date_label(target_date)}.csv"
-    _evidence_frame(enrichment, target_date).to_csv(evidence_path, index=False, encoding="utf-8-sig")
+    _evidence_frame(enrichment, target_date).to_csv(evidence_path, index=False, encoding="utf-8")
     cache_path = None
     if enrich_config.get("cache_enabled", True):
         cache_dir = report_dir / "cache"
@@ -255,7 +255,7 @@ def _read_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
     try:
-        return pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8-sig")
+        return pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8")
     except Exception:
         return pd.DataFrame()
 

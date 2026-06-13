@@ -245,7 +245,7 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
 
         if should_write:
             output = _ensure_schema(output, spec.columns)
-            output.to_csv(spec.output_path, index=False, encoding="utf-8-sig")
+            output.to_csv(spec.output_path, index=False, encoding="utf-8")
         else:
             existing, existing_status = _load_existing(spec.output_path, spec.columns)
             output = existing
@@ -262,7 +262,7 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
                 status = "EMPTY" if status != "FAILED" else "FAILED"
                 warning = _append_warning(warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, no existing csv, wrote empty schema")
                 output = _ensure_schema(output, spec.columns)
-                output.to_csv(spec.output_path, index=False, encoding="utf-8-sig")
+                output.to_csv(spec.output_path, index=False, encoding="utf-8")
                 fallback_action = "wrote_empty_schema"
         status_rows.append(
             {
@@ -288,7 +288,7 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
 
     result = pd.DataFrame(status_rows)
     date_tag = pd.to_datetime(trade_date).strftime("%Y%m%d")
-    result.to_csv(REPORTS_DIR / f"data_fetch_status_{date_tag}.csv", index=False, encoding="utf-8-sig")
+    result.to_csv(REPORTS_DIR / f"data_fetch_status_{date_tag}.csv", index=False, encoding="utf-8")
     return result
 
 

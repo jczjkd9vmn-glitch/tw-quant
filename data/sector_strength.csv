@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,industry,sub_industry,industry_source,sector_strength_mode,stock_return_5d,stock_return_20d,market_return_5d,market_return_20d,sector_return_5d,sector_return_20d,relative_strength_5d,relative_strength_20d,sector_strength_score,sector_strength_rank,sector_strength_warning
+trade_date,stock_id,stock_name,industry,sub_industry,industry_source,sector_strength_mode,stock_return_5d,stock_return_20d,market_return_5d,market_return_20d,sector_return_5d,sector_return_20d,relative_strength_5d,relative_strength_20d,sector_strength_score,sector_strength_rank,sector_strength_warning
 2026-06-12,00400A,主動國泰動能高息,ETF,主動式 ETF,rule_based_etf_mapping,industry_relative,-0.02130584192439866,,-0.018295467757800332,,-0.01272566867251305,,-0.008580173251885611,,58.0,1,
 2026-06-12,00401A,主動摩根台灣鑫收,ETF,主動式 ETF,rule_based_etf_mapping,industry_relative,-0.01023391812865504,,-0.018295467757800332,,-0.01272566867251305,,0.00249175054385801,,62.0,1,
 2026-06-12,00402A,主動安聯美國科技,全市場,,,market_relative_fallback,,,-0.018295467757800332,,-0.018295467757800332,,,,58.0,1,缺少產業分類，使用全市場相對強弱

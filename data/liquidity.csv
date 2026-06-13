@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,avg_volume_20d,avg_turnover_20d,latest_volume,latest_turnover,turnover_ratio_20d,liquidity_score,slippage_risk_score,liquidity_warning
+trade_date,stock_id,stock_name,avg_volume_20d,avg_turnover_20d,latest_volume,latest_turnover,turnover_ratio_20d,liquidity_score,slippage_risk_score,liquidity_warning
 2026-06-12,00400A,主動國泰動能高息,48560018.428571425,691387706.4285715,31081438.0,445908725.0,0.6449474308754832,92.0,90.0,價量資料少於 20 日
 2026-06-12,00401A,主動摩根台灣鑫收,8404142.0,112814236.14285715,5654257.0,77064479.0,0.6831095226529117,92.0,90.0,價量資料少於 20 日
 2026-06-12,00402A,主動安聯美國科技,85576853.5,828574149.75,33223238.0,320888825.0,0.3872783444871163,92.0,90.0,價量資料少於 20 日

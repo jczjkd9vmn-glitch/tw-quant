@@ -30,7 +30,7 @@ def test_real_market_intel_uses_material_events_not_mock(tmp_path: Path) -> None
                 "event_risk_level": "LOW",
             }
         ]
-    ).to_csv(data_dir / "material_events.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(data_dir / "material_events.csv", index=False, encoding="utf-8")
 
     context = RealMarketIntelProvider(data_dir=data_dir).fetch(["2330"], as_of="2026-05-08")[0]
 
@@ -56,7 +56,7 @@ def test_real_market_intel_attention_disposition_adds_risk_flags(tmp_path: Path)
                 "disposition_reason": "",
             }
         ]
-    ).to_csv(data_dir / "attention_disposition.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(data_dir / "attention_disposition.csv", index=False, encoding="utf-8")
 
     context = RealMarketIntelProvider(data_dir=data_dir).fetch(["2330"], as_of="2026-05-08")[0]
 

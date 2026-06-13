@@ -71,11 +71,11 @@ def test_html_report_shows_underperformance_attribution(tmp_path: Path) -> None:
             },
         ],
         columns=UNDERPERFORMANCE_ATTRIBUTION_COLUMNS,
-    ).to_csv(tmp_path / "underperformance_attribution_20260605.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "underperformance_attribution_20260605.csv", index=False, encoding="utf-8")
     pd.DataFrame([{"trade_date": "2026-06-05", "conclusion_status": "UNDERPERFORMING"}]).to_csv(
         tmp_path / "performance_diagnostics_20260605.csv",
         index=False,
-        encoding="utf-8-sig",
+        encoding="utf-8",
     )
 
     html = generate_html_report(tmp_path).read_text(encoding="utf-8")
@@ -102,7 +102,7 @@ def _write_market_indices(path: Path) -> None:
                 "is_official": True,
             }
         )
-    pd.DataFrame(rows).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(rows).to_csv(path / "market_indices.csv", index=False, encoding="utf-8")
 
 
 def _write_sector_strength(path: Path) -> None:
@@ -127,7 +127,7 @@ def _write_sector_strength(path: Path) -> None:
                 "sector_return_20d": -0.02,
             },
         ]
-    ).to_csv(path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "sector_strength.csv", index=False, encoding="utf-8")
 
 
 def _write_paper_summary(path: Path) -> None:
@@ -140,7 +140,7 @@ def _write_paper_summary(path: Path) -> None:
                 "cash": 700_000,
             }
         ]
-    ).to_csv(path / "paper_summary_20260605.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "paper_summary_20260605.csv", index=False, encoding="utf-8")
 
 
 def _write_paper_trades(path: Path) -> None:
@@ -166,7 +166,7 @@ def _write_paper_trades(path: Path) -> None:
                 "exit_reason": "stop_loss",
             },
         ]
-    ).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8")
 
 
 def _write_loss_attribution(path: Path) -> None:
@@ -181,12 +181,12 @@ def _write_loss_attribution(path: Path) -> None:
                 "exit_reason": "stop_loss",
             }
         ]
-    ).to_csv(path / "loss_attribution_20260605.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "loss_attribution_20260605.csv", index=False, encoding="utf-8")
 
 
 def _write_performance(path: Path) -> None:
     pd.DataFrame([{"trade_date": "2026-06-05", "conclusion_status": "UNDERPERFORMING"}]).to_csv(
         path / "performance_diagnostics_20260605.csv",
         index=False,
-        encoding="utf-8-sig",
+        encoding="utf-8",
     )

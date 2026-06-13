@@ -73,7 +73,7 @@ def _write_revenue(path: Path, yoy_values: list[float]) -> Path:
             }
         )
     revenue_path = path / "monthly_revenue.csv"
-    pd.DataFrame(rows).to_csv(revenue_path, index=False, encoding="utf-8-sig")
+    pd.DataFrame(rows).to_csv(revenue_path, index=False, encoding="utf-8")
     return revenue_path
 
 

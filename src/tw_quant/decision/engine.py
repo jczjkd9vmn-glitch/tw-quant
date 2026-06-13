@@ -301,7 +301,7 @@ def _reason_suffix(value: object) -> str:
 def _write_decisions(report_dir: Path, trade_date: pd.Timestamp, decisions: pd.DataFrame) -> Path:
     report_dir.mkdir(parents=True, exist_ok=True)
     path = report_dir / f"trading_decisions_{trade_date.strftime('%Y%m%d')}.csv"
-    decisions.to_csv(path, index=False, encoding="utf-8-sig")
+    decisions.to_csv(path, index=False, encoding="utf-8")
     return path
 
 
@@ -328,7 +328,7 @@ def _read_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
     try:
-        return pd.read_csv(path, encoding="utf-8-sig", dtype={"stock_id": str})
+        return pd.read_csv(path, encoding="utf-8", dtype={"stock_id": str})
     except Exception:
         return pd.DataFrame()
 

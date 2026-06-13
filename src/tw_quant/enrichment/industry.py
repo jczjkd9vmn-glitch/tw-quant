@@ -81,15 +81,15 @@ def update_industry_map(
     curated = _merge(existing, reference)
     if not derived.empty:
         merged = _merge(curated, derived)
-        merged.to_csv(target, index=False, encoding="utf-8-sig")
+        merged.to_csv(target, index=False, encoding="utf-8")
         return target, "OK", len(merged)
     if not reference.empty:
-        curated.to_csv(target, index=False, encoding="utf-8-sig")
+        curated.to_csv(target, index=False, encoding="utf-8")
         return target, "OK", len(curated)
     if not existing.empty:
-        existing.to_csv(target, index=False, encoding="utf-8-sig")
+        existing.to_csv(target, index=False, encoding="utf-8")
         return target, "OK_WITH_FALLBACK", len(existing)
-    pd.DataFrame(columns=INDUSTRY_COLUMNS).to_csv(target, index=False, encoding="utf-8-sig")
+    pd.DataFrame(columns=INDUSTRY_COLUMNS).to_csv(target, index=False, encoding="utf-8")
     return target, "EMPTY", 0
 
 
@@ -140,7 +140,7 @@ def _read_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame(columns=INDUSTRY_COLUMNS)
     try:
-        return pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8-sig")
+        return pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8")
     except Exception:
         return pd.DataFrame(columns=INDUSTRY_COLUMNS)
 

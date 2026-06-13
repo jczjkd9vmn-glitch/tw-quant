@@ -46,7 +46,7 @@ def test_etf_is_not_marked_financial_missing_when_eps_roe_missing() -> None:
 
 
 def test_candidate_coverage_report_is_generated(tmp_path: Path) -> None:
-    _candidate_frame().to_csv(tmp_path / "candidates_20260527.csv", index=False, encoding="utf-8-sig")
+    _candidate_frame().to_csv(tmp_path / "candidates_20260527.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -59,7 +59,7 @@ def test_candidate_coverage_report_is_generated(tmp_path: Path) -> None:
                 "review_level": "STANDARD_REVIEW",
             }
         ]
-    ).to_csv(tmp_path / "trading_decisions_20260527.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "trading_decisions_20260527.csv", index=False, encoding="utf-8")
 
     result = generate_candidate_coverage_report(tmp_path)
 
@@ -157,7 +157,7 @@ def test_attention_and_disposition_are_blocking_risks(tmp_path: Path) -> None:
                 "disposition_reason": "處置交易",
             },
         ]
-    ).to_csv(attention_path, index=False, encoding="utf-8-sig")
+    ).to_csv(attention_path, index=False, encoding="utf-8")
     candidates = pd.DataFrame(
         [
             {"trade_date": "2026-05-27", "stock_id": "2330", "stock_name": "台積電", "total_score": 80, "risk_score": 70, "risk_pass": 1},
@@ -196,7 +196,7 @@ def test_position_review_summary_is_generated(tmp_path: Path) -> None:
                 "status": "CLOSED",
             },
         ]
-    ).to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {
@@ -208,7 +208,7 @@ def test_position_review_summary_is_generated(tmp_path: Path) -> None:
                 "review_reason": "一般檢查",
             }
         ]
-    ).to_csv(tmp_path / "trading_decisions_20260527.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "trading_decisions_20260527.csv", index=False, encoding="utf-8")
 
     result = generate_position_review_summary(
         tmp_path,

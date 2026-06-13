@@ -81,7 +81,7 @@ def test_html_contains_missing_industry_priority_section(tmp_path: Path, monkeyp
                 "suggested_action": "優先查證並補產業分類",
             }
         ]
-    ).to_csv(reports / "missing_industry_priority.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(reports / "missing_industry_priority.csv", index=False, encoding="utf-8")
 
     html = generate_html_report(reports, docs_dir=None).read_text(encoding="utf-8")
 
@@ -152,22 +152,22 @@ def _write_priority_inputs(base: Path) -> None:
                 "sector_strength_warning": "缺少產業分類，使用全市場相對強弱",
             },
         ]
-    ).to_csv(data_dir / "sector_strength.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(data_dir / "sector_strength.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
             {"trade_date": "2026-05-29", "stock_id": "1001", "stock_name": "高優先", "liquidity_score": 92, "avg_volume_20d": 100000, "latest_turnover": 3000000},
             {"trade_date": "2026-05-29", "stock_id": "3003", "stock_name": "中優先", "liquidity_score": 90, "avg_volume_20d": 90000, "latest_turnover": 2000000},
             {"trade_date": "2026-05-29", "stock_id": "4004", "stock_name": "低優先", "liquidity_score": 20, "avg_volume_20d": 1000, "latest_turnover": 10000},
         ]
-    ).to_csv(data_dir / "liquidity.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(data_dir / "liquidity.csv", index=False, encoding="utf-8")
     pd.DataFrame([{"trade_date": "2026-05-29", "stock_id": "1001", "stock_name": "高優先"}]).to_csv(
-        reports_dir / "candidates_20260529.csv", index=False, encoding="utf-8-sig"
+        reports_dir / "candidates_20260529.csv", index=False, encoding="utf-8"
     )
     pd.DataFrame([{"trade_date": "2026-05-29", "stock_id": "1001", "stock_name": "高優先"}]).to_csv(
-        reports_dir / "trading_decisions_20260529.csv", index=False, encoding="utf-8-sig"
+        reports_dir / "trading_decisions_20260529.csv", index=False, encoding="utf-8"
     )
     pd.DataFrame([{"trade_date": "2026-05-29", "stock_id": "3003", "stock_name": "中優先"}]).to_csv(
-        reports_dir / "ai_enrichment_20260529.csv", index=False, encoding="utf-8-sig"
+        reports_dir / "ai_enrichment_20260529.csv", index=False, encoding="utf-8"
     )
 
 

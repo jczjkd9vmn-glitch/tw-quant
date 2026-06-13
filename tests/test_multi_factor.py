@@ -55,7 +55,7 @@ def test_pe_too_high_penalizes_valuation(tmp_path: Path) -> None:
     path = tmp_path / "valuation.csv"
     pd.DataFrame(
         [{"stock_id": "2330", "stock_name": "台積電", "financial_quarter": "2026Q1", "pe_ratio": 55, "pb_ratio": 2, "dividend_yield": 1}]
-    ).to_csv(path, index=False, encoding="utf-8-sig")
+    ).to_csv(path, index=False, encoding="utf-8")
 
     row = score_valuation_for_symbols(["2330"], path).iloc[0]
 
@@ -67,7 +67,7 @@ def test_roe_above_10_adds_financial_score(tmp_path: Path) -> None:
     path = tmp_path / "financials.csv"
     pd.DataFrame(
         [{"stock_id": "2330", "stock_name": "台積電", "financial_quarter": "2026Q1", "eps": 8, "eps_yoy": 5, "roe": 15}]
-    ).to_csv(path, index=False, encoding="utf-8-sig")
+    ).to_csv(path, index=False, encoding="utf-8")
 
     row = score_financials_for_symbols(["2330"], path).iloc[0]
 
@@ -79,7 +79,7 @@ def test_negative_material_event_blocks_entry(tmp_path: Path) -> None:
     path = tmp_path / "material_events.csv"
     pd.DataFrame(
         [{"event_date": "2026-05-08", "stock_id": "2330", "stock_name": "台積電", "title": "公告發生重大資安事件", "summary": "資安事件影響營運"}]
-    ).to_csv(path, index=False, encoding="utf-8-sig")
+    ).to_csv(path, index=False, encoding="utf-8")
 
     row = score_material_events_for_symbols(["2330"], path).iloc[0]
 
@@ -95,7 +95,7 @@ def test_investment_trust_consecutive_buy_adds_score(tmp_path: Path) -> None:
             _institutional_row("2026-05-07", 11, 21, 1),
             _institutional_row("2026-05-08", 12, 22, 1),
         ]
-    ).to_csv(path, index=False, encoding="utf-8-sig")
+    ).to_csv(path, index=False, encoding="utf-8")
 
     row = score_institutional_for_symbols(["2330"], path).iloc[0]
 
@@ -108,7 +108,7 @@ def test_multi_factor_does_not_change_default_ranking_but_blocks_high_event_trad
     events_path = tmp_path / "material_events.csv"
     pd.DataFrame(
         [{"event_date": "2026-05-08", "stock_id": "2330", "stock_name": "台積電", "title": "重大訴訟", "summary": "訴訟風險"}]
-    ).to_csv(events_path, index=False, encoding="utf-8-sig")
+    ).to_csv(events_path, index=False, encoding="utf-8")
 
     result = export_latest_candidates(engine, output_dir=tmp_path, events_path=events_path)
 
@@ -126,7 +126,7 @@ def test_high_risk_event_blocks_new_pending_order(tmp_path: Path) -> None:
     events_path = tmp_path / "material_events.csv"
     pd.DataFrame(
         [{"event_date": "2026-05-08", "stock_id": "2330", "stock_name": "台積電", "title": "內控缺失", "summary": "重大內控缺失"}]
-    ).to_csv(events_path, index=False, encoding="utf-8-sig")
+    ).to_csv(events_path, index=False, encoding="utf-8")
     export_result = export_latest_candidates(engine, output_dir=tmp_path, events_path=events_path)
 
     result = run_paper_trade(reports_dir=tmp_path, capital=1_000_000)
@@ -191,7 +191,7 @@ def _write_revenue(path: Path, yoy_values: list[float]) -> Path:
             }
         )
     revenue_path = path / "monthly_revenue.csv"
-    pd.DataFrame(rows).to_csv(revenue_path, index=False, encoding="utf-8-sig")
+    pd.DataFrame(rows).to_csv(revenue_path, index=False, encoding="utf-8")
     return revenue_path
 
 

@@ -78,7 +78,7 @@ def _write_equity(path: Path, values: list[float]) -> None:
             }
             for day, value in zip(dates, values)
         ]
-    ).to_csv(path / f"pnl_chart_data_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / f"pnl_chart_data_{dates[-1].strftime('%Y%m%d')}.csv", index=False, encoding="utf-8")
 
 
 def _write_market_indices(path: Path, values: list[float]) -> None:
@@ -98,7 +98,7 @@ def _write_market_indices(path: Path, values: list[float]) -> None:
             }
             for day, value in zip(dates, values)
         ]
-    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8")
 
 
 def _write_trades(path: Path, count: int) -> None:
@@ -113,4 +113,4 @@ def _write_trades(path: Path, count: int) -> None:
             }
             for index in range(count)
         ]
-    ).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "paper_trades.csv", index=False, encoding="utf-8")

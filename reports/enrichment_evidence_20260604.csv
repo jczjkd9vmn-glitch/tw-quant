@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,field_value,evidence_summary,fallback_used,confidence_impact
+trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,field_value,evidence_summary,fallback_used,confidence_impact
 2026-06-04,6585,鼎基,candidate,csv,2026-06-04,candidate_grade,B,candidate_grade=B,False,0.8
 2026-06-04,6585,鼎基,candidate,csv,2026-06-04,decision,WATCH_ONLY,decision=WATCH_ONLY,False,0.8
 2026-06-04,6585,鼎基,candidate,csv,2026-06-04,pe_ratio,20.24,pe_ratio=20.24,False,0.8

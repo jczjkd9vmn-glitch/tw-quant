@@ -418,7 +418,7 @@ def _load_report(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
     try:
-        return pd.read_csv(path, encoding="utf-8-sig", dtype={"stock_id": str})
+        return pd.read_csv(path, encoding="utf-8", dtype={"stock_id": str})
     except Exception:
         return pd.DataFrame()
 
@@ -439,7 +439,7 @@ def _load_latest_summary(reports_dir: Path) -> pd.DataFrame:
     latest = _latest_summary_file(reports_dir)
     if latest is None:
         return pd.DataFrame()
-    return pd.read_csv(latest, encoding="utf-8-sig")
+    return pd.read_csv(latest, encoding="utf-8")
 
 
 def _latest_summary_file(reports_dir: Path) -> Path | None:

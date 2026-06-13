@@ -50,7 +50,7 @@ def test_paper_trade_preserves_existing_open_positions_without_rebuilding(tmp_pa
             }
         ]
     )
-    existing.to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    existing.to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8")
 
     result = run_paper_trade(reports_dir=tmp_path, capital=1_000_000)
 
@@ -131,4 +131,4 @@ def _write_risk_report(path, date_label: str) -> None:
             },
         ]
     )
-    frame.to_csv(path / f"risk_pass_candidates_{date_label}.csv", index=False, encoding="utf-8-sig")
+    frame.to_csv(path / f"risk_pass_candidates_{date_label}.csv", index=False, encoding="utf-8")

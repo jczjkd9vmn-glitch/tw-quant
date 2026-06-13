@@ -36,7 +36,7 @@ def test_foreign_and_investment_trust_buying_raise_chip_score(tmp_path: Path) ->
             _institutional("2026-05-07", 120, 210, 0, volume=1000),
             _institutional("2026-05-08", 130, 220, 0, volume=1000),
         ]
-    ).to_csv(path, index=False, encoding="utf-8-sig")
+    ).to_csv(path, index=False, encoding="utf-8")
 
     row = score_institutional_for_symbols(["2330"], path).iloc[0]
 
@@ -53,7 +53,7 @@ def test_institutional_consecutive_selling_lowers_score(tmp_path: Path) -> None:
             _institutional("2026-05-07", -120, -210, 0),
             _institutional("2026-05-08", -130, -220, 0),
         ]
-    ).to_csv(path, index=False, encoding="utf-8-sig")
+    ).to_csv(path, index=False, encoding="utf-8")
 
     row = score_institutional_for_symbols(["2330"], path).iloc[0]
 
@@ -64,7 +64,7 @@ def test_institutional_consecutive_selling_lowers_score(tmp_path: Path) -> None:
 def test_margin_surge_without_price_gain_adds_risk_flag(tmp_path: Path) -> None:
     path = tmp_path / "margin_short.csv"
     pd.DataFrame([_credit(margin_balance=10_000, margin_change=2_000)]).to_csv(
-        path, index=False, encoding="utf-8-sig"
+        path, index=False, encoding="utf-8"
     )
     context = pd.DataFrame([{"stock_id": "2330", "return_5": 0.0, "total_institutional_net_buy": -100}])
 
@@ -77,7 +77,7 @@ def test_margin_surge_without_price_gain_adds_risk_flag(tmp_path: Path) -> None:
 def test_lending_sell_surge_adds_risk_flag(tmp_path: Path) -> None:
     path = tmp_path / "margin_short.csv"
     pd.DataFrame([_credit(securities_lending_sell_volume=5_000, securities_lending_balance=10_000)]).to_csv(
-        path, index=False, encoding="utf-8-sig"
+        path, index=False, encoding="utf-8"
     )
 
     row = score_credit_for_symbols(["2330"], path).iloc[0]
@@ -89,7 +89,7 @@ def test_lending_sell_surge_adds_risk_flag(tmp_path: Path) -> None:
 def test_attention_stock_adds_risk_flag(tmp_path: Path) -> None:
     path = tmp_path / "attention_disposition.csv"
     pd.DataFrame([_attention(is_attention_stock=True, attention_reason="週轉率過高")]).to_csv(
-        path, index=False, encoding="utf-8-sig"
+        path, index=False, encoding="utf-8"
     )
 
     row = score_attention_disposition_for_symbols(["2330"], path).iloc[0]
@@ -102,7 +102,7 @@ def test_attention_stock_adds_risk_flag(tmp_path: Path) -> None:
 def test_disposition_stock_blocks_by_default(tmp_path: Path) -> None:
     path = tmp_path / "attention_disposition.csv"
     pd.DataFrame([_attention(is_disposition_stock=True, disposition_reason="處置交易")]).to_csv(
-        path, index=False, encoding="utf-8-sig"
+        path, index=False, encoding="utf-8"
     )
 
     row = score_attention_disposition_for_symbols(["2330"], path, {}).iloc[0]
@@ -132,7 +132,7 @@ def test_negative_event_lowers_event_risk_score(tmp_path: Path) -> None:
     path = tmp_path / "material_events.csv"
     pd.DataFrame(
         [{"event_date": "2026-05-08", "stock_id": "2330", "stock_name": "台積電", "title": "檢調調查", "summary": "涉及訴訟"}]
-    ).to_csv(path, index=False, encoding="utf-8-sig")
+    ).to_csv(path, index=False, encoding="utf-8")
 
     row = score_material_events_for_symbols(["2330"], path).iloc[0]
 
@@ -143,7 +143,7 @@ def test_negative_event_lowers_event_risk_score(tmp_path: Path) -> None:
 def test_low_liquidity_lowers_liquidity_score(tmp_path: Path) -> None:
     path = tmp_path / "liquidity.csv"
     pd.DataFrame([{"trade_date": "2026-05-08", "stock_id": "2330", "avg_volume_20d": 100, "avg_turnover_20d": 10_000_000}]).to_csv(
-        path, index=False, encoding="utf-8-sig"
+        path, index=False, encoding="utf-8"
     )
 
     row = score_liquidity_for_symbols(["2330"], path).iloc[0]
@@ -171,7 +171,7 @@ def test_sector_relative_strength_raises_score(tmp_path: Path) -> None:
                 "sector_strength_rank": 10,
             }
         ]
-    ).to_csv(path, index=False, encoding="utf-8-sig")
+    ).to_csv(path, index=False, encoding="utf-8")
 
     row = score_sector_strength_for_symbols(["2330"], path).iloc[0]
 
@@ -321,7 +321,7 @@ def _write_revenue(path: Path, yoy_values: list[float]) -> Path:
             }
         )
     revenue_path = path / "monthly_revenue.csv"
-    pd.DataFrame(rows).to_csv(revenue_path, index=False, encoding="utf-8-sig")
+    pd.DataFrame(rows).to_csv(revenue_path, index=False, encoding="utf-8")
     return revenue_path
 
 
@@ -355,7 +355,7 @@ def _write_html_reports(path: Path) -> None:
                 "status": "OK",
             }
         ]
-    ).to_csv(path / "daily_summary_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "daily_summary_20260508.csv", index=False, encoding="utf-8")
     candidate = pd.DataFrame(
         [
             {
@@ -379,5 +379,5 @@ def _write_html_reports(path: Path) -> None:
             }
         ]
     )
-    candidate.to_csv(path / "candidates_20260508.csv", index=False, encoding="utf-8-sig")
-    candidate.to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8-sig")
+    candidate.to_csv(path / "candidates_20260508.csv", index=False, encoding="utf-8")
+    candidate.to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8")

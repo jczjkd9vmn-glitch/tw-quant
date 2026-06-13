@@ -285,7 +285,7 @@ def _empty_validation(trade_date: pd.Timestamp, note: str) -> pd.DataFrame:
 def _write_validation(report_dir: Path, trade_date: pd.Timestamp, validation: pd.DataFrame) -> Path:
     report_dir.mkdir(parents=True, exist_ok=True)
     path = report_dir / f"strategy_validation_{trade_date.strftime('%Y%m%d')}.csv"
-    validation.to_csv(path, index=False, encoding="utf-8-sig")
+    validation.to_csv(path, index=False, encoding="utf-8")
     return path
 
 
@@ -347,7 +347,7 @@ def _read_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
         return pd.DataFrame()
     try:
-        return pd.read_csv(path, encoding="utf-8-sig", dtype={"stock_id": str})
+        return pd.read_csv(path, encoding="utf-8", dtype={"stock_id": str})
     except Exception:
         return pd.DataFrame()
 

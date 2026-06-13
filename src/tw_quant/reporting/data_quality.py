@@ -54,7 +54,7 @@ def write_data_quality_health(
 ) -> Path:
     path = Path(report_dir) / "data_quality_health.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
-    build_data_quality_health(candidates, data_fetch_status, report_dir=path.parent).to_csv(path, index=False, encoding="utf-8-sig")
+    build_data_quality_health(candidates, data_fetch_status, report_dir=path.parent).to_csv(path, index=False, encoding="utf-8")
     return path
 
 
@@ -511,7 +511,7 @@ def _latest_report(report_dir: Path, pattern: str) -> pd.DataFrame:
     files = sorted(report_dir.glob(pattern), key=lambda path: path.stat().st_mtime)
     for path in reversed(files):
         try:
-            return pd.read_csv(path, encoding="utf-8-sig", dtype={"stock_id": str})
+            return pd.read_csv(path, encoding="utf-8", dtype={"stock_id": str})
         except Exception:
             continue
     return pd.DataFrame()
@@ -522,7 +522,7 @@ def _read_market_indices(report_dir: Path) -> pd.DataFrame:
         if not path.exists():
             continue
         try:
-            return pd.read_csv(path, encoding="utf-8-sig", dtype={"index_id": str})
+            return pd.read_csv(path, encoding="utf-8", dtype={"index_id": str})
         except Exception:
             continue
     return pd.DataFrame()

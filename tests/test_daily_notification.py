@@ -171,7 +171,7 @@ def test_build_notification_message_includes_decision_summary(tmp_path: Path) ->
                 "liquidity_score": 20,
             },
         ]
-    ).to_csv(tmp_path / "trading_decisions_20260508.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "trading_decisions_20260508.csv", index=False, encoding="utf-8")
 
     message = build_notification_message(
         {**_summary_row(), "grade_a_count": 1, "buy_candidate_count": 1, "no_trade_count": 1},
@@ -189,7 +189,7 @@ def _write_summary(path: Path, date_label: str = "20260510", candidate_rows: int
     pd.DataFrame([{**_summary_row(), "candidate_rows": candidate_rows}]).to_csv(
         path / f"daily_summary_{date_label}.csv",
         index=False,
-        encoding="utf-8-sig",
+        encoding="utf-8",
     )
 
 

@@ -159,7 +159,7 @@ def test_loss_attribution_outputs_loss_reason_fields(tmp_path: Path) -> None:
                 "holding_days": 2,
             },
         ]
-    ).to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "paper_trades.csv", index=False, encoding="utf-8")
     pd.DataFrame([{"trade_date": "2026-05-15", "market_regime_score": 45}]).to_csv(
         tmp_path / "market_regime_20260515.csv",
         index=False,
@@ -169,7 +169,7 @@ def test_loss_attribution_outputs_loss_reason_fields(tmp_path: Path) -> None:
             {"trade_date": "2026-05-15", "stock_id": "2330", "candidate_grade": "C"},
             {"trade_date": "2026-05-15", "stock_id": "2317", "candidate_grade": "B"},
         ]
-    ).to_csv(tmp_path / "candidates_20260515.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "candidates_20260515.csv", index=False, encoding="utf-8")
 
     result = generate_loss_attribution(tmp_path, trade_date="2026-05-15")
 
@@ -246,7 +246,7 @@ def _candidate(symbol: str, grade: str, **overrides) -> dict:
 
 
 def _write_risk_pass(path: Path, rows: list[dict]) -> None:
-    pd.DataFrame(rows).to_csv(path / "risk_pass_candidates_20260515.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(rows).to_csv(path / "risk_pass_candidates_20260515.csv", index=False, encoding="utf-8")
 
 
 def _config() -> dict:

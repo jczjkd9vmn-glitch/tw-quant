@@ -71,7 +71,7 @@ def generate_pnl_chart_data(
         target = trade_date or pd.Timestamp.today().strftime("%Y-%m-%d")
         frame = pd.DataFrame(columns=PNL_CHART_COLUMNS)
         output = report_dir / f"pnl_chart_data_{_date_label(target)}.csv"
-        frame.to_csv(output, index=False, encoding="utf-8-sig")
+        frame.to_csv(output, index=False, encoding="utf-8")
         return DashboardReportResult(target, output, frame, status="EMPTY", warning="損益資料不足")
 
     summaries = summaries.copy()
@@ -109,7 +109,7 @@ def generate_pnl_chart_data(
     frame = pd.DataFrame(rows, columns=PNL_CHART_COLUMNS)
     target_date = trade_date or frame.iloc[-1]["trade_date"]
     output = report_dir / f"pnl_chart_data_{_date_label(target_date)}.csv"
-    frame.to_csv(output, index=False, encoding="utf-8-sig")
+    frame.to_csv(output, index=False, encoding="utf-8")
     return DashboardReportResult(str(target_date), output, frame)
 
 
@@ -175,7 +175,7 @@ def generate_market_recap(
         columns=MARKET_RECAP_COLUMNS,
     )
     output = report_dir / f"market_recap_{_date_label(target)}.csv"
-    frame.to_csv(output, index=False, encoding="utf-8-sig")
+    frame.to_csv(output, index=False, encoding="utf-8")
     return DashboardReportResult(str(target), output, frame)
 
 
@@ -294,7 +294,7 @@ def _read_latest_report(report_dir: Path, pattern: str) -> pd.DataFrame:
 
 def _read_csv(path: Path) -> pd.DataFrame:
     try:
-        return pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8-sig")
+        return pd.read_csv(path, dtype={"stock_id": str}, encoding="utf-8")
     except Exception:
         return pd.DataFrame()
 

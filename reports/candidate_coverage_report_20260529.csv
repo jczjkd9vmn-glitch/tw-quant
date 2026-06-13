@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,is_etf,market_type,decision,candidate_grade,review_level,has_industry,has_valuation,has_financials,has_revenue,has_institutional,has_margin,has_event_data,has_etf_metadata,missing_fields
+trade_date,stock_id,stock_name,is_etf,market_type,decision,candidate_grade,review_level,has_industry,has_valuation,has_financials,has_revenue,has_institutional,has_margin,has_event_data,has_etf_metadata,missing_fields
 2026-05-29,2881,富邦金,False,nan,WATCH_ONLY,B,RISK_REVIEW,True,True,False,True,True,True,False,True,FINANCIAL_MISSING；EVENT_DATA_MISSING
 2026-05-29,2317,鴻海,False,nan,WATCH_ONLY,B,RISK_REVIEW,True,True,True,True,True,True,False,True,EVENT_DATA_MISSING
 2026-05-29,3046,建碁,False,nan,WATCH_ONLY,B,RISK_REVIEW,True,True,True,True,False,True,False,True,INSTITUTIONAL_MISSING；EVENT_DATA_MISSING

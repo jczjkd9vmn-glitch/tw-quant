@@ -1,4 +1,4 @@
-﻿trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,field_value,evidence_summary,fallback_used,confidence_impact
+trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,field_value,evidence_summary,fallback_used,confidence_impact
 2026-05-27,00901,永豐智能車供應鏈,candidate,csv,2026-05-27,candidate_grade,C,candidate_grade=C,False,0.8
 2026-05-27,00901,永豐智能車供應鏈,candidate,csv,2026-05-27,decision,WATCH_ONLY,decision=WATCH_ONLY,False,0.8
 2026-05-27,00901,永豐智能車供應鏈,candidate,csv,2026-05-27,margin_change_5d,-6.0,margin_change_5d=-6.0,False,0.8

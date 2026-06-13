@@ -34,7 +34,7 @@ def test_benchmark_snapshot_marks_0050_fallback_cannot_judge_alpha(tmp_path: Pat
                 "stock_return_20d": 0.02,
             }
         ]
-    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8")
 
     snapshot = select_benchmark_snapshot(tmp_path, "2026-06-05")
 
@@ -56,7 +56,7 @@ def test_html_fallback_benchmark_does_not_claim_beat_market(tmp_path: Path) -> N
                 "stock_return_20d": 0.02,
             }
         ]
-    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(tmp_path / "sector_strength.csv", index=False, encoding="utf-8")
 
     output_path = generate_html_report(tmp_path, docs_dir=tmp_path / "docs")
     html = output_path.read_text(encoding="utf-8")
@@ -132,7 +132,7 @@ def _write_market_indices(path: Path) -> None:
             {"trade_date": "2026-06-04", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "open": 101, "high": 102, "low": 101, "close": 101.8, "source": "twse", "is_official": True},
             {"trade_date": "2026-06-05", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "open": 102, "high": 102, "low": 101, "close": 102.0, "source": "twse", "is_official": True},
         ]
-    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8")
 
 
 def _write_minimal_html_inputs(path: Path) -> None:
@@ -148,7 +148,7 @@ def _write_minimal_html_inputs(path: Path) -> None:
                 "market_regime_score": 65.0,
             }
         ]
-    ).to_csv(path / "daily_summary_20260605.csv", index=False, encoding="utf-8-sig")
+    ).to_csv(path / "daily_summary_20260605.csv", index=False, encoding="utf-8")
 
 
 def _write_price_db(path: Path) -> None:

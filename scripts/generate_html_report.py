@@ -601,6 +601,39 @@ COLUMN_LABELS.update(
         "near_stop_loss": "接近停損",
         "near_take_profit": "接近停利",
         "data_quality_warning": "資料品質警示",
+        "threshold": "門檻",
+        "current_threshold": "目前正式門檻",
+        "current_market_regime_score": "目前 market_regime_score",
+        "walk_forward_split": "Walk-forward 切分",
+        "train_start": "Train 起日",
+        "train_end": "Train 迄日",
+        "validation_start": "Validation 起日",
+        "validation_end": "Validation 迄日",
+        "train_observation_count": "Train 樣本數",
+        "validation_observation_count": "Validation 樣本數",
+        "eligible_candidate_count": "可新增候選數",
+        "blocked_candidate_count": "被門檻擋下候選數",
+        "would_allow_new_entries": "是否允許新增持倉",
+        "estimated_exposure_pct": "估計曝險",
+        "cash_drag_proxy": "現金拖累 proxy",
+        "forward_return_5d_mean": "5 日 forward return 均值",
+        "forward_return_20d_mean": "20 日 forward return 均值",
+        "positive_forward_5d_rate": "5 日正報酬率",
+        "positive_forward_20d_rate": "20 日正報酬率",
+        "estimated_strategy_return_proxy": "策略報酬 proxy",
+        "estimated_benchmark_return": "Benchmark 報酬",
+        "estimated_excess_return": "Excess return proxy",
+        "estimated_max_drawdown_proxy": "最大回撤 proxy",
+        "train_estimated_excess_return": "Train excess proxy",
+        "validation_estimated_excess_return": "Validation excess proxy",
+        "dynamic_exposure_pct": "Dynamic 曝險 proxy",
+        "dynamic_cash_drag_proxy": "Dynamic 現金拖累 proxy",
+        "dynamic_estimated_excess_return": "Dynamic excess proxy",
+        "dynamic_estimated_max_drawdown_proxy": "Dynamic 回撤 proxy",
+        "risk_status": "風險狀態",
+        "recommendation": "建議",
+        "is_observation_only": "僅觀察",
+        "data_sufficiency_status": "資料充足狀態",
     }
 )
 
@@ -726,6 +759,22 @@ PERCENT_COLUMNS = {
     "realized_pnl_pct",
     "realized_pnl_pct_after_cost",
     "highest_pnl_pct_since_entry",
+    "estimated_exposure_pct",
+    "cash_drag_proxy",
+    "forward_return_5d_mean",
+    "forward_return_20d_mean",
+    "positive_forward_5d_rate",
+    "positive_forward_20d_rate",
+    "estimated_strategy_return_proxy",
+    "estimated_benchmark_return",
+    "estimated_excess_return",
+    "estimated_max_drawdown_proxy",
+    "train_estimated_excess_return",
+    "validation_estimated_excess_return",
+    "dynamic_exposure_pct",
+    "dynamic_cash_drag_proxy",
+    "dynamic_estimated_excess_return",
+    "dynamic_estimated_max_drawdown_proxy",
 }
 PRICE_COLUMNS = {
     "close",
@@ -1059,6 +1108,7 @@ def generate_html_report(
     guardrail_impact = _read_latest_csv(report_dir, "guardrail_impact_*.csv")
     performance_diagnostics = _read_latest_csv(report_dir, "performance_diagnostics_*.csv")
     underperformance_attribution = _read_latest_csv(report_dir, "underperformance_attribution_*.csv")
+    market_regime_threshold_optimization = _read_latest_csv(report_dir, "market_regime_threshold_optimization_*.csv")
     market_regime = _read_latest_csv(report_dir, "market_regime_*.csv")
     rejected_orders = _read_latest_csv(report_dir, "rejected_paper_orders_*.csv")
     ai_enrichment = _read_latest_csv(report_dir, "ai_enrichment_*.csv")
@@ -1092,6 +1142,7 @@ def generate_html_report(
         guardrail_impact=guardrail_impact,
         performance_diagnostics=performance_diagnostics,
         underperformance_attribution=underperformance_attribution,
+        market_regime_threshold_optimization=market_regime_threshold_optimization,
         market_regime=market_regime,
         rejected_orders=rejected_orders,
         ai_enrichment=ai_enrichment,
@@ -1135,6 +1186,7 @@ def _render_page(
     guardrail_impact: pd.DataFrame,
     performance_diagnostics: pd.DataFrame,
     underperformance_attribution: pd.DataFrame,
+    market_regime_threshold_optimization: pd.DataFrame,
     market_regime: pd.DataFrame,
     rejected_orders: pd.DataFrame,
     ai_enrichment: pd.DataFrame,
@@ -1389,6 +1441,11 @@ def _render_page(
                 guardrail_impact,
             ),
             _market_regime_score_explainer(latest_summary, market_regime, market_recap),
+            _market_regime_threshold_optimization_section(
+                latest_summary,
+                market_regime_threshold_optimization,
+                config or {},
+            ),
             _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
             _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status, trading_decisions), class_name="today-action-section"),
             _decision_dashboard(latest_summary, trading_decisions, candidates, open_positions),
@@ -3505,6 +3562,94 @@ def _market_regime_score_explainer(
         + "</div></div>"
     )
     return _section("market_regime_score 說明", content, section_id="market-regime-explainer", class_name="market-regime-explainer-section")
+
+
+def _market_regime_threshold_optimization_section(
+    summary: dict[str, object],
+    optimization: pd.DataFrame,
+    config: dict[str, object],
+) -> str:
+    formal_threshold = _formal_market_regime_threshold(config)
+    current_score = _first_raw(summary.get("market_regime_score"), _frame_first(optimization, "current_market_regime_score"))
+    if optimization.empty:
+        content = (
+            '<p class="top-notice benchmark-warning"><strong>Observation only</strong>'
+            "<span>目前尚無 market regime threshold optimization CSV；此區不修改正式策略。</span></p>"
+        )
+        return _section(
+            "Market Regime 門檻最佳化觀察",
+            content,
+            section_id="market-regime-threshold-optimization",
+            class_name="market-regime-threshold-section",
+        )
+
+    threshold_row = _threshold_optimization_row(optimization, formal_threshold)
+    dynamic_row = _threshold_optimization_row(optimization, "DYNAMIC_EXPOSURE")
+    recommendation = _first_raw(threshold_row.get("recommendation"), _frame_first(optimization, "recommendation"), "DATA_INSUFFICIENT")
+    cards = [
+        _card("目前正式門檻", str(formal_threshold)),
+        _card("目前 market_regime_score", _format_cell("market_regime_score", current_score)),
+        _card("正式門檻是否允許新增持倉", _format_cell("would_allow_new_entries", threshold_row.get("would_allow_new_entries"))),
+        _card("正式門檻 recommendation", _format_cell("recommendation", recommendation)),
+        _card("Hard 60 excess proxy", _return_text(_to_float(threshold_row.get("estimated_excess_return")))),
+        _card("Dynamic excess proxy", _return_text(_to_float(dynamic_row.get("estimated_excess_return")))),
+        _card("Hard 60 cash drag proxy", _return_text(_to_float(threshold_row.get("cash_drag_proxy")))),
+        _card("Dynamic cash drag proxy", _return_text(_to_float(dynamic_row.get("cash_drag_proxy")))),
+        _card("Hard 60 drawdown proxy", _return_text(_to_float(threshold_row.get("estimated_max_drawdown_proxy")))),
+        _card("Dynamic drawdown proxy", _return_text(_to_float(dynamic_row.get("estimated_max_drawdown_proxy")))),
+    ]
+    table = _table(
+        optimization,
+        [
+            "threshold",
+            "would_allow_new_entries",
+            "eligible_candidate_count",
+            "blocked_candidate_count",
+            "estimated_exposure_pct",
+            "cash_drag_proxy",
+            "estimated_excess_return",
+            "estimated_max_drawdown_proxy",
+            "recommendation",
+            "data_sufficiency_status",
+            "is_observation_only",
+        ],
+        "目前尚無 market regime threshold optimization 資料",
+        max_rows=20,
+    )
+    content = (
+        '<p class="top-notice benchmark-warning"><strong>Observation only / proxy 診斷</strong>'
+        "<span>此區只比較門檻與 dynamic exposure proxy，不修改 config.yaml、不改交易策略、不建立訂單。</span></p>"
+        '<div class="cards">'
+        + "".join(cards)
+        + "</div>"
+        "<p class=\"note\">Dynamic exposure proxy：score &lt; 45 = 0%；45-55 = 20%；55-65 = 40%；65-75 = 60%；score &gt;= 75 = 80%。"
+        "Walk-forward 採日期排序，前 70% train、後 30% validation；recommendation 不使用 validation 反推 train。</p>"
+        + table
+    )
+    return _section(
+        "Market Regime 門檻最佳化觀察",
+        content,
+        section_id="market-regime-threshold-optimization",
+        class_name="market-regime-threshold-section",
+    )
+
+
+def _formal_market_regime_threshold(config: dict[str, object]) -> int:
+    regime_config = config.get("market_regime", {}) if isinstance(config, dict) else {}
+    value = regime_config.get("min_score_for_new_entries", 60) if isinstance(regime_config, dict) else 60
+    return int(_to_float(value) or 60)
+
+
+def _threshold_optimization_row(frame: pd.DataFrame, threshold: object) -> dict[str, object]:
+    if frame.empty or "threshold" not in frame.columns:
+        return {}
+    target = str(threshold)
+    matches = frame[frame["threshold"].astype(str) == target]
+    if matches.empty and target.isdigit():
+        matches = frame[frame["threshold"].astype(str) == f"{float(target):.1f}"]
+    if matches.empty:
+        return {}
+    return matches.iloc[0].to_dict()
 
 
 def _benchmark_snapshot(report_dir: Path, summary: dict[str, object]) -> dict[str, object]:

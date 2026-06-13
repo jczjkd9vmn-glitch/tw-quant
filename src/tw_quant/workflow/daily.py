@@ -26,6 +26,7 @@ from tw_quant.reporting.missing_industry_priority import generate_missing_indust
 from tw_quant.reporting.position_review import generate_position_review_summary
 from tw_quant.reporting.export import export_latest_candidates
 from tw_quant.reporting.factor_diagnostics import generate_factor_diagnostics
+from tw_quant.reporting.market_regime_threshold_optimizer import generate_market_regime_threshold_optimization
 from tw_quant.reporting.performance_diagnostics import generate_performance_diagnostics
 from tw_quant.reporting.underperformance_attribution import generate_underperformance_attribution
 from tw_quant.trading.paper import run_paper_trade
@@ -147,6 +148,7 @@ class DailyWorkflowResult:
     factor_diagnostics_result: Any | None = None
     performance_diagnostics_result: Any | None = None
     underperformance_attribution_result: Any | None = None
+    market_regime_threshold_optimization_result: Any | None = None
 
 
 def run_all_daily(
@@ -176,6 +178,7 @@ def run_all_daily(
     factor_diagnostics_func: Callable[..., Any] = generate_factor_diagnostics,
     performance_diagnostics_func: Callable[..., Any] = generate_performance_diagnostics,
     underperformance_attribution_func: Callable[..., Any] = generate_underperformance_attribution,
+    market_regime_threshold_optimization_func: Callable[..., Any] = generate_market_regime_threshold_optimization,
 ) -> DailyWorkflowResult:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -189,6 +192,7 @@ def run_all_daily(
     factor_diagnostics_result = None
     performance_diagnostics_result = None
     underperformance_attribution_result = None
+    market_regime_threshold_optimization_result = None
 
     try:
         (
@@ -821,6 +825,37 @@ def run_all_daily(
     except Exception as exc:
         messages.append(f"underperformance_attribution warning {type(exc).__name__}: {exc}")
 
+    try:
+        regime_config = config.get("market_regime", {}) if "config" in locals() else {}
+        current_threshold = int(float(regime_config.get("min_score_for_new_entries", 60)))
+        try:
+            market_regime_threshold_optimization_result = market_regime_threshold_optimization_func(
+                reports_dir=report_dir,
+                trade_date=summary_values["trade_date"],
+                current_threshold=current_threshold,
+            )
+        except TypeError:
+            market_regime_threshold_optimization_result = market_regime_threshold_optimization_func(
+                reports_dir=report_dir,
+                trade_date=summary_values["trade_date"],
+            )
+        optimization_frame = getattr(market_regime_threshold_optimization_result, "frame", pd.DataFrame())
+        recommendations = (
+            optimization_frame.get("recommendation", pd.Series(dtype=str)).dropna().astype(str).unique().tolist()
+            if not optimization_frame.empty
+            else []
+        )
+        messages.append(
+            "market_regime_threshold_optimization "
+            f"{getattr(market_regime_threshold_optimization_result, 'status', 'OK')} "
+            f"rows={len(optimization_frame)} "
+            f"recommendations={','.join(recommendations) if recommendations else '-'}"
+        )
+        if getattr(market_regime_threshold_optimization_result, "warning", ""):
+            messages.append(f"market_regime_threshold_optimization warning {market_regime_threshold_optimization_result.warning}")
+    except Exception as exc:
+        messages.append(f"market_regime_threshold_optimization warning {type(exc).__name__}: {exc}")
+
     summary_values["decision_dashboard_status"] = "OK" if summary_values.get("trading_decisions_status") != "FAILED" else "WARNING"
     summary_values["config_summary_status"] = "OK"
     summary_values["enrichment_evidence_status"] = (
@@ -851,6 +886,7 @@ def run_all_daily(
         factor_diagnostics_result=factor_diagnostics_result,
         performance_diagnostics_result=performance_diagnostics_result,
         underperformance_attribution_result=underperformance_attribution_result,
+        market_regime_threshold_optimization_result=market_regime_threshold_optimization_result,
     )
 
 

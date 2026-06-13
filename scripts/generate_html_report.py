@@ -1377,6 +1377,7 @@ def _render_page(
                 missing_industry_priority,
                 anysearch_industry_candidates,
             ),
+            _freshness_readiness_dashboard(report_dir, latest_summary, performance_diagnostics),
             _benchmark_alpha_section(report_dir, latest_summary, latest_paper_summary, recent_summaries),
             _risk_adjusted_alpha_section(performance_diagnostics),
             _underperformance_attribution_section(underperformance_attribution, performance_diagnostics),
@@ -1743,6 +1744,260 @@ def _overview_dashboard(
         + "</div>",
         section_id="dashboard-overview",
         class_name="dashboard-overview-section",
+    )
+
+
+def _freshness_readiness_dashboard(
+    report_dir: Path,
+    summary: dict[str, object],
+    performance_diagnostics: pd.DataFrame,
+) -> str:
+    if not summary:
+        return _section(
+            "資料新鮮度與策略成熟度",
+            _empty("目前尚無每日 summary，無法判斷資料新鮮度與策略成熟度"),
+            section_id="freshness-readiness-dashboard",
+            class_name="freshness-readiness-section",
+        )
+
+    perf_row = performance_diagnostics.iloc[0].to_dict() if not performance_diagnostics.empty else {}
+    selected_date = _first_raw(summary.get("trade_date"), summary.get("requested_date"))
+    try:
+        readiness = strategy_readiness_snapshot(report_dir, selected_date)
+    except Exception:
+        readiness = {}
+    try:
+        benchmark = _benchmark_snapshot(report_dir, summary)
+    except Exception:
+        benchmark = {}
+    try:
+        risk_alpha = risk_adjusted_alpha_snapshot(report_dir, selected_date, readiness=readiness)
+    except Exception:
+        risk_alpha = {}
+
+    requested_raw = _first_raw(summary.get("requested_trade_date"), summary.get("requested_date"), summary.get("trade_date"))
+    trade_raw = _first_raw(summary.get("trade_date"), requested_raw)
+    actual_raw = _first_raw(summary.get("actual_data_date"), summary.get("fallback_date"), trade_raw)
+    cache_age_days = _freshness_cache_age_days(summary, requested_raw, trade_raw, actual_raw)
+    freshness_level = _first_raw(summary.get("data_freshness_level"), "CURRENT")
+    is_stale = (
+        _truthy(summary.get("is_stale_data"))
+        or cache_age_days > 0
+        or str(freshness_level).strip().upper() in {"STALE", "CACHE"}
+        or _uses_recent_data(summary)
+    )
+    display_freshness_level = "STALE" if is_stale else freshness_level
+    used_latest = (
+        _truthy(summary.get("used_latest_available"))
+        or not _is_blank(summary.get("fallback_date"))
+        or is_stale
+    )
+    freshness_primary = "資料非最新交易日" if is_stale else "資料最新或可用"
+    freshness_note = (
+        f"資料非最新交易日；使用最近有效資料；資料落後 {cache_age_days} 天。"
+        if is_stale
+        else "目前未偵測到資料落後。"
+    )
+
+    primary_window = str(_first_raw(perf_row.get("primary_alpha_window"), risk_alpha.get("primary_alpha_window")) or "").strip()
+    if not primary_window or primary_window == "-":
+        primary_window = "20d"
+    primary_strategy_return = _first_float(
+        perf_row.get("primary_strategy_return"),
+        perf_row.get(f"strategy_return_{primary_window}"),
+        risk_alpha.get(f"strategy_return_{primary_window}"),
+    )
+    primary_benchmark_return = _first_float(
+        perf_row.get("primary_benchmark_return"),
+        perf_row.get(f"benchmark_return_{primary_window}"),
+        risk_alpha.get(f"benchmark_return_{primary_window}"),
+    )
+    primary_excess_return = _first_float(
+        perf_row.get("primary_excess_return"),
+        perf_row.get("excess_return"),
+        perf_row.get(f"excess_return_{primary_window}"),
+        perf_row.get("alpha"),
+        risk_alpha.get("excess_return"),
+        risk_alpha.get(f"excess_return_{primary_window}"),
+    )
+    conclusion_status = str(_first_raw(perf_row.get("conclusion_status"), risk_alpha.get("conclusion_status"), "DATA_INSUFFICIENT"))
+    risk_status = str(
+        _first_raw(
+            perf_row.get("risk_adjusted_alpha_status"),
+            risk_alpha.get("risk_adjusted_alpha_status"),
+            conclusion_status,
+        )
+    )
+    strategy_primary_ready = _strategy_window_ready(perf_row, readiness, primary_window)
+    benchmark_primary_ready = _benchmark_window_ready(perf_row, benchmark, primary_window)
+    primary_can_judge = bool(strategy_primary_ready and benchmark_primary_ready and primary_excess_return is not None)
+    short_term_outperformance = _short_term_outperformance_text(primary_excess_return, primary_can_judge)
+    long_term_confirmed = bool(
+        primary_can_judge
+        and primary_excess_return is not None
+        and primary_excess_return > 0
+        and conclusion_status == "OUTPERFORMING_CONFIRMED"
+        and primary_window in {"120d", "252d"}
+    )
+    formal_long_term_text = "是" if long_term_confirmed else "否"
+
+    strategy_history_days = int(_to_float(_first_raw(perf_row.get("strategy_history_days"), readiness.get("strategy_history_days"))) or 0)
+    benchmark_history_days = int(_to_float(_first_raw(perf_row.get("benchmark_history_days"), benchmark.get("benchmark_history_days"))) or 0)
+    valid_trade_count = int(_to_float(_first_raw(perf_row.get("valid_trade_count"), readiness.get("valid_trade_count"))) or 0)
+    holding_record_count = int(_to_float(_first_raw(perf_row.get("holding_record_count"), readiness.get("holding_record_count"))) or 0)
+
+    freshness_cards = [
+        _kpi_card(
+            "資料新鮮度",
+            _status_badge(display_freshness_level, "data_freshness_level") + f'<span class="readiness-primary">{escape(freshness_primary)}</span>',
+            [
+                ("原始執行日期", _format_cell("requested_date", requested_raw)),
+                ("實際交易日", _format_cell("trade_date", trade_raw)),
+                ("實際資料日", _format_cell("actual_data_date", actual_raw)),
+                ("資料落後", f"{cache_age_days} 天"),
+            ],
+            tone="danger" if is_stale else "ok",
+        ),
+        _kpi_card(
+            "Fallback / 最近有效資料",
+            escape(f"使用最近有效資料：{'是' if used_latest else '否'}"),
+            [
+                ("使用替代交易日", _format_cell("fallback_date", summary.get("fallback_date"))),
+                ("Fallback 原因", _format_cell("fallback_reason", summary.get("fallback_reason"))),
+                ("是否過期資料", "是" if is_stale else "否"),
+                ("資料鮮度等級", _format_cell("data_freshness_level", display_freshness_level)),
+            ],
+            tone="warning" if used_latest else "ok",
+        ),
+        _kpi_card(
+            "策略成熟度",
+            escape(f"{strategy_history_days} 日"),
+            [
+                ("Benchmark 歷史天數", f"{benchmark_history_days} 日"),
+                ("有效交易樣本", f"{valid_trade_count} 筆"),
+                ("持倉紀錄筆數", f"{holding_record_count} 筆"),
+                ("主要視窗", primary_window),
+            ],
+            tone="ok" if strategy_primary_ready else "warning",
+        ),
+        _kpi_card(
+            "Alpha 結論成熟度",
+            escape(conclusion_status),
+            [
+                ("主要 Alpha 視窗", primary_window),
+                ("策略報酬", _return_text(primary_strategy_return)),
+                ("Benchmark 報酬", _return_text(primary_benchmark_return)),
+                ("Excess return", _return_text(primary_excess_return)),
+                ("風險調整 Alpha 狀態", risk_status),
+                ("短期跑贏", short_term_outperformance),
+                ("正式長期打敗大盤", formal_long_term_text),
+            ],
+            tone="ok" if long_term_confirmed else ("info" if primary_can_judge and primary_excess_return and primary_excess_return > 0 else "warning"),
+        ),
+    ]
+    content = (
+        f'<p class="top-notice benchmark-warning"><strong>資料新鮮度</strong><span>{escape(freshness_note)}</span></p>'
+        + '<div class="benchmark-summary-grid freshness-readiness-grid">'
+        + "".join(freshness_cards)
+        + "</div>"
+        + _strategy_readiness_window_table(perf_row, readiness)
+        + _alpha_maturity_notice(
+            primary_window,
+            primary_excess_return,
+            primary_can_judge,
+            conclusion_status,
+            formal_long_term_text,
+        )
+        + '<p class="note">此儀表板只彙整既有 daily summary、performance diagnostics、benchmark 與 strategy readiness 資料；不修改選股、出場、績效算法或下單流程。</p>'
+    )
+    return _section(
+        "資料新鮮度與策略成熟度",
+        content,
+        section_id="freshness-readiness-dashboard",
+        class_name="freshness-readiness-section",
+    )
+
+
+def _freshness_cache_age_days(
+    summary: dict[str, object],
+    requested_date: object,
+    trade_date: object,
+    actual_data_date: object,
+) -> int:
+    ages = []
+    summary_age = _to_float(summary.get("cache_age_days"))
+    if summary_age is not None:
+        ages.append(int(summary_age))
+    trade_gap = _date_gap_days(trade_date, actual_data_date)
+    requested_gap = _date_gap_days(requested_date, actual_data_date)
+    if trade_gap > 0:
+        ages.append(trade_gap)
+    if requested_gap > 0:
+        ages.append(requested_gap)
+    return max(ages) if ages else 0
+
+
+def _strategy_window_ready(perf_row: dict[str, object], readiness: dict[str, object], window: str) -> bool:
+    key = "can_judge_strategy_alpha" if window == "total" else f"can_judge_strategy_alpha_{window}"
+    value = _first_raw(perf_row.get(key), readiness.get(key))
+    return _truthy(value)
+
+
+def _benchmark_window_ready(perf_row: dict[str, object], benchmark: dict[str, object], window: str) -> bool:
+    key = "can_judge_alpha" if window == "total" else f"can_judge_alpha_{window}"
+    value = _first_raw(perf_row.get(key), benchmark.get(key), perf_row.get("can_judge_alpha"), benchmark.get("can_judge_alpha"))
+    return _truthy(value)
+
+
+def _short_term_outperformance_text(excess_return: float | None, can_judge_alpha: bool) -> str:
+    if not can_judge_alpha or excess_return is None:
+        return "資料不足"
+    if excess_return > 0:
+        return "是，短期觀察"
+    return "否"
+
+
+def _alpha_maturity_notice(
+    primary_window: str,
+    excess_return: float | None,
+    can_judge_alpha: bool,
+    conclusion_status: str,
+    formal_long_term_text: str,
+) -> str:
+    if not can_judge_alpha or excess_return is None:
+        message = "Alpha 資料不足，僅能 observation only / data insufficient，不可作為打敗大盤結論。"
+    elif excess_return > 0:
+        message = (
+            f"{primary_window} 短期跑贏，短期觀察，不代表長期打敗大盤；"
+            f"正式長期打敗大盤：{formal_long_term_text}。"
+        )
+    else:
+        message = (
+            f"{primary_window} primary_excess_return 未高於 0，目前不可顯示打敗大盤；"
+            f"正式長期打敗大盤：{formal_long_term_text}。"
+        )
+    return (
+        '<p class="top-notice benchmark-warning"><strong>Alpha 結論</strong>'
+        f'<span>{escape(message)} conclusion_status={escape(conclusion_status)}</span></p>'
+    )
+
+
+def _strategy_readiness_window_table(perf_row: dict[str, object], readiness: dict[str, object]) -> str:
+    rows = []
+    for window in ["5d", "20d", "60d", "120d", "252d"]:
+        ready = _strategy_window_ready(perf_row, readiness, window)
+        raw_value = _first_raw(perf_row.get(f"can_judge_strategy_alpha_{window}"), readiness.get(f"can_judge_strategy_alpha_{window}"), False)
+        rows.append(
+            "<tr>"
+            f"<td>{escape(window)}</td>"
+            f"<td>{'可判斷' if ready else '資料不足'}</td>"
+            f"<td>{escape(str(raw_value).lower())}</td>"
+            "</tr>"
+        )
+    return (
+        '<div class="table-wrap always-table"><table class="strategy-readiness-window-table">'
+        "<thead><tr><th>Alpha 視窗</th><th>策略樣本狀態</th><th>can_judge_strategy_alpha</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody></table></div>"
     )
 
 

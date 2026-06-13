@@ -181,6 +181,122 @@ def test_generate_html_report_corrects_stale_actual_data_date(tmp_path: Path) ->
     assert "目前最新交易日資料" not in html
 
 
+def test_freshness_readiness_dashboard_marks_stale_cache_age_and_windows(tmp_path: Path) -> None:
+    pd.DataFrame(
+        [
+            {
+                "requested_date": "2026-06-13",
+                "trade_date": "2026-06-13",
+                "status": "OK_WITH_FALLBACK",
+                "total_capital": 1_000_000,
+                "total_equity_after_cost": 1_000_000,
+                "actual_data_date": "2026-06-09",
+                "fallback_date": "2026-06-09",
+                "fallback_reason": "no trading data",
+                "used_latest_available": True,
+                "cache_age_days": 4,
+                "is_stale_data": True,
+                "data_freshness_level": "STALE",
+                "market_intel_status": "CACHE",
+            }
+        ]
+    ).to_csv(tmp_path / "daily_summary_20260613.csv", index=False, encoding="utf-8")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-06-13",
+                "primary_alpha_window": "20d",
+                "strategy_return_20d": 0.01,
+                "benchmark_return_20d": 0.03,
+                "excess_return_20d": -0.02,
+                "excess_return": -0.02,
+                "alpha": -0.02,
+                "conclusion_status": "UNDERPERFORMING",
+                "risk_adjusted_alpha_status": "UNDERPERFORMING",
+                "benchmark_history_days": 180,
+                "strategy_history_days": 27,
+                "valid_trade_count": 25,
+                "holding_record_count": 8,
+                "can_judge_alpha": True,
+                "can_judge_alpha_20d": True,
+                "can_judge_strategy_alpha_5d": True,
+                "can_judge_strategy_alpha_20d": True,
+                "can_judge_strategy_alpha_60d": False,
+                "can_judge_strategy_alpha_120d": False,
+                "can_judge_strategy_alpha_252d": False,
+            }
+        ]
+    ).to_csv(tmp_path / "performance_diagnostics_20260613.csv", index=False, encoding="utf-8")
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "資料新鮮度與策略成熟度" in html
+    assert "資料非最新交易日" in html
+    assert "資料落後 4 天" in html
+    assert "使用最近有效資料：是" in html
+    assert "無交易資料" in html
+    assert "資料最新或可用" not in html
+    assert "<td>20d</td><td>可判斷</td>" in html
+    assert "<td>60d</td><td>資料不足</td>" in html
+    assert "20d primary_excess_return 未高於 0，目前不可顯示打敗大盤" in html
+    assert "正式長期打敗大盤：否" in html
+    assert "正式長期打敗大盤：是" not in html
+
+
+def test_freshness_readiness_dashboard_positive_alpha_is_short_term_only(tmp_path: Path) -> None:
+    pd.DataFrame(
+        [
+            {
+                "requested_date": "2026-06-13",
+                "trade_date": "2026-06-13",
+                "status": "OK",
+                "total_capital": 1_000_000,
+                "total_equity_after_cost": 1_020_000,
+                "actual_data_date": "2026-06-13",
+                "cache_age_days": 0,
+                "is_stale_data": False,
+                "data_freshness_level": "CURRENT",
+                "market_intel_status": "OK",
+            }
+        ]
+    ).to_csv(tmp_path / "daily_summary_20260613.csv", index=False, encoding="utf-8")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-06-13",
+                "primary_alpha_window": "20d",
+                "strategy_return_20d": 0.05,
+                "benchmark_return_20d": 0.02,
+                "excess_return_20d": 0.03,
+                "excess_return": 0.03,
+                "alpha": 0.03,
+                "conclusion_status": "OUTPERFORMING_SHORT_TERM",
+                "risk_adjusted_alpha_status": "OUTPERFORMING_SHORT_TERM",
+                "benchmark_history_days": 180,
+                "strategy_history_days": 27,
+                "valid_trade_count": 25,
+                "holding_record_count": 8,
+                "can_judge_alpha": True,
+                "can_judge_alpha_20d": True,
+                "can_judge_strategy_alpha_5d": True,
+                "can_judge_strategy_alpha_20d": True,
+                "can_judge_strategy_alpha_60d": False,
+                "can_judge_strategy_alpha_120d": False,
+                "can_judge_strategy_alpha_252d": False,
+            }
+        ]
+    ).to_csv(tmp_path / "performance_diagnostics_20260613.csv", index=False, encoding="utf-8")
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "20d 短期跑贏" in html
+    assert "短期觀察，不代表長期打敗大盤" in html
+    assert "正式長期打敗大盤：否" in html
+    assert "正式長期打敗大盤：是" not in html
+
+
 def test_generate_html_report_does_not_show_raw_english_field_names(tmp_path: Path) -> None:
     _write_reports(tmp_path)
 

@@ -90,6 +90,7 @@ class DailyWorkflowSummary:
     cache_age_days: int | None = None
     is_stale_data: bool = False
     data_freshness_level: str = ""
+    used_latest_available: bool = False
     status: str = "OK"
     error_step: str = ""
     error_message: str = ""
@@ -958,6 +959,7 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "cache_age_days": None,
         "is_stale_data": False,
         "data_freshness_level": "",
+        "used_latest_available": False,
         "status": "OK",
         "error_step": "",
         "error_message": "",
@@ -1262,8 +1264,15 @@ def _apply_market_intel_freshness_summary(
     summary_values["actual_data_date"] = _date_text_or_blank(actual)
     summary_values["data_freshness_level"] = str(level or "UNKNOWN")
     parsed_age = _to_int_or_none(cache_age)
+    actual_text = summary_values["actual_data_date"]
+    reference_text = _first_non_blank(summary_values.get("trade_date", ""), summary_values.get("requested_date", ""))
+    date_gap = _date_gap_days(reference_text, actual_text)
+    if date_gap > 0:
+        parsed_age = max(parsed_age or 0, date_gap)
+        summary_values["data_freshness_level"] = "STALE"
     summary_values["cache_age_days"] = parsed_age
-    summary_values["is_stale_data"] = _to_bool(stale)
+    summary_values["is_stale_data"] = bool(_to_bool(stale) or date_gap > 0)
+    summary_values["used_latest_available"] = bool(date_gap > 0 or _to_bool(summary_values.get("used_latest_available")))
 
 
 def _market_intel_status_row(status: pd.DataFrame) -> dict[str, Any]:
@@ -1377,6 +1386,14 @@ def _date_text_or_blank(value: object) -> str:
     if pd.isna(parsed):
         return ""
     return parsed.strftime("%Y-%m-%d")
+
+
+def _date_gap_days(later: object, earlier: object) -> int:
+    later_date = pd.to_datetime(later, errors="coerce")
+    earlier_date = pd.to_datetime(earlier, errors="coerce")
+    if pd.isna(later_date) or pd.isna(earlier_date):
+        return 0
+    return max(int((later_date.normalize() - earlier_date.normalize()).days), 0)
 
 
 def _date_label(value: str) -> str:

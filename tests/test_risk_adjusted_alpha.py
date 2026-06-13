@@ -31,6 +31,19 @@ def test_short_sample_positive_alpha_is_short_term_only(tmp_path: Path) -> None:
     assert result["conclusion_status"] == "OUTPERFORMING_SHORT_TERM"
 
 
+def test_negative_primary_alpha_is_underperforming(tmp_path: Path) -> None:
+    _write_equity(tmp_path, _series(100, [0.001] * 21))
+    _write_market_indices(tmp_path, _series(100, [0.003] * 21))
+    _write_trades(tmp_path, count=20)
+
+    result = risk_adjusted_alpha_snapshot(tmp_path, "2026-12-31")
+
+    assert result["primary_alpha_window"] == "20d"
+    assert result["excess_return_20d"] < 0
+    assert result["risk_adjusted_alpha_status"] == "UNDERPERFORMING"
+    assert result["conclusion_status"] == "UNDERPERFORMING"
+
+
 def test_positive_return_with_high_risk_is_not_confirmed(tmp_path: Path) -> None:
     returns = [0.01] * 10 + [-0.25] + [0.015] * 50
     _write_equity(tmp_path, _series(100, returns))

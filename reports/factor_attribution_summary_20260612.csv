@@ -1,4 +1,4 @@
-﻿report_date,factor_name,best_bucket,best_alpha_20d,best_avg_return_pct,worst_bucket,worst_alpha_20d,worst_avg_return_pct,total_stock_count,total_trade_count,sample_status,conclusion,data_quality_warning,notes
+report_date,factor_name,best_bucket,best_alpha_20d,best_avg_return_pct,worst_bucket,worst_alpha_20d,worst_avg_return_pct,total_stock_count,total_trade_count,sample_status,conclusion,data_quality_warning,notes
 2026-06-12,candidate_grade,D,,0.094779,MISSING,,-0.005117,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
 2026-06-12,confidence_score,HIGH,,0.094779,MISSING,,-0.005117,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
 2026-06-12,decision_action,reduce_risk,,0.108877,MISSING,,-0.005117,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據

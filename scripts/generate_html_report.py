@@ -1149,7 +1149,9 @@ def _render_page(
     trading_cost: dict[str, object],
     config: dict[str, object] | None = None,
 ) -> str:
-    latest_summary = _first_row(daily_summary)
+    daily_summary = _normalize_summary_freshness_frame(daily_summary)
+    recent_summaries = _normalize_summary_freshness_frame(recent_summaries)
+    latest_summary = _normalize_summary_freshness(_first_row(daily_summary))
     data_fetch_status = _read_latest_csv(report_dir, "data_fetch_status_*.csv")
     candidates = _normalize_attention_disposition_display(candidates)
     data_quality_health = _refresh_data_quality_health(report_dir, candidates, data_fetch_status)
@@ -1590,6 +1592,30 @@ def _tab_panel(panel_id: str, title: str, content: str, active: bool = False) ->
     )
 
 
+def _normalize_summary_freshness(summary: dict[str, object]) -> dict[str, object]:
+    if not summary:
+        return summary
+    output = dict(summary)
+    reference = _first_raw(output.get("trade_date"), output.get("requested_date"))
+    actual = output.get("actual_data_date")
+    gap_days = _date_gap_days(reference, actual)
+    if gap_days <= 0:
+        return output
+    current_age = _to_float(output.get("cache_age_days")) or 0
+    output["cache_age_days"] = max(int(current_age), gap_days)
+    output["data_freshness_level"] = "STALE"
+    output["is_stale_data"] = True
+    output["used_latest_available"] = True
+    return output
+
+
+def _normalize_summary_freshness_frame(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    rows = [_normalize_summary_freshness(row) for row in frame.to_dict(orient="records")]
+    return pd.DataFrame(rows, columns=frame.columns)
+
+
 def _overview_dashboard(
     summary: dict[str, object],
     paper_summary: dict[str, object],
@@ -1651,7 +1677,7 @@ def _overview_dashboard(
                 ("報表日期", requested),
                 ("實際交易日", trade_date),
                 ("實際資料日", actual_data_date),
-                ("快取 / 資料年齡", _market_intel_cache_age_text(data_frame)),
+                ("快取 / 資料年齡", _market_intel_cache_age_text(summary, data_frame)),
             ],
             tone="danger" if stale else "ok",
         ),
@@ -2479,18 +2505,23 @@ def _benchmark_alpha_section(
     system_returns = _system_return_snapshot(summary, paper_summary, recent_summaries)
     selected_date = _first_raw(summary.get("trade_date"), summary.get("requested_date"))
     strategy_readiness = strategy_readiness_snapshot(report_dir, selected_date)
-    headline_window = _best_alpha_window(system_returns, benchmark, strategy_readiness)
-    system_headline = system_returns.get(headline_window)
-    benchmark_headline = benchmark["returns"].get(headline_window)
-    alpha = _alpha_return(system_headline, benchmark_headline)
-    can_judge_alpha = _can_judge_alpha(benchmark, strategy_readiness, headline_window)
+    risk_alpha = risk_adjusted_alpha_snapshot(report_dir, selected_date, readiness=strategy_readiness)
+    risk_primary_window = str(risk_alpha.get("primary_alpha_window") or "").strip()
+    headline_window = risk_primary_window or _best_alpha_window(system_returns, benchmark, strategy_readiness)
+    system_headline = _first_float(risk_alpha.get(f"strategy_return_{headline_window}"), system_returns.get(headline_window))
+    benchmark_headline = _first_float(risk_alpha.get(f"benchmark_return_{headline_window}"), benchmark["returns"].get(headline_window))
+    alpha = _first_float(risk_alpha.get("excess_return"), risk_alpha.get(f"excess_return_{headline_window}"))
+    if alpha is None:
+        alpha = _alpha_return(system_headline, benchmark_headline)
+    can_judge_alpha = bool(alpha is not None and _can_judge_alpha(benchmark, strategy_readiness, headline_window))
     beat_text = _beat_market_text(alpha, can_judge_alpha=can_judge_alpha)
     alpha_text = _alpha_text(alpha, can_judge_alpha=can_judge_alpha)
     history_days = int(benchmark.get("benchmark_history_days", 0) or 0)
     strategy_history_days = int(strategy_readiness.get("strategy_history_days", 0) or 0)
     valid_trade_count = int(strategy_readiness.get("valid_trade_count", 0) or 0)
-    risk_alpha = risk_adjusted_alpha_snapshot(report_dir, selected_date, readiness=strategy_readiness)
     conclusion_status = str(risk_alpha.get("conclusion_status") or _alpha_conclusion_status(benchmark, strategy_readiness, headline_window))
+    if alpha is not None and alpha < 0 and conclusion_status in {"OUTPERFORMING_SHORT_TERM", "OUTPERFORMING_CONFIRMED"}:
+        conclusion_status = "UNDERPERFORMING"
     warning = ""
     if benchmark["warning"]:
         warning = (
@@ -2499,11 +2530,11 @@ def _benchmark_alpha_section(
         )
     detail_rows = [
         ("今日", "1d", system_returns.get("1d"), benchmark["returns"].get("1d"), _can_judge_alpha(benchmark, strategy_readiness, "1d")),
-        ("近 5 日", "5d", system_returns.get("5d"), benchmark["returns"].get("5d"), _can_judge_alpha(benchmark, strategy_readiness, "5d")),
-        ("近 20 日", "20d", system_returns.get("20d"), benchmark["returns"].get("20d"), _can_judge_alpha(benchmark, strategy_readiness, "20d")),
-        ("近 60 日", "60d", system_returns.get("60d"), benchmark["returns"].get("60d"), _can_judge_alpha(benchmark, strategy_readiness, "60d")),
-        ("近 120 日", "120d", system_returns.get("120d"), benchmark["returns"].get("120d"), _can_judge_alpha(benchmark, strategy_readiness, "120d")),
-        ("近 252 日", "252d", system_returns.get("252d"), benchmark["returns"].get("252d"), _can_judge_alpha(benchmark, strategy_readiness, "252d")),
+        ("近 5 日", "5d", _first_float(risk_alpha.get("strategy_return_5d"), system_returns.get("5d")), _first_float(risk_alpha.get("benchmark_return_5d"), benchmark["returns"].get("5d")), _can_judge_alpha(benchmark, strategy_readiness, "5d")),
+        ("近 20 日", "20d", _first_float(risk_alpha.get("strategy_return_20d"), system_returns.get("20d")), _first_float(risk_alpha.get("benchmark_return_20d"), benchmark["returns"].get("20d")), _can_judge_alpha(benchmark, strategy_readiness, "20d")),
+        ("近 60 日", "60d", _first_float(risk_alpha.get("strategy_return_60d"), system_returns.get("60d")), _first_float(risk_alpha.get("benchmark_return_60d"), benchmark["returns"].get("60d")), _can_judge_alpha(benchmark, strategy_readiness, "60d")),
+        ("近 120 日", "120d", _first_float(risk_alpha.get("strategy_return_120d"), system_returns.get("120d")), _first_float(risk_alpha.get("benchmark_return_120d"), benchmark["returns"].get("120d")), _can_judge_alpha(benchmark, strategy_readiness, "120d")),
+        ("近 252 日", "252d", _first_float(risk_alpha.get("strategy_return_252d"), system_returns.get("252d")), _first_float(risk_alpha.get("benchmark_return_252d"), benchmark["returns"].get("252d")), _can_judge_alpha(benchmark, strategy_readiness, "252d")),
         ("累計", "total", system_returns.get("total"), benchmark["returns"].get("total"), _can_judge_alpha(benchmark, strategy_readiness, "total")),
     ]
     detail_table = _benchmark_detail_table(detail_rows)
@@ -2533,7 +2564,7 @@ def _benchmark_alpha_section(
         '<div class="benchmark-summary-grid">'
         + _benchmark_card("打敗大盤", beat_text, headline_window)
         + _benchmark_card("超額報酬 alpha", alpha_text, _benchmark_window_label(headline_window), alpha)
-        + _benchmark_card("本系統總資產報酬率", _return_text(system_returns.get("total")), "相對初始資金")
+        + _benchmark_card("Primary 策略報酬", _return_text(system_headline), _benchmark_window_label(headline_window), system_headline)
         + _benchmark_card("Benchmark 報酬率", _return_text(benchmark_headline), str(benchmark["source_label"]))
         + _benchmark_card("官方 benchmark 覆蓋", f"{history_days} 日", "official trading-day history")
         + _benchmark_card("策略樣本成熟度", f"{strategy_history_days} 日", f"valid trades {valid_trade_count}")
@@ -2588,9 +2619,10 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
             tone="info",
         ),
         _kpi_card(
-            "Alpha",
+            "Primary Alpha",
             escape(_alpha_text(alpha, can_judge_alpha=can_judge_alpha)),
             [
+                ("口徑", "primary total equity window"),
                 ("Benchmark", _format_cell("benchmark_source", row.get("benchmark_source")) if row else "-"),
                 ("benchmark_is_official", _format_cell("benchmark_is_official", row.get("benchmark_is_official")) if row else "false"),
                 ("can_judge_alpha", _format_cell("can_judge_alpha", row.get("can_judge_alpha")) if row else "false"),
@@ -2673,7 +2705,7 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
         + "".join(cards)
         + "</div>"
         + notice
-        + '<p class="note">此區只做紙上交易績效風險分析，不會修改正式買賣策略、出場規則或建立真實訂單。</p>'
+        + '<p class="note">此區 Alpha 採 primary total equity window；累積報酬、Sharpe-like 與日勝率只做績效風險觀察，不作為主要 Alpha 結論。此區不會修改正式買賣策略、出場規則或建立真實訂單。</p>'
         + _details_block("績效風險診斷明細", detail_table)
     )
     return _section("績效風險分析", content, section_id="performance-diagnostics", class_name="performance-diagnostics-section")
@@ -2702,6 +2734,7 @@ def _risk_adjusted_alpha_section(performance_diagnostics: pd.DataFrame) -> str:
                 ("主要視窗", primary_window),
                 ("策略報酬", _return_text(strategy_return)),
                 ("Benchmark 報酬", _return_text(benchmark_return)),
+                ("口徑", "primary total equity window"),
             ],
             tone="ok" if excess_return is not None and excess_return > 0 else "warning",
         ),
@@ -2744,7 +2777,7 @@ def _risk_adjusted_alpha_section(performance_diagnostics: pd.DataFrame) -> str:
         + "".join(cards)
         + "</div>"
         + long_term_notice
-        + '<p class="note">此區為報表診斷，不修改正式買賣策略、出場規則或任何訂單；只有在長期樣本、交易筆數、excess return、回撤與波動都合格時，才可顯示 OUTPERFORMING_CONFIRMED。</p>'
+        + '<p class="note">此區為主要 Alpha 結論來源，採 total equity 的 primary window 與正式 benchmark 報酬；只有在長期樣本、交易筆數、excess return、回撤與波動都合格時，才可顯示 OUTPERFORMING_CONFIRMED。此區不修改正式買賣策略、出場規則或任何訂單。</p>'
         + _details_block("風險調整後 Alpha 明細", detail_table)
     )
     return _section("風險調整後 Alpha", content, section_id="risk-adjusted-alpha", class_name="risk-adjusted-alpha-section")
@@ -2773,7 +2806,8 @@ def _strategy_diagnostics_section(
             "是否打敗 Benchmark",
             escape(beat_benchmark),
             [
-                ("目前 Alpha", _return_text(headline_alpha)),
+                ("Primary Alpha", _return_text(headline_alpha)),
+                ("口徑", "primary total equity window"),
                 ("Benchmark 來源", benchmark_source),
                 ("can_judge_alpha", str(can_judge_alpha).lower()),
                 ("benchmark_history_days", _format_cell("benchmark_history_days", benchmark_row.get("benchmark_history_days")) if benchmark_row else "0"),
@@ -2913,7 +2947,7 @@ def _strategy_diagnostics_section(
         + "".join(cards)
         + "</div>"
         + warning_note
-        + '<p class="note">此區只做策略診斷與歸因，不會修改正式買賣策略、出場規則或建立真實訂單。</p>'
+        + '<p class="note">此區的 Benchmark 結論採 primary Alpha；Factor attribution、forward return、paper trade average return 與 guardrail impact 是觀察 proxy，非主要 Alpha 口徑，不作為主要 Alpha 結論。此區只做策略診斷與歸因，不會修改正式買賣策略、出場規則或建立真實訂單。</p>'
         + _details_block("因子績效摘要", summary_table, open_by_default=True)
         + _details_block("Factor attribution 明細", factor_table)
         + _details_block("Benchmark diagnostics 明細", benchmark_table)
@@ -3084,7 +3118,7 @@ def _underperformance_attribution_section(
         + "".join(cards)
         + "</div>"
         + status_notice
-        + '<p class="note">此區只做輸大盤原因診斷，不修改策略、不修改出場規則、不建立訂單，也不代表實盤買賣建議。</p>'
+        + '<p class="note">此區 cash drag、sector allocation、entry timing 等 alpha 都是歸因 proxy，非主要 Alpha 口徑；主要結論仍以 primary total equity window 為準。此區只做輸大盤原因診斷，不修改策略、不修改出場規則、不建立訂單，也不代表實盤買賣建議。</p>'
         + _details_block("輸大盤歸因明細", detail_table)
     )
     return _section("輸大盤歸因", content, section_id="underperformance-attribution", class_name="underperformance-attribution-section")
@@ -4368,8 +4402,15 @@ def _append_unique_text(base: object, addition: str) -> str:
 
 def _uses_recent_data(summary: dict[str, object]) -> bool:
     requested = _normalized_date_text(summary.get("requested_date"))
+    trade_date = _normalized_date_text(summary.get("trade_date"))
     fallback = _normalized_date_text(summary.get("fallback_date"))
-    return bool(requested and fallback and requested != fallback)
+    actual_data_date = _normalized_date_text(summary.get("actual_data_date"))
+    if requested and fallback and requested != fallback:
+        return True
+    compare_date = requested or trade_date
+    if compare_date and actual_data_date:
+        return _date_gap_days(compare_date, actual_data_date) > 0
+    return False
 
 
 def _normalized_date_text(value: object) -> str:
@@ -4380,6 +4421,14 @@ def _normalized_date_text(value: object) -> str:
         text = str(value).strip()
         return "" if text == "-" else text
     return parsed.strftime("%Y-%m-%d")
+
+
+def _date_gap_days(later: object, earlier: object) -> int:
+    later_date = pd.to_datetime(later, errors="coerce")
+    earlier_date = pd.to_datetime(earlier, errors="coerce")
+    if pd.isna(later_date) or pd.isna(earlier_date):
+        return 0
+    return max(int((later_date.normalize() - earlier_date.normalize()).days), 0)
 
 
 def _first_number(summary: dict[str, object], column: str) -> float | None:
@@ -5106,7 +5155,7 @@ def _data_confidence_summary(
         ("市場情報要求資料日", _market_intel_requested_date(summary, frame)),
         ("市場情報實際資料日", _market_intel_actual_data_date(summary, frame)),
         ("市場情報替代原因", _market_intel_fallback_reason(summary, frame)),
-        ("市場情報快取 / 資料年齡", _market_intel_cache_age_text(frame)),
+        ("市場情報快取 / 資料年齡", _market_intel_cache_age_text(summary, frame)),
         ("市場情報資料鮮度", _market_intel_freshness_level(summary, frame)),
         ("市場情報是否過期資料", "是" if _market_intel_is_stale(summary, frame) else "否"),
         ("市場情報資料不足股票數", _format_cell("market_intel_warning_count", summary.get("market_intel_warning_count"))),
@@ -5169,7 +5218,7 @@ def _market_intel_stale_notice(summary: dict[str, object], frame: pd.DataFrame) 
     requested = _market_intel_requested_date(summary, frame)
     actual = _market_intel_actual_data_date(summary, frame)
     reason = _market_intel_fallback_reason(summary, frame)
-    age = _market_intel_cache_age_text(frame)
+    age = _market_intel_cache_age_text(summary, frame)
     if stale:
         return (
             "市場資料過期，不建議短線進場；目前市場情報使用快取或非當日資料，不建議短線自動進場。"
@@ -5200,6 +5249,10 @@ def _market_intel_freshness_level(summary: dict[str, object], frame: pd.DataFram
             continue
         text = str(value).strip().upper()
         if text and text != "-":
+            requested = _market_intel_reference_date(summary, frame)
+            actual = _market_intel_actual_data_date(summary, frame)
+            if text in {"CURRENT", "RECENT"} and _date_gap_days(requested, actual) > 0:
+                return "STALE"
             return text
     return "UNKNOWN"
 
@@ -5236,8 +5289,12 @@ def _market_intel_requested_date(summary: dict[str, object], frame: pd.DataFrame
     return _first_non_blank(summary.get("requested_date"), _frame_first(frame, "requested_date"), summary.get("trade_date"))
 
 
+def _market_intel_reference_date(summary: dict[str, object], frame: pd.DataFrame) -> str:
+    return _first_non_blank(summary.get("trade_date"), summary.get("requested_date"), _frame_first(frame, "requested_date"))
+
+
 def _market_intel_actual_data_date(summary: dict[str, object], frame: pd.DataFrame) -> str:
-    return _first_non_blank(_frame_first(frame, "actual_data_date"), summary.get("trade_date"))
+    return _first_non_blank(summary.get("actual_data_date"), _frame_first(frame, "actual_data_date"), summary.get("trade_date"))
 
 
 def _market_intel_fallback_date(summary: dict[str, object], frame: pd.DataFrame) -> str:
@@ -5248,13 +5305,20 @@ def _market_intel_fallback_reason(summary: dict[str, object], frame: pd.DataFram
     return _first_non_blank(summary.get("fallback_reason"), _frame_first(frame, "fallback_reason"), "-")
 
 
-def _market_intel_cache_age_text(frame: pd.DataFrame) -> str:
-    if frame.empty or "cache_age_days" not in frame.columns:
+def _market_intel_cache_age_text(summary: dict[str, object], frame: pd.DataFrame) -> str:
+    values: list[float] = []
+    summary_age = _to_float(summary.get("cache_age_days"))
+    if summary_age is not None:
+        values.append(summary_age)
+    if not frame.empty and "cache_age_days" in frame.columns:
+        frame_values = pd.to_numeric(frame["cache_age_days"], errors="coerce").dropna()
+        values.extend(float(value) for value in frame_values.tolist())
+    gap_days = _date_gap_days(_market_intel_reference_date(summary, frame), _market_intel_actual_data_date(summary, frame))
+    if gap_days > 0:
+        values.append(float(gap_days))
+    if not values:
         return "-"
-    values = pd.to_numeric(frame["cache_age_days"], errors="coerce").dropna()
-    if values.empty:
-        return "-"
-    return f"{int(values.max()):,.0f} 天"
+    return f"{int(max(values)):,.0f} 天"
 
 
 def _frame_first(frame: pd.DataFrame, column: str) -> object:
@@ -5276,6 +5340,14 @@ def _first_raw(*values: object) -> object:
         if not _is_blank(value):
             return value
     return ""
+
+
+def _first_float(*values: object) -> float | None:
+    for value in values:
+        number = _to_float(value)
+        if number is not None:
+            return number
+    return None
 
 
 def _source_status_summary(data_fetch_status: pd.DataFrame, source_name: str) -> str:
@@ -5386,7 +5458,7 @@ def _market_intel_summary(
         ("實際資料日", _market_intel_actual_data_date(summary, frame)),
         ("替代交易日", _market_intel_fallback_date(summary, frame)),
         ("替代原因", _market_intel_fallback_reason(summary, frame)),
-        ("快取 / 資料年齡", _market_intel_cache_age_text(frame)),
+        ("快取 / 資料年齡", _market_intel_cache_age_text(summary, frame)),
         ("資料鮮度等級", _market_intel_freshness_level(summary, frame)),
         ("是否過期資料", "是" if _market_intel_is_stale(summary, frame) else "否"),
         ("市場判斷最高分", top_score),
@@ -5432,7 +5504,8 @@ def _market_intel_summary(
         "is_stale_data",
         "data_freshness_level",
     ]
-    detail = _responsive_records(frame, columns, "今日無市場判斷資料", 20)
+    display_frame = _market_intel_display_frame(summary, frame)
+    detail = _responsive_records(display_frame, columns, "今日無市場判斷資料", 20)
     note = ""
     if is_mock:
         note = '<div class="note">目前為 mock / 中性資料，尚未接入正式新聞來源，不應視為完整新聞 / 財報分析。</div>'
@@ -5445,6 +5518,20 @@ def _market_intel_summary(
         + _details_block("市場判斷候選股明細", detail),
         class_name="market-intel-summary",
     )
+
+
+def _market_intel_display_frame(summary: dict[str, object], frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame
+    output = frame.copy()
+    gap_days = _date_gap_days(_market_intel_reference_date(summary, output), _market_intel_actual_data_date(summary, output))
+    if gap_days <= 0:
+        return output
+    output["data_freshness_level"] = "STALE"
+    output["is_stale_data"] = True
+    existing_age = pd.to_numeric(output.get("cache_age_days", pd.Series([0] * len(output), index=output.index)), errors="coerce").fillna(0)
+    output["cache_age_days"] = existing_age.apply(lambda value: max(int(value), gap_days))
+    return output
 
 
 def _multi_factor_summary(candidates: pd.DataFrame, summary: dict[str, object]) -> str:

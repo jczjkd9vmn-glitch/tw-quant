@@ -137,6 +137,50 @@ def test_generate_html_report_shows_market_intel_cache_warning(tmp_path: Path) -
     assert "2026-05-27" in html
 
 
+def test_generate_html_report_corrects_stale_actual_data_date(tmp_path: Path) -> None:
+    pd.DataFrame(
+        [
+            {
+                "requested_date": "2026-06-12",
+                "trade_date": "2026-06-12",
+                "status": "OK",
+                "total_capital": 1_000_000,
+                "total_equity_after_cost": 1_000_000,
+                "actual_data_date": "2026-06-09",
+                "cache_age_days": 0,
+                "is_stale_data": False,
+                "data_freshness_level": "CURRENT",
+                "market_intel_status": "OK",
+            }
+        ]
+    ).to_csv(tmp_path / "daily_summary_20260612.csv", index=False, encoding="utf-8-sig")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-06-12",
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "requested_date": "2026-06-12",
+                "actual_data_date": "2026-06-09",
+                "cache_age_days": 0,
+                "data_freshness_level": "CURRENT",
+                "market_intel_status": "OK",
+                "final_market_score": 50,
+                "confidence_score": 50,
+            }
+        ]
+    ).to_csv(tmp_path / "market_intel_20260612.csv", index=False, encoding="utf-8-sig")
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "實際資料日" in html
+    assert "2026-06-09" in html
+    assert "3 天" in html
+    assert "資料過期" in html
+    assert "目前最新交易日資料" not in html
+
+
 def test_generate_html_report_does_not_show_raw_english_field_names(tmp_path: Path) -> None:
     _write_reports(tmp_path)
 
@@ -1020,6 +1064,17 @@ def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path)
     assert "valid_trade_count" in html
     assert "can_judge_strategy_alpha" in html
     assert "conclusion_status" in html
+
+
+def test_generated_html_has_no_conflict_markers(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "<<<<<<<" not in html
+    assert "=======" not in html
+    assert ">>>>>>>" not in html
 
 
 def test_generate_html_report_creates_docs_index_for_github_pages(tmp_path: Path) -> None:

@@ -323,9 +323,17 @@ def _threshold_metrics(
     positive_5d = pd.to_numeric(data.get("positive_forward_5d_rate", pd.Series(dtype=float)), errors="coerce")
     positive_20d = pd.to_numeric(data.get("positive_forward_20d_rate", pd.Series(dtype=float)), errors="coerce")
 
-    strategy_series = (exposure * forward_20d).dropna()
+    strategy_basis = forward_20d.where(forward_20d.notna(), forward_5d)
+    benchmark_basis = benchmark_20d.where(forward_20d.notna(), benchmark_5d)
+    strategy_frame = pd.DataFrame(
+        {
+            "strategy": exposure * strategy_basis,
+            "benchmark": benchmark_basis,
+        }
+    ).dropna(subset=["strategy"])
+    strategy_series = strategy_frame["strategy"]
     strategy_return = _mean_or_none(strategy_series)
-    benchmark_return = _mean_or_none(benchmark_20d.dropna())
+    benchmark_return = _mean_or_none(strategy_frame["benchmark"].dropna())
     excess = _sub_or_none(strategy_return, benchmark_return)
     drawdown = _max_drawdown_proxy(strategy_series)
     cash_drag = _cash_drag_proxy(exposure, benchmark_20d)
@@ -344,7 +352,7 @@ def _threshold_metrics(
         "estimated_benchmark_return": benchmark_return if benchmark_return is not None else _mean_or_none(benchmark_5d.dropna()),
         "estimated_excess_return": excess,
         "estimated_max_drawdown_proxy": drawdown,
-        "forward_observation_count": int(forward_20d[eligible_mask].dropna().count()),
+        "forward_observation_count": int(strategy_basis[eligible_mask].dropna().count()),
     }
 
 
@@ -375,11 +383,12 @@ def _observation_frame(report_dir: Path, selected_date: pd.Timestamp | None) -> 
     summaries = _daily_summary_observations(report_dir, selected_date)
     regimes = _market_regime_observations(report_dir, selected_date)
     candidates = _candidate_observations(report_dir, selected_date)
+    candidate_forward = _candidate_forward_label_observations(report_dir, selected_date)
     rejected = _rejected_observations(report_dir, selected_date)
     paper = _paper_summary_observations(report_dir, selected_date)
     benchmark = _benchmark_observations(report_dir, selected_date)
 
-    frames = [summaries, regimes, candidates, rejected, paper, benchmark]
+    frames = [summaries, regimes, candidates, candidate_forward, rejected, paper, benchmark]
     dates = sorted(
         {
             date
@@ -396,9 +405,34 @@ def _observation_frame(report_dir: Path, selected_date: pd.Timestamp | None) -> 
             continue
         output = output.merge(frame, on="trade_date", how="left")
     output["market_regime_score"] = _coalesce_numeric(output, ["summary_market_regime_score", "regime_market_regime_score"])
-    output["candidate_count"] = _coalesce_numeric(output, ["candidate_count", "summary_candidate_rows"]).fillna(0)
-    output["benchmark_return_5d"] = _coalesce_numeric(output, ["benchmark_return_5d", "regime_market_return_5d"])
-    output["benchmark_return_20d"] = _coalesce_numeric(output, ["benchmark_return_20d", "regime_market_return_20d"])
+    output["candidate_count"] = _coalesce_numeric(
+        output,
+        ["candidate_forward_candidate_count", "candidate_count", "summary_candidate_rows"],
+    ).fillna(0)
+    output["forward_return_5d_mean"] = _coalesce_numeric(
+        output,
+        ["candidate_forward_return_5d_mean", "forward_return_5d_mean"],
+    )
+    output["forward_return_20d_mean"] = _coalesce_numeric(
+        output,
+        ["candidate_forward_return_20d_mean", "forward_return_20d_mean"],
+    )
+    output["positive_forward_5d_rate"] = _coalesce_numeric(
+        output,
+        ["candidate_forward_positive_5d_rate", "positive_forward_5d_rate"],
+    )
+    output["positive_forward_20d_rate"] = _coalesce_numeric(
+        output,
+        ["candidate_forward_positive_20d_rate", "positive_forward_20d_rate"],
+    )
+    output["benchmark_return_5d"] = _coalesce_numeric(
+        output,
+        ["candidate_forward_benchmark_return_5d", "benchmark_return_5d", "regime_market_return_5d"],
+    )
+    output["benchmark_return_20d"] = _coalesce_numeric(
+        output,
+        ["candidate_forward_benchmark_return_20d", "benchmark_return_20d", "regime_market_return_20d"],
+    )
     output["cash_ratio"] = _coalesce_numeric(output, ["cash_ratio"]).fillna(0)
     output = output.dropna(subset=["market_regime_score"]).sort_values("trade_date")
     return output.reset_index(drop=True)
@@ -472,6 +506,52 @@ def _candidate_observations(report_dir: Path, selected_date: pd.Timestamp | None
     return output
 
 
+def _candidate_forward_label_observations(report_dir: Path, selected_date: pd.Timestamp | None) -> pd.DataFrame:
+    frame = _read_all_reports(report_dir, "candidate_forward_returns_*.csv")
+    if frame.empty or "trade_date" not in frame.columns:
+        return pd.DataFrame()
+    frame = _normalize_dates(frame, selected_date)
+    if frame.empty:
+        return pd.DataFrame()
+    grouped = frame.groupby("trade_date", dropna=True)
+    output = grouped.size().rename("candidate_forward_candidate_count").reset_index()
+    for window in ["5d", "20d"]:
+        return_column = f"forward_return_{window}"
+        if return_column in frame.columns:
+            returns = pd.to_numeric(frame[return_column], errors="coerce")
+            forward = frame.assign(_forward_return=returns)
+            output = output.merge(
+                forward.groupby("trade_date")["_forward_return"]
+                .mean()
+                .rename(f"candidate_forward_return_{window}_mean")
+                .reset_index(),
+                on="trade_date",
+                how="left",
+            )
+            output = output.merge(
+                forward.assign(_positive=returns > 0)
+                .loc[returns.notna()]
+                .groupby("trade_date")["_positive"]
+                .mean()
+                .rename(f"candidate_forward_positive_{window}_rate")
+                .reset_index(),
+                on="trade_date",
+                how="left",
+            )
+        benchmark_column = f"benchmark_return_{window}"
+        if benchmark_column in frame.columns:
+            benchmark = frame.assign(_benchmark_return=pd.to_numeric(frame[benchmark_column], errors="coerce"))
+            output = output.merge(
+                benchmark.groupby("trade_date")["_benchmark_return"]
+                .mean()
+                .rename(f"candidate_forward_benchmark_return_{window}")
+                .reset_index(),
+                on="trade_date",
+                how="left",
+            )
+    return output
+
+
 def _rejected_observations(report_dir: Path, selected_date: pd.Timestamp | None) -> pd.DataFrame:
     frame = _read_all_reports(report_dir, "rejected_paper_orders_*.csv")
     if frame.empty:
@@ -523,14 +603,27 @@ def _benchmark_observations(report_dir: Path, selected_date: pd.Timestamp | None
 
 
 def _walk_forward_split(frame: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, str]:
-    if frame.empty or len(frame) < MIN_OBSERVATIONS:
+    data = _matured_forward_observations(frame)
+    if data.empty or len(data) < MIN_OBSERVATIONS:
         return pd.DataFrame(), pd.DataFrame(), "DATA_INSUFFICIENT: observation_count < 4"
-    data = frame.sort_values("trade_date").reset_index(drop=True)
     split_index = int(len(data) * 0.7)
     split_index = max(1, min(split_index, len(data) - 1))
     train = data.iloc[:split_index].copy()
     validation = data.iloc[split_index:].copy()
     return train, validation, "train_first_70pct_validation_last_30pct"
+
+
+def _matured_forward_observations(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return pd.DataFrame()
+    data = frame.sort_values("trade_date").reset_index(drop=True)
+    forward_columns = [column for column in ["forward_return_20d_mean", "forward_return_5d_mean"] if column in data.columns]
+    if not forward_columns:
+        return pd.DataFrame()
+    has_forward_label = pd.Series(False, index=data.index)
+    for column in forward_columns:
+        has_forward_label = has_forward_label | pd.to_numeric(data[column], errors="coerce").notna()
+    return data[has_forward_label].reset_index(drop=True)
 
 
 def _dynamic_exposure(score: float | None) -> float:

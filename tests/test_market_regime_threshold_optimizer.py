@@ -37,6 +37,33 @@ def test_threshold_optimizer_marks_data_insufficient_without_forward_returns(tmp
     assert result.status == "DATA_INSUFFICIENT"
 
 
+def test_threshold_optimizer_uses_candidate_forward_return_labels(tmp_path: Path) -> None:
+    _write_optimizer_reports(tmp_path, include_forward_returns=False)
+    _write_candidate_forward_labels(tmp_path)
+
+    result = generate_market_regime_threshold_optimization(tmp_path, trade_date="2026-06-10")
+    threshold_60 = _row(result.frame, 60)
+
+    assert threshold_60["data_sufficiency_status"] == "OBSERVATION_ONLY"
+    assert threshold_60["forward_return_20d_mean"] is not None
+    assert threshold_60["positive_forward_20d_rate"] is not None
+    assert threshold_60["estimated_excess_return"] is not None
+    assert result.status in {"OK", "OK_WITH_WARNINGS"}
+
+
+def test_threshold_optimizer_uses_5d_labels_when_20d_is_not_mature(tmp_path: Path) -> None:
+    _write_optimizer_reports(tmp_path, include_forward_returns=False)
+    _write_candidate_forward_labels(tmp_path, include_20d=False)
+
+    result = generate_market_regime_threshold_optimization(tmp_path, trade_date="2026-06-10")
+    threshold_60 = _row(result.frame, 60)
+
+    assert threshold_60["data_sufficiency_status"] == "OBSERVATION_ONLY"
+    assert threshold_60["forward_return_5d_mean"] is not None
+    assert pd.isna(threshold_60["forward_return_20d_mean"])
+    assert threshold_60["estimated_strategy_return_proxy"] is not None
+
+
 def test_threshold_optimizer_walk_forward_uses_train_for_recommendation(tmp_path: Path) -> None:
     _write_optimizer_reports(tmp_path)
 
@@ -154,3 +181,37 @@ def _write_optimizer_reports(tmp_path: Path, *, include_forward_returns: bool = 
                     }
                 ]
             ).to_csv(tmp_path / f"rejected_paper_orders_{label}.csv", index=False, encoding="utf-8")
+
+
+def _write_candidate_forward_labels(tmp_path: Path, *, include_20d: bool = True) -> None:
+    start = date(2026, 6, 1)
+    scores = [45, 50, 60, 65, 70, 52, 58, 50, 70, 53]
+    forward_returns = [0.0, -0.10, 0.05, 0.04, 0.03, -0.08, -0.07, 0.40, 0.05, 0.50]
+    rows = []
+    for index, score in enumerate(scores):
+        trade_date = start + timedelta(days=index)
+        rows.append(
+            {
+                "trade_date": trade_date.isoformat(),
+                "symbol": "2330",
+                "name": "台積電",
+                "candidate_score": 80,
+                "market_regime_score": score,
+                "official_threshold": 60,
+                "blocked_by_market_regime": score < 60,
+                "close_on_trade_date": 100,
+                "close_plus_5d": 100 * (1 + forward_returns[index] / 2),
+                "close_plus_20d": 100 * (1 + forward_returns[index]) if include_20d else "",
+                "forward_return_5d": forward_returns[index] / 2,
+                "forward_return_20d": forward_returns[index] if include_20d else "",
+                "benchmark_return_5d": 0.0,
+                "benchmark_return_20d": 0.0 if include_20d else "",
+                "excess_return_5d": forward_returns[index] / 2,
+                "excess_return_20d": forward_returns[index] if include_20d else "",
+                "forward_return_5d_status": "OBSERVATION_ONLY",
+                "forward_return_20d_status": "OBSERVATION_ONLY" if include_20d else "DATA_INSUFFICIENT",
+                "data_sufficiency_status": "OBSERVATION_ONLY" if include_20d else "DATA_INSUFFICIENT",
+                "is_observation_only": True,
+            }
+        )
+    pd.DataFrame(rows).to_csv(tmp_path / "candidate_forward_returns_20260610.csv", index=False, encoding="utf-8")

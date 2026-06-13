@@ -22,6 +22,7 @@ from tw_quant.enrichment.report import generate_ai_enrichment
 from tw_quant.reporting.anysearch_industry_research import generate_anysearch_industry_research_report
 from tw_quant.reporting.dashboard_data import generate_market_recap, generate_pnl_chart_data
 from tw_quant.reporting.candidate_coverage import generate_candidate_coverage_report
+from tw_quant.reporting.candidate_forward_returns import generate_candidate_forward_returns
 from tw_quant.reporting.missing_industry_priority import generate_missing_industry_priority_report
 from tw_quant.reporting.position_review import generate_position_review_summary
 from tw_quant.reporting.export import export_latest_candidates
@@ -148,6 +149,7 @@ class DailyWorkflowResult:
     factor_diagnostics_result: Any | None = None
     performance_diagnostics_result: Any | None = None
     underperformance_attribution_result: Any | None = None
+    candidate_forward_returns_result: Any | None = None
     market_regime_threshold_optimization_result: Any | None = None
 
 
@@ -178,6 +180,7 @@ def run_all_daily(
     factor_diagnostics_func: Callable[..., Any] = generate_factor_diagnostics,
     performance_diagnostics_func: Callable[..., Any] = generate_performance_diagnostics,
     underperformance_attribution_func: Callable[..., Any] = generate_underperformance_attribution,
+    candidate_forward_returns_func: Callable[..., Any] = generate_candidate_forward_returns,
     market_regime_threshold_optimization_func: Callable[..., Any] = generate_market_regime_threshold_optimization,
 ) -> DailyWorkflowResult:
     report_dir = Path(reports_dir)
@@ -192,6 +195,7 @@ def run_all_daily(
     factor_diagnostics_result = None
     performance_diagnostics_result = None
     underperformance_attribution_result = None
+    candidate_forward_returns_result = None
     market_regime_threshold_optimization_result = None
 
     try:
@@ -829,6 +833,37 @@ def run_all_daily(
         regime_config = config.get("market_regime", {}) if "config" in locals() else {}
         current_threshold = int(float(regime_config.get("min_score_for_new_entries", 60)))
         try:
+            candidate_forward_returns_result = candidate_forward_returns_func(
+                engine,
+                reports_dir=report_dir,
+                trade_date=summary_values["trade_date"],
+                current_threshold=current_threshold,
+            )
+        except TypeError:
+            candidate_forward_returns_result = candidate_forward_returns_func(
+                reports_dir=report_dir,
+                trade_date=summary_values["trade_date"],
+                current_threshold=current_threshold,
+            )
+        forward_frame = getattr(candidate_forward_returns_result, "frame", pd.DataFrame())
+        coverage_5d = getattr(candidate_forward_returns_result, "coverage_5d", 0.0)
+        coverage_20d = getattr(candidate_forward_returns_result, "coverage_20d", 0.0)
+        messages.append(
+            "candidate_forward_returns "
+            f"{getattr(candidate_forward_returns_result, 'status', 'OK')} "
+            f"rows={len(forward_frame)} "
+            f"coverage_5d={coverage_5d:.2%} "
+            f"coverage_20d={coverage_20d:.2%}"
+        )
+        if getattr(candidate_forward_returns_result, "warning", ""):
+            messages.append(f"candidate_forward_returns warning {candidate_forward_returns_result.warning}")
+    except Exception as exc:
+        messages.append(f"candidate_forward_returns warning {type(exc).__name__}: {exc}")
+
+    try:
+        regime_config = config.get("market_regime", {}) if "config" in locals() else {}
+        current_threshold = int(float(regime_config.get("min_score_for_new_entries", 60)))
+        try:
             market_regime_threshold_optimization_result = market_regime_threshold_optimization_func(
                 reports_dir=report_dir,
                 trade_date=summary_values["trade_date"],
@@ -886,6 +921,7 @@ def run_all_daily(
         factor_diagnostics_result=factor_diagnostics_result,
         performance_diagnostics_result=performance_diagnostics_result,
         underperformance_attribution_result=underperformance_attribution_result,
+        candidate_forward_returns_result=candidate_forward_returns_result,
         market_regime_threshold_optimization_result=market_regime_threshold_optimization_result,
     )
 

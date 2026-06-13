@@ -68,7 +68,11 @@ def build_notification_message(
     trade_date = _date_text(summary.get("trade_date"))
     fallback_date = _date_text(summary.get("fallback_date"))
     fallback_reason = _fallback_reason_text(summary.get("fallback_reason"))
-    use_recent_data = _uses_recent_data(requested_date, trade_date, fallback_date)
+    use_recent_data = _uses_recent_data(summary)
+    actual_data_date = _date_text(summary.get("actual_data_date"))
+    effective_data_date = _effective_data_date(actual_data_date, trade_date, fallback_date)
+    cache_age_days = _to_float(summary.get("cache_age_days"))
+    is_stale_data = _truthy(summary.get("is_stale_data"))
     trading_cost = load_config(ROOT / "config.yaml").get("trading_cost", {})
     pages = pages_url or os.getenv("GITHUB_PAGES_URL") or _infer_pages_url()
     candidates = _load_latest_report(report_dir, "candidates_*.csv")
@@ -87,8 +91,16 @@ def build_notification_message(
     if use_recent_data:
         lines.extend(
             [
-                f"使用資料日期：{trade_date if trade_date != '-' else fallback_date}",
-                f"原因：{fallback_reason}",
+                f"使用資料日期：{effective_data_date}",
+                f"原因：{_recent_data_reason(summary, fallback_reason)}",
+            ]
+        )
+    if actual_data_date != "-" or cache_age_days is not None or is_stale_data:
+        lines.extend(
+            [
+                f"實際資料日：{actual_data_date if actual_data_date != '-' else effective_data_date}",
+                f"資料年齡天數：{_format_int(cache_age_days)}",
+                f"是否過期資料：{'是' if is_stale_data else '否'}",
             ]
         )
     lines.extend(
@@ -471,10 +483,49 @@ def _fallback_reason_text(value: object) -> str:
     return STATUS_LABELS.get(text, text)
 
 
-def _uses_recent_data(requested_date: str, trade_date: str, fallback_date: str) -> bool:
+def _uses_recent_data(summary: dict[str, object]) -> bool:
+    if _truthy(summary.get("used_latest_available")):
+        return True
+    if _truthy(summary.get("is_stale_data")):
+        return True
+    cache_age_days = _to_float(summary.get("cache_age_days"))
+    if cache_age_days is not None and cache_age_days > 0:
+        return True
+    requested_date = _date_text(summary.get("requested_date") or summary.get("trade_date"))
+    trade_date = _date_text(summary.get("trade_date"))
+    fallback_date = _date_text(summary.get("fallback_date"))
+    actual_data_date = _date_text(summary.get("actual_data_date"))
+    compare_date = requested_date if requested_date != "-" else trade_date
+    if compare_date != "-" and actual_data_date != "-" and _date_gap_days(compare_date, actual_data_date) > 0:
+        return True
     if requested_date != "-" and trade_date != "-":
         return requested_date != trade_date
     return fallback_date != "-"
+
+
+def _effective_data_date(actual_data_date: str, trade_date: str, fallback_date: str) -> str:
+    for value in [actual_data_date, trade_date, fallback_date]:
+        if value != "-":
+            return value
+    return "-"
+
+
+def _recent_data_reason(summary: dict[str, object], fallback_reason: str) -> str:
+    if fallback_reason != "-":
+        return fallback_reason
+    if _truthy(summary.get("is_stale_data")):
+        return "實際資料日落後，資料標記為過期"
+    if _truthy(summary.get("used_latest_available")):
+        return "使用資料庫最近有效資料"
+    return "實際資料日落後交易日或執行日"
+
+
+def _date_gap_days(later: object, earlier: object) -> int:
+    later_date = pd.to_datetime(later, errors="coerce")
+    earlier_date = pd.to_datetime(earlier, errors="coerce")
+    if pd.isna(later_date) or pd.isna(earlier_date):
+        return 0
+    return max(int((later_date.normalize() - earlier_date.normalize()).days), 0)
 
 
 def _date_text(value: object) -> str:
@@ -552,6 +603,14 @@ def _to_float(value: object) -> float | None:
     if pd.isna(number):
         return None
     return number
+
+
+def _truthy(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if _is_blank(value):
+        return False
+    return str(value).strip().lower() in {"true", "1", "yes", "y", "是"}
 
 
 def main(argv: Iterable[str] | None = None) -> None:

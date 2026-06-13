@@ -911,7 +911,11 @@ def _readiness_columns(readiness: dict[str, object]) -> dict[str, object]:
 
 
 def _risk_alpha_columns(risk_alpha: dict[str, object]) -> dict[str, object]:
-    return {column: risk_alpha.get(column) for column in RISK_ADJUSTED_ALPHA_COLUMNS}
+    return {
+        column: risk_alpha.get(column)
+        for column in RISK_ADJUSTED_ALPHA_COLUMNS
+        if not re.fullmatch(r"benchmark_return_\d+d", column)
+    }
 
 
 def _conclusion_status(

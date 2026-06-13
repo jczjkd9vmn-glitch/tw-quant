@@ -17,6 +17,10 @@ import pandas as pd
 THRESHOLDS = (45, 50, 55, 60, 65, 70)
 CURRENT_THRESHOLD = 60
 MIN_OBSERVATIONS = 4
+MIN_5D_LABEL_COVERAGE = 0.70
+MIN_20D_LABEL_COVERAGE = 0.60
+MIN_VALIDATION_ELIGIBLE_SAMPLES = 30
+MIN_VALIDATION_BLOCKED_SAMPLES = 10
 
 MARKET_REGIME_THRESHOLD_OPTIMIZATION_COLUMNS = [
     "trade_date",
@@ -39,6 +43,14 @@ MARKET_REGIME_THRESHOLD_OPTIMIZATION_COLUMNS = [
     "forward_return_20d_mean",
     "positive_forward_5d_rate",
     "positive_forward_20d_rate",
+    "label_5d_coverage",
+    "label_20d_coverage",
+    "validation_eligible_sample_count",
+    "validation_blocked_sample_count",
+    "readiness_status",
+    "readiness_reason",
+    "can_recommend_threshold_change",
+    "can_recommend_dynamic_exposure",
     "estimated_strategy_return_proxy",
     "estimated_benchmark_return",
     "estimated_excess_return",
@@ -66,6 +78,27 @@ class MarketRegimeThresholdOptimizationResult:
     warning: str = ""
 
 
+@dataclass(frozen=True)
+class LabelCoverage:
+    sample_count: int
+    label_5d_count: int
+    label_20d_count: int
+    label_5d_coverage: float
+    label_20d_coverage: float
+
+
+@dataclass(frozen=True)
+class SampleReadiness:
+    label_5d_coverage: float
+    label_20d_coverage: float
+    validation_eligible_sample_count: int
+    validation_blocked_sample_count: int
+    readiness_status: str
+    readiness_reason: str
+    can_recommend_threshold_change: bool
+    can_recommend_dynamic_exposure: bool
+
+
 def generate_market_regime_threshold_optimization(
     reports_dir: str | Path = "reports",
     trade_date: str | None = None,
@@ -81,6 +114,9 @@ def generate_market_regime_threshold_optimization(
     date_label = (selected_date or pd.Timestamp.today()).strftime("%Y%m%d")
 
     observations = _observation_frame(report_dir, selected_date)
+    label_coverage = _candidate_forward_label_coverage(report_dir, selected_date)
+    if label_coverage.sample_count <= 0:
+        label_coverage = _label_coverage(observations)
     current_score = _current_market_regime_score(observations)
     train, validation, split_note = _walk_forward_split(observations)
 
@@ -98,6 +134,7 @@ def generate_market_regime_threshold_optimization(
             validation=validation,
             current_train=current_train,
             dynamic_validation=dynamic_validation,
+            label_coverage=label_coverage,
             split_note=split_note,
         )
         for threshold in thresholds
@@ -112,6 +149,7 @@ def generate_market_regime_threshold_optimization(
             current_train=current_train,
             dynamic_train=dynamic_train,
             dynamic_validation=dynamic_validation,
+            label_coverage=label_coverage,
             split_note=split_note,
         )
     )
@@ -120,20 +158,25 @@ def generate_market_regime_threshold_optimization(
     output_path = report_dir / f"market_regime_threshold_optimization_{date_label}.csv"
     frame.to_csv(output_path, index=False, encoding="utf-8")
 
-    warnings = [
+    data_warnings = [
         str(value)
         for value in frame.get("data_sufficiency_status", pd.Series(dtype=str)).dropna().unique()
         if str(value) == "DATA_INSUFFICIENT"
     ]
-    status = "DATA_INSUFFICIENT" if warnings and frame["data_sufficiency_status"].astype(str).eq("DATA_INSUFFICIENT").all() else "OK"
-    if warnings and status == "OK":
+    readiness_warnings = [
+        str(value)
+        for value in frame.get("readiness_status", pd.Series(dtype=str)).dropna().unique()
+        if str(value).startswith("DATA_INSUFFICIENT")
+    ]
+    status = "DATA_INSUFFICIENT" if data_warnings and frame["data_sufficiency_status"].astype(str).eq("DATA_INSUFFICIENT").all() else "OK"
+    if (data_warnings or readiness_warnings) and status == "OK":
         status = "OK_WITH_WARNINGS"
     return MarketRegimeThresholdOptimizationResult(
         trade_date=selected_date,
         frame=frame,
         output_path=output_path,
         status=status,
-        warning="; ".join(dict.fromkeys(warnings)),
+        warning="; ".join(dict.fromkeys(data_warnings + readiness_warnings)),
     )
 
 
@@ -147,12 +190,21 @@ def _threshold_row(
     validation: pd.DataFrame,
     current_train: dict[str, object],
     dynamic_validation: dict[str, object],
+    label_coverage: LabelCoverage,
     split_note: str,
 ) -> dict[str, object]:
     train_metrics = _threshold_metrics(train, threshold)
     validation_metrics = _threshold_metrics(validation, threshold)
     sufficient = _is_sufficient(train_metrics) and _is_sufficient(validation_metrics)
-    recommendation = _recommendation(threshold, current_threshold, train_metrics, current_train, sufficient)
+    readiness = _sample_readiness(
+        label_coverage,
+        validation_metrics,
+        evaluate_threshold_change=True,
+        evaluate_dynamic_exposure=False,
+    )
+    recommendation = _gated_recommendation(readiness)
+    if sufficient and readiness.can_recommend_threshold_change:
+        recommendation = _recommendation(threshold, current_threshold, train_metrics, current_train, sufficient)
     return _row(
         selected_date=selected_date,
         threshold=threshold,
@@ -166,6 +218,7 @@ def _threshold_row(
         would_allow=_score_allows(current_score, threshold),
         recommendation=recommendation,
         sufficient=sufficient,
+        readiness=readiness,
         split_note=split_note,
     )
 
@@ -180,11 +233,18 @@ def _dynamic_row(
     current_train: dict[str, object],
     dynamic_train: dict[str, object],
     dynamic_validation: dict[str, object],
+    label_coverage: LabelCoverage,
     split_note: str,
 ) -> dict[str, object]:
     sufficient = _is_sufficient(dynamic_train) and _is_sufficient(dynamic_validation)
-    recommendation = "DATA_INSUFFICIENT"
-    if sufficient:
+    readiness = _sample_readiness(
+        label_coverage,
+        dynamic_validation,
+        evaluate_threshold_change=False,
+        evaluate_dynamic_exposure=True,
+    )
+    recommendation = _gated_recommendation(readiness)
+    if sufficient and readiness.can_recommend_dynamic_exposure:
         dynamic_excess = _num(dynamic_train.get("estimated_excess_return"))
         current_excess = _num(current_train.get("estimated_excess_return"))
         recommendation = (
@@ -200,6 +260,7 @@ def _dynamic_row(
         train=train,
         validation=validation,
         validation_metrics=dynamic_validation,
+        readiness=readiness,
         train_metrics=dynamic_train,
         dynamic_validation=dynamic_validation,
         would_allow=(_dynamic_exposure(current_score) or 0) > 0,
@@ -224,14 +285,17 @@ def _row(
     would_allow: bool,
     recommendation: str,
     sufficient: bool,
+    readiness: SampleReadiness,
     split_note: str,
     notes: str = "",
 ) -> dict[str, object]:
-    data_status = "OBSERVATION_ONLY" if sufficient else "DATA_INSUFFICIENT"
+    data_status = _data_sufficiency_status(sufficient, readiness)
     risk_status = "OBSERVATION_ONLY" if sufficient else "DATA_INSUFFICIENT"
     drawdown = _num(validation_metrics.get("estimated_max_drawdown_proxy"))
     if sufficient and drawdown is not None and drawdown < -0.1:
         risk_status = "HIGH_RISK_OBSERVATION"
+    show_5d = readiness.label_5d_coverage >= MIN_5D_LABEL_COVERAGE
+    show_20d = readiness.label_20d_coverage >= MIN_20D_LABEL_COVERAGE
     return {
         "trade_date": _date_text(selected_date),
         "threshold": threshold,
@@ -249,10 +313,18 @@ def _row(
         "would_allow_new_entries": bool(would_allow),
         "estimated_exposure_pct": validation_metrics.get("estimated_exposure_pct"),
         "cash_drag_proxy": validation_metrics.get("cash_drag_proxy"),
-        "forward_return_5d_mean": validation_metrics.get("forward_return_5d_mean"),
-        "forward_return_20d_mean": validation_metrics.get("forward_return_20d_mean"),
-        "positive_forward_5d_rate": validation_metrics.get("positive_forward_5d_rate"),
-        "positive_forward_20d_rate": validation_metrics.get("positive_forward_20d_rate"),
+        "forward_return_5d_mean": validation_metrics.get("forward_return_5d_mean") if show_5d else None,
+        "forward_return_20d_mean": validation_metrics.get("forward_return_20d_mean") if show_20d else None,
+        "positive_forward_5d_rate": validation_metrics.get("positive_forward_5d_rate") if show_5d else None,
+        "positive_forward_20d_rate": validation_metrics.get("positive_forward_20d_rate") if show_20d else None,
+        "label_5d_coverage": readiness.label_5d_coverage,
+        "label_20d_coverage": readiness.label_20d_coverage,
+        "validation_eligible_sample_count": readiness.validation_eligible_sample_count,
+        "validation_blocked_sample_count": readiness.validation_blocked_sample_count,
+        "readiness_status": readiness.readiness_status,
+        "readiness_reason": readiness.readiness_reason,
+        "can_recommend_threshold_change": readiness.can_recommend_threshold_change,
+        "can_recommend_dynamic_exposure": readiness.can_recommend_dynamic_exposure,
         "estimated_strategy_return_proxy": validation_metrics.get("estimated_strategy_return_proxy"),
         "estimated_benchmark_return": validation_metrics.get("estimated_benchmark_return"),
         "estimated_excess_return": validation_metrics.get("estimated_excess_return"),
@@ -409,6 +481,18 @@ def _observation_frame(report_dir: Path, selected_date: pd.Timestamp | None) -> 
         output,
         ["candidate_forward_candidate_count", "candidate_count", "summary_candidate_rows"],
     ).fillna(0)
+    output["label_sample_count"] = _coalesce_numeric(
+        output,
+        ["candidate_forward_candidate_count", "candidate_count"],
+    ).fillna(0)
+    output["label_5d_count"] = _coalesce_numeric(
+        output,
+        ["candidate_forward_5d_label_count", "candidate_5d_label_count"],
+    ).fillna(0)
+    output["label_20d_count"] = _coalesce_numeric(
+        output,
+        ["candidate_forward_20d_label_count", "candidate_20d_label_count"],
+    ).fillna(0)
     output["forward_return_5d_mean"] = _coalesce_numeric(
         output,
         ["candidate_forward_return_5d_mean", "forward_return_5d_mean"],
@@ -490,6 +574,15 @@ def _candidate_observations(report_dir: Path, selected_date: pd.Timestamp | None
         returns = pd.to_numeric(frame[column], errors="coerce")
         forward = frame.assign(_forward_return=returns)
         output = output.merge(
+            forward.assign(_has_label=returns.notna())
+            .groupby("trade_date")["_has_label"]
+            .sum()
+            .rename(f"candidate_{window}_label_count")
+            .reset_index(),
+            on="trade_date",
+            how="left",
+        )
+        output = output.merge(
             forward.groupby("trade_date")["_forward_return"].mean().rename(f"forward_return_{window}_mean").reset_index(),
             on="trade_date",
             how="left",
@@ -520,6 +613,15 @@ def _candidate_forward_label_observations(report_dir: Path, selected_date: pd.Ti
         if return_column in frame.columns:
             returns = pd.to_numeric(frame[return_column], errors="coerce")
             forward = frame.assign(_forward_return=returns)
+            output = output.merge(
+                forward.assign(_has_label=returns.notna())
+                .groupby("trade_date")["_has_label"]
+                .sum()
+                .rename(f"candidate_forward_{window}_label_count")
+                .reset_index(),
+                on="trade_date",
+                how="left",
+            )
             output = output.merge(
                 forward.groupby("trade_date")["_forward_return"]
                 .mean()
@@ -624,6 +726,140 @@ def _matured_forward_observations(frame: pd.DataFrame) -> pd.DataFrame:
     for column in forward_columns:
         has_forward_label = has_forward_label | pd.to_numeric(data[column], errors="coerce").notna()
     return data[has_forward_label].reset_index(drop=True)
+
+
+def _label_coverage(frame: pd.DataFrame) -> LabelCoverage:
+    if frame.empty:
+        return LabelCoverage(0, 0, 0, 0.0, 0.0)
+    candidate_forward_sample_count = int(
+        pd.to_numeric(frame.get("candidate_forward_candidate_count", pd.Series(dtype=float)), errors="coerce")
+        .fillna(0)
+        .sum()
+    )
+    if candidate_forward_sample_count > 0:
+        sample_count = candidate_forward_sample_count
+        label_5d_count = int(
+            pd.to_numeric(frame.get("candidate_forward_5d_label_count", pd.Series(dtype=float)), errors="coerce")
+            .fillna(0)
+            .sum()
+        )
+        label_20d_count = int(
+            pd.to_numeric(frame.get("candidate_forward_20d_label_count", pd.Series(dtype=float)), errors="coerce")
+            .fillna(0)
+            .sum()
+        )
+    else:
+        sample_count = int(pd.to_numeric(frame.get("label_sample_count", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+        label_5d_count = int(pd.to_numeric(frame.get("label_5d_count", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+        label_20d_count = int(pd.to_numeric(frame.get("label_20d_count", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+    if sample_count <= 0:
+        return LabelCoverage(0, label_5d_count, label_20d_count, 0.0, 0.0)
+    return LabelCoverage(
+        sample_count=sample_count,
+        label_5d_count=label_5d_count,
+        label_20d_count=label_20d_count,
+        label_5d_coverage=float(label_5d_count / sample_count),
+        label_20d_coverage=float(label_20d_count / sample_count),
+    )
+
+
+def _candidate_forward_label_coverage(report_dir: Path, selected_date: pd.Timestamp | None) -> LabelCoverage:
+    frame = _read_all_reports(report_dir, "candidate_forward_returns_*.csv")
+    if frame.empty or "trade_date" not in frame.columns:
+        return LabelCoverage(0, 0, 0, 0.0, 0.0)
+    frame = _normalize_dates(frame, selected_date)
+    if frame.empty:
+        return LabelCoverage(0, 0, 0, 0.0, 0.0)
+    sample_count = len(frame)
+    label_5d_count = _label_count(frame, "forward_return_5d")
+    label_20d_count = _label_count(frame, "forward_return_20d")
+    return LabelCoverage(
+        sample_count=sample_count,
+        label_5d_count=label_5d_count,
+        label_20d_count=label_20d_count,
+        label_5d_coverage=float(label_5d_count / sample_count) if sample_count else 0.0,
+        label_20d_coverage=float(label_20d_count / sample_count) if sample_count else 0.0,
+    )
+
+
+def _label_count(frame: pd.DataFrame, column: str) -> int:
+    if column not in frame.columns:
+        return 0
+    return int(pd.to_numeric(frame[column], errors="coerce").notna().sum())
+
+
+def _sample_readiness(
+    label_coverage: LabelCoverage,
+    validation_metrics: dict[str, object],
+    *,
+    evaluate_threshold_change: bool,
+    evaluate_dynamic_exposure: bool,
+) -> SampleReadiness:
+    eligible_samples = int(validation_metrics.get("eligible_candidate_count") or 0)
+    blocked_samples = int(validation_metrics.get("blocked_candidate_count") or 0)
+    ready_5d = label_coverage.label_5d_coverage >= MIN_5D_LABEL_COVERAGE
+    ready_20d = label_coverage.label_20d_coverage >= MIN_20D_LABEL_COVERAGE
+    ready_validation = (
+        eligible_samples >= MIN_VALIDATION_ELIGIBLE_SAMPLES
+        and blocked_samples >= MIN_VALIDATION_BLOCKED_SAMPLES
+    )
+
+    status = "READY_FOR_20D_OBSERVATION"
+    reason = (
+        f"5d label coverage {label_coverage.label_5d_coverage:.2%} >= {MIN_5D_LABEL_COVERAGE:.0%}; "
+        f"20d label coverage {label_coverage.label_20d_coverage:.2%} >= {MIN_20D_LABEL_COVERAGE:.0%}; "
+        f"validation eligible/block samples {eligible_samples}/{blocked_samples} "
+        f">= {MIN_VALIDATION_ELIGIBLE_SAMPLES}/{MIN_VALIDATION_BLOCKED_SAMPLES}."
+    )
+    if label_coverage.sample_count <= 0:
+        status = "DATA_INSUFFICIENT_VALIDATION"
+        reason = "No forward labels are available; threshold optimizer recommendations must remain data insufficient."
+    elif not ready_5d:
+        status = "DATA_INSUFFICIENT_VALIDATION"
+        reason = (
+            f"5d label coverage {label_coverage.label_5d_coverage:.2%} < {MIN_5D_LABEL_COVERAGE:.0%}; "
+            "5d observation sample is insufficient; recommendation must remain DATA_INSUFFICIENT."
+        )
+    elif not ready_20d:
+        status = "DATA_INSUFFICIENT_20D"
+        reason = (
+            f"5d label coverage {label_coverage.label_5d_coverage:.2%} is ready for 5d observation; "
+            f"20d label coverage {label_coverage.label_20d_coverage:.2%} < {MIN_20D_LABEL_COVERAGE:.0%}. "
+            "20d sample is insufficient; observation-only; not a basis for lowering the formal threshold."
+        )
+    elif not ready_validation:
+        status = "DATA_INSUFFICIENT_VALIDATION"
+        reason = (
+            f"validation eligible/block samples {eligible_samples}/{blocked_samples} "
+            f"< {MIN_VALIDATION_ELIGIBLE_SAMPLES}/{MIN_VALIDATION_BLOCKED_SAMPLES}; "
+            "validation sample is insufficient; do not output formal threshold change or dynamic exposure recommendations."
+        )
+
+    can_recommend = bool(ready_5d and ready_20d and ready_validation and label_coverage.sample_count > 0)
+    return SampleReadiness(
+        label_5d_coverage=label_coverage.label_5d_coverage,
+        label_20d_coverage=label_coverage.label_20d_coverage,
+        validation_eligible_sample_count=eligible_samples,
+        validation_blocked_sample_count=blocked_samples,
+        readiness_status=status,
+        readiness_reason=reason,
+        can_recommend_threshold_change=can_recommend and evaluate_threshold_change,
+        can_recommend_dynamic_exposure=can_recommend and evaluate_dynamic_exposure,
+    )
+
+
+def _gated_recommendation(readiness: SampleReadiness) -> str:
+    if readiness.readiness_status == "DATA_INSUFFICIENT_20D":
+        return "OBSERVATION_ONLY"
+    return "DATA_INSUFFICIENT"
+
+
+def _data_sufficiency_status(sufficient: bool, readiness: SampleReadiness) -> str:
+    if not sufficient:
+        return "DATA_INSUFFICIENT"
+    if readiness.readiness_status == "DATA_INSUFFICIENT_VALIDATION":
+        return "DATA_INSUFFICIENT"
+    return "OBSERVATION_ONLY"
 
 
 def _dynamic_exposure(score: float | None) -> float:

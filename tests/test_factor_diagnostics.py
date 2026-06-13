@@ -147,6 +147,27 @@ def test_benchmark_diagnostics_uses_primary_alpha_without_duplicate_columns(tmp_
     assert row["conclusion_status"] == "UNDERPERFORMING"
 
 
+def test_benchmark_diagnostics_does_not_overwrite_gated_benchmark_returns(tmp_path: Path) -> None:
+    _write_minimal_candidates(tmp_path)
+    _write_equity_series(tmp_path, _compound_series(1_000_000, [0.001] * 30))
+    benchmark_values = _compound_series(100, [0.003] * 61)
+    selected_date = pd.bdate_range("2026-06-01", periods=len(benchmark_values))[-1].strftime("%Y-%m-%d")
+    _write_market_index_series(tmp_path, benchmark_values)
+    _write_valid_trades(tmp_path, count=20)
+    _write_portfolio(tmp_path)
+
+    result = generate_factor_diagnostics(tmp_path, trade_date=selected_date)
+    row = result.benchmark_diagnostics.iloc[0]
+
+    assert row["primary_alpha_window"] == "20d"
+    assert bool(row["can_judge_strategy_alpha_20d"]) is True
+    assert bool(row["can_judge_strategy_alpha_60d"]) is False
+    assert bool(row["can_judge_alpha_60d"]) is True
+    assert pd.notna(row["benchmark_return_20d"])
+    assert pd.isna(row["benchmark_return_60d"])
+    assert pd.notna(row["strategy_return_60d"]) is False
+
+
 def _write_minimal_candidates(path: Path) -> None:
     pd.DataFrame(
         [

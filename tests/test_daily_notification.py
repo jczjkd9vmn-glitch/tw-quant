@@ -79,6 +79,30 @@ def test_build_notification_message_omits_fallback_details_when_requested_date_m
     assert "替代交易日" not in message
 
 
+def test_build_notification_message_flags_stale_actual_data_date() -> None:
+    summary = {
+        **_summary_row(),
+        "requested_date": "2026-06-13",
+        "trade_date": "2026-06-13",
+        "fallback_date": "",
+        "fallback_reason": "",
+        "status": "OK",
+        "actual_data_date": "2026-06-09",
+        "cache_age_days": 4,
+        "is_stale_data": True,
+        "used_latest_available": True,
+    }
+
+    message = build_notification_message(summary, pages_url="https://example.github.io/tw-quant/")
+
+    assert "使用最近有效資料：是" in message
+    assert "使用最近有效資料：否" not in message
+    assert "使用資料日期：2026-06-09" in message
+    assert "實際資料日：2026-06-09" in message
+    assert "資料年齡天數：4" in message
+    assert "是否過期資料：是" in message
+
+
 def test_send_daily_notification_posts_to_discord(tmp_path: Path) -> None:
     _write_summary(tmp_path)
     calls = []

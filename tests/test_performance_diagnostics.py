@@ -65,6 +65,29 @@ def test_performance_diagnostics_reports_primary_alpha_window(tmp_path: Path) ->
     assert row["conclusion_status"] == "UNDERPERFORMING"
 
 
+def test_performance_diagnostics_primary_window_gates_alpha_when_longer_benchmark_window_insufficient(
+    tmp_path: Path,
+) -> None:
+    strategy_values = _compound_series(1_000_000, [0.001] * 61)
+    selected_date = pd.bdate_range("2026-06-01", periods=len(strategy_values))[-1].strftime("%Y-%m-%d")
+    _write_equity_series(tmp_path, strategy_values)
+    _write_market_index_series(tmp_path, _compound_series(100, [0.003] * 30))
+    _write_valid_trades(tmp_path, count=20)
+    _write_portfolio(tmp_path, count=3)
+
+    result = generate_performance_diagnostics(tmp_path, trade_date=selected_date)
+    row = result.frame.iloc[0]
+
+    assert row["primary_alpha_window"] == "20d"
+    assert row["benchmark_window"] == "20d"
+    assert bool(row["can_judge_alpha"]) is True
+    assert row["benchmark_return"] == row["benchmark_return_20d"]
+    assert row["alpha"] == row["excess_return_20d"]
+    assert pd.notna(row["alpha"])
+    assert "NO_OFFICIAL_BENCHMARK" not in row["data_quality_warning"]
+    assert "不足以計算 60d alpha" not in row["data_quality_warning"]
+
+
 def test_performance_diagnostics_marks_small_samples_insufficient(tmp_path: Path) -> None:
     pd.DataFrame(
         [

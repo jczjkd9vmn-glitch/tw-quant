@@ -188,17 +188,18 @@ def _performance_row(
     best_day, best_day_return = _extreme_day(frame, returns, "max")
     worst_day, worst_day_return = _extreme_day(frame, returns, "min")
     profit_factor = _profit_factor(returns)
-    benchmark_return = _num(benchmark.get("return"))
     benchmark_window = str(benchmark.get("window", "") or "")
-    benchmark_can_judge = bool(benchmark.get("can_judge_alpha", False))
-    strategy_can_judge = strategy_can_judge_window(readiness, benchmark_window)
-    can_judge_alpha = bool(benchmark_can_judge and strategy_can_judge)
     primary_window = str(risk_alpha.get("primary_alpha_window") or benchmark_window)
+    benchmark_return = _num(benchmark.get("return"))
+    benchmark_warning = _primary_benchmark_warning(benchmark.get("warning", ""), benchmark_window, primary_window)
+    benchmark_can_judge = _benchmark_can_judge_window(benchmark, primary_window)
+    strategy_can_judge = strategy_can_judge_window(readiness, primary_window)
+    can_judge_alpha = bool(benchmark_can_judge and strategy_can_judge)
     primary_benchmark_return = _num(risk_alpha.get(f"benchmark_return_{primary_window}")) if primary_window else None
     primary_alpha = _num(risk_alpha.get("excess_return"))
     if primary_alpha is None and primary_window:
         primary_alpha = _num(risk_alpha.get(f"excess_return_{primary_window}"))
-    if primary_benchmark_return is None:
+    if primary_benchmark_return is None and primary_window == benchmark_window:
         primary_benchmark_return = benchmark_return
 
     warnings: list[str] = []
@@ -206,19 +207,22 @@ def _performance_row(
     if len(returns) < 5:
         warnings.append("DATA_INSUFFICIENT: daily_return_count < 5")
         hard_insufficient = True
-    if benchmark.get("warning"):
-        warnings.append(str(benchmark["warning"]))
+    if benchmark_warning:
+        warnings.append(benchmark_warning)
     if not benchmark_can_judge:
-        warnings.append("NO_OFFICIAL_BENCHMARK: can_judge_alpha=false")
+        warnings.append(f"NO_OFFICIAL_BENCHMARK: can_judge_alpha_{primary_window or 'unknown'}=false")
         hard_insufficient = True
     if benchmark_can_judge and not strategy_can_judge:
-        warnings.append(f"NOT_ENOUGH_STRATEGY_HISTORY: {strategy_insufficient_reason(readiness, benchmark_window)}")
+        warnings.append(f"NOT_ENOUGH_STRATEGY_HISTORY: {strategy_insufficient_reason(readiness, primary_window)}")
         hard_insufficient = True
-    if benchmark_return is None:
+    if primary_benchmark_return is None:
         warnings.append("DATA_INSUFFICIENT: benchmark_return unavailable")
         hard_insufficient = True
 
-    conclusion_status = str(risk_alpha.get("conclusion_status") or _conclusion_status(benchmark_can_judge, strategy_can_judge, benchmark_return))
+    conclusion_status = str(
+        risk_alpha.get("conclusion_status")
+        or _conclusion_status(benchmark_can_judge, strategy_can_judge, primary_benchmark_return)
+    )
     status = conclusion_status if hard_insufficient else "OK"
     if status == "OK" and warnings:
         status = "OK_WITH_WARNINGS"
@@ -263,10 +267,10 @@ def _performance_row(
         "can_judge_alpha_120d": bool(benchmark.get("can_judge_alpha_120d", False)),
         "can_judge_alpha_252d": bool(benchmark.get("can_judge_alpha_252d", False)),
         "benchmark_history_days": int(benchmark.get("benchmark_history_days", 0) or 0),
-        **_readiness_columns(readiness, benchmark_window),
+        **_readiness_columns(readiness, primary_window),
         **_risk_alpha_columns(risk_alpha),
         "conclusion_status": conclusion_status,
-        "benchmark_warning": benchmark.get("warning", ""),
+        "benchmark_warning": benchmark_warning,
         "status": status,
         "data_quality_warning": "; ".join(dict.fromkeys(warnings)),
         "notes": "報表診斷用途；不修改交易策略、出場規則或訂單。",
@@ -462,6 +466,20 @@ def _readiness_columns(readiness: dict[str, object], selected_window: str) -> di
 
 def _risk_alpha_columns(risk_alpha: dict[str, object]) -> dict[str, object]:
     return {column: risk_alpha.get(column) for column in RISK_ADJUSTED_ALPHA_COLUMNS}
+
+
+def _benchmark_can_judge_window(benchmark: dict[str, object], window: str) -> bool:
+    if not window or window == "total":
+        return bool(benchmark.get("can_judge_alpha", False))
+    return bool(benchmark.get(f"can_judge_alpha_{window}", False))
+
+
+def _primary_benchmark_warning(value: object, source_window: str, primary_window: str) -> str:
+    text = str(value or "").strip()
+    if not text or not source_window or source_window == primary_window:
+        return text
+    pattern = rf"\s*DATA_INSUFFICIENT: official benchmark history_days=\d+ 不足以計算 {re.escape(source_window)} alpha"
+    return re.sub(pattern, "", text).strip()
 
 
 def _conclusion_status(benchmark_can_judge: bool, strategy_can_judge: bool, benchmark_return: object) -> str:

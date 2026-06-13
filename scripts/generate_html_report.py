@@ -9,6 +9,11 @@ from typing import Iterable
 
 import pandas as pd
 
+try:
+    from scripts.market_regime_readiness_html import patch_generated_market_regime_readiness_html
+except ModuleNotFoundError:
+    from market_regime_readiness_html import patch_generated_market_regime_readiness_html
+
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = ROOT / "src"
@@ -1188,6 +1193,7 @@ def generate_html_report(
         docs_path = Path(docs_dir)
         docs_path.mkdir(parents=True, exist_ok=True)
         (docs_path / "index.html").write_text(html, encoding="utf-8", newline="\n")
+    patch_generated_market_regime_readiness_html(report_dir, Path(docs_dir) if docs_dir is not None else None)
     return output_path
 
 

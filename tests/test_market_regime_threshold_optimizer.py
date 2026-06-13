@@ -23,7 +23,7 @@ def test_threshold_optimizer_allows_or_blocks_score_53_by_threshold(tmp_path: Pa
     assert threshold_60["would_allow_new_entries"] is False
     assert threshold_50["would_allow_new_entries"] is True
     assert threshold_60["blocked_candidate_count"] != threshold_50["blocked_candidate_count"]
-    assert threshold_60["data_sufficiency_status"] == "OBSERVATION_ONLY"
+    assert threshold_60["data_sufficiency_status"] == "DATA_INSUFFICIENT"
     assert (tmp_path / "market_regime_threshold_optimization_20260610.csv").exists()
 
 
@@ -44,11 +44,11 @@ def test_threshold_optimizer_uses_candidate_forward_return_labels(tmp_path: Path
     result = generate_market_regime_threshold_optimization(tmp_path, trade_date="2026-06-10")
     threshold_60 = _row(result.frame, 60)
 
-    assert threshold_60["data_sufficiency_status"] == "OBSERVATION_ONLY"
+    assert threshold_60["data_sufficiency_status"] == "DATA_INSUFFICIENT"
     assert threshold_60["forward_return_20d_mean"] is not None
     assert threshold_60["positive_forward_20d_rate"] is not None
     assert threshold_60["estimated_excess_return"] is not None
-    assert result.status in {"OK", "OK_WITH_WARNINGS"}
+    assert result.status == "DATA_INSUFFICIENT"
 
 
 def test_threshold_optimizer_uses_5d_labels_when_20d_is_not_mature(tmp_path: Path) -> None:

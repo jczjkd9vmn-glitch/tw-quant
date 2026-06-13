@@ -618,6 +618,19 @@ COLUMN_LABELS.update(
         "cash_drag_proxy": "現金拖累 proxy",
         "forward_return_5d_mean": "5 日 forward return 均值",
         "forward_return_20d_mean": "20 日 forward return 均值",
+        "forward_return_5d": "5 日 forward return",
+        "forward_return_20d": "20 日 forward return",
+        "benchmark_return_5d": "5 日 benchmark return",
+        "benchmark_return_20d": "20 日 benchmark return",
+        "excess_return_5d": "5 日 excess return",
+        "excess_return_20d": "20 日 excess return",
+        "forward_return_5d_status": "5 日 label 狀態",
+        "forward_return_20d_status": "20 日 label 狀態",
+        "blocked_by_market_regime": "被 market regime 擋下",
+        "official_threshold": "正式門檻",
+        "close_on_trade_date": "訊號日收盤價",
+        "close_plus_5d": "5 日後收盤價",
+        "close_plus_20d": "20 日後收盤價",
         "positive_forward_5d_rate": "5 日正報酬率",
         "positive_forward_20d_rate": "20 日正報酬率",
         "estimated_strategy_return_proxy": "策略報酬 proxy",
@@ -763,6 +776,12 @@ PERCENT_COLUMNS = {
     "cash_drag_proxy",
     "forward_return_5d_mean",
     "forward_return_20d_mean",
+    "forward_return_5d",
+    "forward_return_20d",
+    "benchmark_return_5d",
+    "benchmark_return_20d",
+    "excess_return_5d",
+    "excess_return_20d",
     "positive_forward_5d_rate",
     "positive_forward_20d_rate",
     "estimated_strategy_return_proxy",
@@ -788,6 +807,9 @@ PRICE_COLUMNS = {
     "exit_slippage",
     "highest_price_since_entry",
     "trailing_stop_price",
+    "close_on_trade_date",
+    "close_plus_5d",
+    "close_plus_20d",
 }
 AMOUNT_COLUMNS = {
     "total_capital",
@@ -1109,6 +1131,7 @@ def generate_html_report(
     performance_diagnostics = _read_latest_csv(report_dir, "performance_diagnostics_*.csv")
     underperformance_attribution = _read_latest_csv(report_dir, "underperformance_attribution_*.csv")
     market_regime_threshold_optimization = _read_latest_csv(report_dir, "market_regime_threshold_optimization_*.csv")
+    candidate_forward_returns = _read_latest_csv(report_dir, "candidate_forward_returns_*.csv")
     market_regime = _read_latest_csv(report_dir, "market_regime_*.csv")
     rejected_orders = _read_latest_csv(report_dir, "rejected_paper_orders_*.csv")
     ai_enrichment = _read_latest_csv(report_dir, "ai_enrichment_*.csv")
@@ -1143,6 +1166,7 @@ def generate_html_report(
         performance_diagnostics=performance_diagnostics,
         underperformance_attribution=underperformance_attribution,
         market_regime_threshold_optimization=market_regime_threshold_optimization,
+        candidate_forward_returns=candidate_forward_returns,
         market_regime=market_regime,
         rejected_orders=rejected_orders,
         ai_enrichment=ai_enrichment,
@@ -1187,6 +1211,7 @@ def _render_page(
     performance_diagnostics: pd.DataFrame,
     underperformance_attribution: pd.DataFrame,
     market_regime_threshold_optimization: pd.DataFrame,
+    candidate_forward_returns: pd.DataFrame,
     market_regime: pd.DataFrame,
     rejected_orders: pd.DataFrame,
     ai_enrichment: pd.DataFrame,
@@ -1444,6 +1469,7 @@ def _render_page(
             _market_regime_threshold_optimization_section(
                 latest_summary,
                 market_regime_threshold_optimization,
+                candidate_forward_returns,
                 config or {},
             ),
             _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
@@ -3567,14 +3593,17 @@ def _market_regime_score_explainer(
 def _market_regime_threshold_optimization_section(
     summary: dict[str, object],
     optimization: pd.DataFrame,
+    candidate_forward_returns: pd.DataFrame,
     config: dict[str, object],
 ) -> str:
     formal_threshold = _formal_market_regime_threshold(config)
     current_score = _first_raw(summary.get("market_regime_score"), _frame_first(optimization, "current_market_regime_score"))
+    label_summary = _candidate_forward_label_summary(candidate_forward_returns)
     if optimization.empty:
         content = (
             '<p class="top-notice benchmark-warning"><strong>Observation only</strong>'
             "<span>目前尚無 market regime threshold optimization CSV；此區不修改正式策略。</span></p>"
+            + _candidate_forward_label_cards(label_summary)
         )
         return _section(
             "Market Regime 門檻最佳化觀察",
@@ -3598,6 +3627,8 @@ def _market_regime_threshold_optimization_section(
         _card("Hard 60 drawdown proxy", _return_text(_to_float(threshold_row.get("estimated_max_drawdown_proxy")))),
         _card("Dynamic drawdown proxy", _return_text(_to_float(dynamic_row.get("estimated_max_drawdown_proxy")))),
     ]
+    label_cards = _candidate_forward_label_cards(label_summary)
+    blocked_summary = _candidate_forward_blocked_summary(label_summary)
     table = _table(
         optimization,
         [
@@ -3607,6 +3638,10 @@ def _market_regime_threshold_optimization_section(
             "blocked_candidate_count",
             "estimated_exposure_pct",
             "cash_drag_proxy",
+            "forward_return_5d_mean",
+            "forward_return_20d_mean",
+            "positive_forward_5d_rate",
+            "positive_forward_20d_rate",
             "estimated_excess_return",
             "estimated_max_drawdown_proxy",
             "recommendation",
@@ -3622,7 +3657,9 @@ def _market_regime_threshold_optimization_section(
         '<div class="cards">'
         + "".join(cards)
         + "</div>"
-        "<p class=\"note\">Dynamic exposure proxy：score &lt; 45 = 0%；45-55 = 20%；55-65 = 40%；65-75 = 60%；score &gt;= 75 = 80%。"
+        + label_cards
+        + blocked_summary
+        + "<p class=\"note\">Dynamic exposure proxy：score &lt; 45 = 0%；45-55 = 20%；55-65 = 40%；65-75 = 60%；score &gt;= 75 = 80%。"
         "Walk-forward 採日期排序，前 70% train、後 30% validation；recommendation 不使用 validation 反推 train。</p>"
         + table
     )
@@ -3632,6 +3669,103 @@ def _market_regime_threshold_optimization_section(
         section_id="market-regime-threshold-optimization",
         class_name="market-regime-threshold-section",
     )
+
+
+def _candidate_forward_label_summary(frame: pd.DataFrame) -> dict[str, object]:
+    if frame.empty:
+        return {
+            "available": False,
+            "total": 0,
+            "valid_5d": 0,
+            "valid_20d": 0,
+            "coverage_5d": 0.0,
+            "coverage_20d": 0.0,
+            "blocked_count": 0,
+            "blocked_forward_5d_mean": None,
+            "blocked_forward_20d_mean": None,
+            "blocked_excess_5d_mean": None,
+            "blocked_excess_20d_mean": None,
+        }
+    total = len(frame)
+    forward_5d = pd.to_numeric(frame.get("forward_return_5d", pd.Series(index=frame.index, dtype=float)), errors="coerce")
+    forward_20d = pd.to_numeric(frame.get("forward_return_20d", pd.Series(index=frame.index, dtype=float)), errors="coerce")
+    blocked = frame.get("blocked_by_market_regime", pd.Series(False, index=frame.index)).apply(_truthy)
+    blocked_frame = frame[blocked].copy()
+    return {
+        "available": True,
+        "total": total,
+        "valid_5d": int(forward_5d.notna().sum()),
+        "valid_20d": int(forward_20d.notna().sum()),
+        "coverage_5d": float(forward_5d.notna().sum() / total) if total else 0.0,
+        "coverage_20d": float(forward_20d.notna().sum() / total) if total else 0.0,
+        "blocked_count": int(blocked.sum()),
+        "blocked_forward_5d_mean": _mean_or_none(blocked_frame.get("forward_return_5d", pd.Series(dtype=float))),
+        "blocked_forward_20d_mean": _mean_or_none(blocked_frame.get("forward_return_20d", pd.Series(dtype=float))),
+        "blocked_excess_5d_mean": _mean_or_none(blocked_frame.get("excess_return_5d", pd.Series(dtype=float))),
+        "blocked_excess_20d_mean": _mean_or_none(blocked_frame.get("excess_return_20d", pd.Series(dtype=float))),
+    }
+
+
+def _candidate_forward_label_cards(summary: dict[str, object]) -> str:
+    available = bool(summary.get("available"))
+    label_status = "可用" if available else "尚無 forward label CSV"
+    total = int(summary.get("total") or 0)
+    valid_5d = int(summary.get("valid_5d") or 0)
+    valid_20d = int(summary.get("valid_20d") or 0)
+    cards = [
+        _card("Forward return labels", label_status),
+        _card("5d label coverage", f"{valid_5d}/{total} ({float(summary.get('coverage_5d') or 0):.1%})"),
+        _card("20d label coverage", f"{valid_20d}/{total} ({float(summary.get('coverage_20d') or 0):.1%})"),
+        _card("被擋候選股 labels", str(int(summary.get("blocked_count") or 0))),
+    ]
+    return (
+        '<div class="cards">'
+        + "".join(cards)
+        + "</div>"
+        '<p class="note">Forward return labels 只用於 observation-only 門檻診斷；coverage 不足時不得視為正式策略變更依據。</p>'
+    )
+
+
+def _candidate_forward_blocked_summary(summary: dict[str, object]) -> str:
+    if not bool(summary.get("available")):
+        return '<p class="note">尚無 candidate_forward_returns CSV，無法彙總被擋候選股後續表現。</p>'
+    rows = pd.DataFrame(
+        [
+            {
+                "blocked_candidate_count": int(summary.get("blocked_count") or 0),
+                "forward_return_5d_mean": summary.get("blocked_forward_5d_mean"),
+                "forward_return_20d_mean": summary.get("blocked_forward_20d_mean"),
+                "excess_return_5d": summary.get("blocked_excess_5d_mean"),
+                "excess_return_20d": summary.get("blocked_excess_20d_mean"),
+                "data_sufficiency_status": "OBSERVATION_ONLY"
+                if summary.get("blocked_forward_20d_mean") is not None
+                else "DATA_INSUFFICIENT",
+            }
+        ]
+    )
+    return _details_block(
+        "被 market regime 擋下候選股 forward return 摘要",
+        _table(
+            rows,
+            [
+                "blocked_candidate_count",
+                "forward_return_5d_mean",
+                "forward_return_20d_mean",
+                "excess_return_5d",
+                "excess_return_20d",
+                "data_sufficiency_status",
+            ],
+            "目前尚無被擋候選股 forward return 摘要",
+            max_rows=5,
+        ),
+    )
+
+
+def _mean_or_none(values: pd.Series) -> float | None:
+    data = pd.to_numeric(values, errors="coerce").dropna()
+    if data.empty:
+        return None
+    return float(data.mean())
 
 
 def _formal_market_regime_threshold(config: dict[str, object]) -> int:

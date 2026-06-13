@@ -1276,6 +1276,99 @@ def test_generated_html_has_no_conflict_markers(tmp_path: Path) -> None:
     assert ">>>>>>>" not in html
 
 
+def test_market_regime_threshold_section_shows_forward_label_coverage(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-05-08",
+                "threshold": 60,
+                "current_threshold": 60,
+                "current_market_regime_score": 53,
+                "walk_forward_split": "train_first_70pct_validation_last_30pct",
+                "train_observation_count": 4,
+                "validation_observation_count": 2,
+                "eligible_candidate_count": 1,
+                "blocked_candidate_count": 1,
+                "would_allow_new_entries": False,
+                "estimated_exposure_pct": 0.5,
+                "cash_drag_proxy": 0.01,
+                "forward_return_5d_mean": 0.02,
+                "forward_return_20d_mean": 0.04,
+                "positive_forward_5d_rate": 1.0,
+                "positive_forward_20d_rate": 1.0,
+                "estimated_excess_return": 0.03,
+                "estimated_max_drawdown_proxy": -0.02,
+                "recommendation": "KEEP_CURRENT",
+                "data_sufficiency_status": "OBSERVATION_ONLY",
+                "is_observation_only": True,
+            }
+        ]
+    ).to_csv(tmp_path / "market_regime_threshold_optimization_20260508.csv", index=False, encoding="utf-8")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-05-01",
+                "symbol": "2330",
+                "name": "台積電",
+                "candidate_score": 80,
+                "market_regime_score": 53,
+                "official_threshold": 60,
+                "blocked_by_market_regime": True,
+                "close_on_trade_date": 100,
+                "close_plus_5d": 105,
+                "close_plus_20d": 110,
+                "forward_return_5d": 0.05,
+                "forward_return_20d": 0.10,
+                "benchmark_return_5d": 0.02,
+                "benchmark_return_20d": 0.03,
+                "excess_return_5d": 0.03,
+                "excess_return_20d": 0.07,
+                "forward_return_5d_status": "OBSERVATION_ONLY",
+                "forward_return_20d_status": "OBSERVATION_ONLY",
+                "data_sufficiency_status": "OBSERVATION_ONLY",
+                "is_observation_only": True,
+            },
+            {
+                "trade_date": "2026-05-08",
+                "symbol": "2317",
+                "name": "鴻海",
+                "candidate_score": 75,
+                "market_regime_score": 65,
+                "official_threshold": 60,
+                "blocked_by_market_regime": False,
+                "close_on_trade_date": 200,
+                "close_plus_5d": 202,
+                "close_plus_20d": "",
+                "forward_return_5d": 0.01,
+                "forward_return_20d": "",
+                "benchmark_return_5d": 0.01,
+                "benchmark_return_20d": "",
+                "excess_return_5d": 0.0,
+                "excess_return_20d": "",
+                "forward_return_5d_status": "OBSERVATION_ONLY",
+                "forward_return_20d_status": "DATA_INSUFFICIENT",
+                "data_sufficiency_status": "DATA_INSUFFICIENT",
+                "is_observation_only": True,
+            },
+        ]
+    ).to_csv(tmp_path / "candidate_forward_returns_20260508.csv", index=False, encoding="utf-8")
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+
+    assert "Forward return labels" in html
+    assert "5d label coverage" in html
+    assert "2/2 (100.0%)" in html
+    assert "20d label coverage" in html
+    assert "1/2 (50.0%)" in html
+    assert "被 market regime 擋下候選股 forward return 摘要" in html
+    assert "observation-only 門檻診斷" in html
+    assert "<<<<<<<" not in html
+    assert "=======" not in html
+    assert ">>>>>>>" not in html
+
+
 def test_generate_html_report_creates_docs_index_for_github_pages(tmp_path: Path) -> None:
     docs_dir = tmp_path / "docs"
     _write_reports(tmp_path)

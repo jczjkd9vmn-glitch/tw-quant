@@ -290,6 +290,46 @@ def test_run_all_daily_integrates_validation_and_decision_summary(tmp_path) -> N
     assert any("trading_decisions OK" in message for message in result.messages)
 
 
+def test_run_all_daily_generates_candidate_forward_returns_before_optimizer(tmp_path) -> None:
+    calls: list[str] = []
+
+    def fake_forward_returns(*_args, **_kwargs):
+        calls.append("candidate_forward_returns")
+        return SimpleNamespace(
+            frame=pd.DataFrame({"forward_return_5d": [0.01], "forward_return_20d": [0.02]}),
+            status="OK",
+            warning="",
+            coverage_5d=1.0,
+            coverage_20d=1.0,
+        )
+
+    def fake_optimizer(*_args, **_kwargs):
+        calls.append("optimizer")
+        return SimpleNamespace(
+            frame=pd.DataFrame({"recommendation": ["KEEP_CURRENT"]}),
+            status="OK",
+            warning="",
+        )
+
+    result = run_all_daily(
+        config_path=_config(tmp_path),
+        trade_date="20260508",
+        capital=1_000_000,
+        reports_dir=tmp_path / "reports",
+        run_daily_func=_fake_run_daily,
+        export_func=_fake_export,
+        paper_func=_fake_paper,
+        execute_func=_fake_execute,
+        update_func=_fake_update,
+        candidate_forward_returns_func=fake_forward_returns,
+        market_regime_threshold_optimization_func=fake_optimizer,
+    )
+
+    assert calls == ["candidate_forward_returns", "optimizer"]
+    assert result.candidate_forward_returns_result is not None
+    assert any("candidate_forward_returns OK rows=1 coverage_5d=100.00% coverage_20d=100.00%" in message for message in result.messages)
+
+
 def _config(tmp_path, database_url: str = "sqlite:///:memory:", extra: str = "") -> str:
     path = tmp_path / "config.yaml"
     path.write_text(f"database:\n  url: {database_url}\n{extra}", encoding="utf-8")

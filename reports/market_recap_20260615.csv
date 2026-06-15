@@ -1,0 +1,2 @@
+trade_date,market_regime_score,regime_label,twse_index,tpex_index,advancers,decliners,unchanged,limit_up_count,limit_down_count,market_breadth_summary,recap_summary,fallback_used,data_quality_note
+2026-06-15,50.0,大盤震盪,45396.99,429.37,947,329,76,57,8,上漲家數 947 高於下跌家數 329，市場廣度偏多,大盤震盪；上漲家數 947 高於下跌家數 329，市場廣度偏多；market_regime_score=50，目前紙上新增持倉需保守。,True,未接正式指數來源時，使用本地 SQLite 全市場價量 fallback

@@ -1,0 +1,20 @@
+report_date,factor_name,best_bucket,best_alpha_20d,best_avg_return_pct,worst_bucket,worst_alpha_20d,worst_avg_return_pct,total_stock_count,total_trade_count,sample_status,conclusion,data_quality_warning,notes
+2026-06-16,candidate_grade,D,,0.094779,MISSING,,-0.005117,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,confidence_score,HIGH,,0.094779,MISSING,,-0.005117,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,decision_action,reduce_risk,,0.108877,MISSING,,-0.005117,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,entry_price_source,MISSING,,0.024085,OPEN,,-0.001758,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,event_risk_level,NONE,,0.076801,MISSING,,-0.005117,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,event_risk_score,MID,,0.094779,MISSING,,0.000493,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,final_market_score,MID,,0.094779,MISSING,,-0.005117,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,financial_score,MID,,0.094779,MISSING,,0.000493,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,fundamental_score,MID,,0.094779,MISSING,,0.000493,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,holding_days,MID,,0.055111,LOW,,-0.09221,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,institutional_score,MID,,0.094779,MISSING,,0.000493,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,liquidity_score,HIGH,,0.094779,MISSING,,-0.005117,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,market_regime_score,HIGH,,0.003985,HIGH,,0.003985,46,27,OBSERVATION_ONLY,僅供觀察,,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,multi_factor_score,LOW,,0.076801,MISSING,,-0.005117,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,risk_pass,0,,0.094779,MISSING,,0.000493,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,sector_strength_score,HIGH,,0.094779,MISSING,,-0.005117,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,total_score,MID,,0.094779,MISSING,,-0.005117,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,valuation_score,LOW,,0.094779,MISSING,,0.000493,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據
+2026-06-16,是否注意股 / 處置股,正常,,0.003985,正常,,0.003985,46,27,OBSERVATION_ONLY,僅供觀察,DATA_INSUFFICIENT,forward_return 欄位不足時，以既有 paper_trades 報酬做觀察，不作為正式調參依據

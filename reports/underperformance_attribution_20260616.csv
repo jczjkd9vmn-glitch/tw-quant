@@ -1,0 +1,19 @@
+trade_date,attribution_type,diagnostic_item,stock_id,stock_name,industry,window,position_weight,cash_ratio,strategy_value,benchmark_value,alpha,pnl_after_cost,pnl_contribution_pct,drawdown_contribution,top3_contribution_pct,diagnostic_status,conclusion,data_quality_warning,notes
+2026-06-16,stock_selection_alpha,持有股票平均報酬 vs benchmark,,,,20d,,,,0.140225,,,,,,DATA_INSUFFICIENT,缺少持有股票 20 日報酬，無法判斷選股 alpha。,DATA_INSUFFICIENT,需要 stock_return_20d；此區只做診斷。
+2026-06-16,entry_timing_alpha,進場後 1d 表現,,,,1d,,,,0.00908,,,,,,DATA_INSUFFICIENT,缺少進場後 1d forward return，不能判斷進場時機。,DATA_INSUFFICIENT,需要逐筆進場後 forward return；此區只做診斷。
+2026-06-16,entry_timing_alpha,進場後 5d 表現,,,,5d,,,0.0009184978038489272,0.024712,-0.023794,,,,,OBSERVATION_ONLY,進場後表現落後 benchmark。,OBSERVATION_ONLY,缺少逐筆 forward_return_5d，使用最新 sector_strength stock_return_5d 作觀察 proxy。 此區只做診斷，不修改策略。
+2026-06-16,entry_timing_alpha,進場後 20d 表現,,,,20d,,,,0.140225,,,,,,DATA_INSUFFICIENT,缺少進場後 20d forward return，不能判斷進場時機。,DATA_INSUFFICIENT,需要逐筆進場後 forward return；此區只做診斷。
+2026-06-16,exit_timing_diagnostic,停損後是否反彈,,,,,,,,,,,,,,DATA_INSUFFICIENT,缺少停損後 forward return，不能正式判斷是否反彈。,DATA_INSUFFICIENT,樣本數=11；現有 CSV 尚無出場後 5 日報酬；此區只做診斷，不修改出場規則。
+2026-06-16,exit_timing_diagnostic,停利後是否續漲,,,,,,,,,,,,,,DATA_INSUFFICIENT,缺少停利後 forward return，不能正式判斷是否續漲。,DATA_INSUFFICIENT,樣本數=12；現有 CSV 尚無出場後 5 日報酬；此區只做診斷，不修改出場規則。
+2026-06-16,drawdown_contribution,最大回撤股票,00947,台新臺灣IC設計,,,,,,,,,,-0.151029,,OBSERVATION_ONLY,少數股票造成較大回撤，需檢查選股與部位控管。,OBSERVATION_ONLY,以 max_adverse_excursion 或交易報酬 proxy 回撤貢獻；此區只做診斷。
+2026-06-16,drawdown_contribution,最大回撤股票,4571,鈞興-KY,,,,,,,,,,-0.142248,,OBSERVATION_ONLY,少數股票造成較大回撤，需檢查選股與部位控管。,OBSERVATION_ONLY,以 max_adverse_excursion 或交易報酬 proxy 回撤貢獻；此區只做診斷。
+2026-06-16,drawdown_contribution,最大回撤股票,8213,志超,,,,,,,,,,-0.122451,,OBSERVATION_ONLY,少數股票造成較大回撤，需檢查選股與部位控管。,OBSERVATION_ONLY,以 max_adverse_excursion 或交易報酬 proxy 回撤貢獻；此區只做診斷。
+2026-06-16,drawdown_contribution,最大回撤股票,3055,蔚華科,,,,,,,,,,-0.102096,,OBSERVATION_ONLY,少數股票造成較大回撤，需檢查選股與部位控管。,OBSERVATION_ONLY,以 max_adverse_excursion 或交易報酬 proxy 回撤貢獻；此區只做診斷。
+2026-06-16,drawdown_contribution,最大回撤股票,3528,安馳,,,,,,,,,,-0.098321,,OBSERVATION_ONLY,少數股票造成較大回撤，需檢查選股與部位控管。,OBSERVATION_ONLY,以 max_adverse_excursion 或交易報酬 proxy 回撤貢獻；此區只做診斷。
+2026-06-16,position_concentration,前 3 大持倉對總損益貢獻,,,,,,,,,,,,,0.2612783315972506,OBSERVATION_ONLY,損益集中度未明顯過高。,OBSERVATION_ONLY,以 paper trading 損益絕對值估算集中度；此區只做診斷。
+2026-06-16,position_concentration,損益貢獻個股,6834,天二科技,,,,,,,,20846.18,0.10735892023588475,,,OBSERVATION_ONLY,前 3 大損益貢獻明細。,OBSERVATION_ONLY,此區只做診斷，不修改策略。
+2026-06-16,position_concentration,損益貢獻個股,00947,台新臺灣IC設計,,,,,,,,-15124.0,0.07788939314769042,,,OBSERVATION_ONLY,前 3 大損益貢獻明細。,OBSERVATION_ONLY,此區只做診斷，不修改策略。
+2026-06-16,position_concentration,損益貢獻個股,6206,飛捷,,,,,,,,14762.96,0.07603001821367546,,,OBSERVATION_ONLY,前 3 大損益貢獻明細。,OBSERVATION_ONLY,此區只做診斷，不修改策略。
+2026-06-16,sector_allocation_alpha,持倉產業 vs benchmark,,,,20d,,,,0.140225,,,,,,DATA_INSUFFICIENT,缺少 sector_return_20d，無法判斷產業配置 alpha。,DATA_INSUFFICIENT,此區只做診斷，不修改策略。
+2026-06-16,missed_benchmark_rally,大盤上漲期間持倉不足,,,,20d,0.07995389605909274,0.9200461039409072,,0.140225,,,,,,OBSERVATION_ONLY,大盤上漲期間持倉比例偏低，可能錯過 benchmark rally。 這可能是目前 UNDERPERFORMING 的一項原因。,OBSERVATION_ONLY,以 invested_value / total_equity 與 benchmark_20d 粗估；此區只做診斷，不修改策略。
+2026-06-16,cash_drag,現金拖累,,,,20d,,0.9200461039409072,,0.140225,-0.1290134649251137,,,,,OBSERVATION_ONLY,現金比例過高可能拖累上漲行情參與度。,OBSERVATION_ONLY,cash_drag 約等於 cash_ratio * benchmark_return_20d；此區只做診斷，不修改策略。

@@ -1,0 +1,4 @@
+trade_date,stock_id,stock_name,decision,hold,reduce,exit_review,near_stop_loss,near_take_profit,data_quality_warning,current_price,stop_loss_price,unrealized_pnl_pct,risk_light,review_reason
+2026-06-17,8926,台汽電,REDUCE,False,True,False,False,False,False,79.4,52.98,0.328655,,一般人工確認
+2026-06-17,2030,彰源,HOLD,True,False,False,False,False,False,18.45,16.67,0.00719,,一般人工確認
+2026-06-17,2478,大毅,REDUCE,False,True,False,False,False,True,227.5,88.6,1.362502,,投資風險：融資連增但股價不漲；融資暴增但法人賣超；PE 偏高；未通過既有風控

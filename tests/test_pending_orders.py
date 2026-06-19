@@ -32,6 +32,56 @@ def test_pending_order_executes_on_next_valid_trading_day_using_open(tmp_path: P
     assert float(trade["entry_price"]) == 101.0
 
 
+def test_pending_order_does_not_backfill_retroactively_when_runner_is_late(tmp_path: Path) -> None:
+    _write_risk_report(tmp_path)
+    run_paper_trade(reports_dir=tmp_path, capital=1_000_000)
+    engine = _engine_with_prices(
+        tmp_path,
+        [
+            _price_frame("20260509", open_price=101.0, close=103.0),
+            _price_frame("20260510", open_price=110.0, close=112.0),
+        ],
+    )
+
+    result = execute_pending_orders(engine, reports_dir=tmp_path, capital=1_000_000)
+
+    order = result.executed_orders.iloc[0]
+    assert order["attempted_execution_date"] == "2026-05-09"
+    assert order["actual_entry_date"] == "2026-05-09"
+    assert float(order["entry_price"]) == 101.0
+    assert order["actual_entry_date"] != "2026-05-10"
+
+
+def test_pending_order_expiry_uses_next_execution_day_not_latest_available_day(tmp_path: Path) -> None:
+    _write_risk_report(tmp_path)
+    run_paper_trade(reports_dir=tmp_path, capital=1_000_000)
+    engine = _engine_with_prices(
+        tmp_path,
+        [
+            _price_frame("20260509", open_price=101.0, close=103.0),
+            _price_frame("20260510", open_price=110.0, close=112.0),
+            _price_frame("20260511", open_price=120.0, close=121.0),
+        ],
+    )
+
+    result = execute_pending_orders(
+        engine,
+        reports_dir=tmp_path,
+        capital=1_000_000,
+        config={
+            "pending_order": {"expire_after_trading_days": 1},
+            "paper_trading_guardrails": {"enabled": False},
+            "market_regime": {"enabled": False},
+        },
+    )
+
+    order = result.executed_orders.iloc[0]
+    assert order["status"] == "EXECUTED"
+    assert order["attempted_execution_date"] == "2026-05-09"
+    assert int(order["order_age_trading_days"]) == 1
+    assert result.rejected_orders.empty
+
+
 def test_pending_order_falls_back_to_close_when_open_is_invalid(tmp_path: Path) -> None:
     _write_risk_report(tmp_path)
     run_paper_trade(reports_dir=tmp_path, capital=1_000_000)

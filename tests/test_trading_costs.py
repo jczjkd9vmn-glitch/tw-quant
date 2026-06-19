@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 
 from tw_quant.data.database import create_db_engine, init_db, save_daily_prices
-from tw_quant.trading.costs import TradingCostConfig, calculate_entry, calculate_exit
+from tw_quant.trading.costs import TradingCostConfig, calculate_affordable_shares, calculate_entry, calculate_exit
 from tw_quant.trading.paper import run_paper_trade
 from tw_quant.trading.paper_update import update_paper_positions
 from tw_quant.trading.pending import execute_pending_orders
@@ -57,6 +57,19 @@ def test_sell_tax_rate_uses_etf_and_bond_etf_rates() -> None:
 
     assert etf["sell_tax"] == 99.9
     assert bond_etf["sell_tax"] == 0.0
+
+
+def test_affordable_shares_include_slippage_and_commission() -> None:
+    config = TradingCostConfig(commission_rate=0.01, slippage_rate=0.01)
+
+    shares = calculate_affordable_shares(
+        target_value=5_000,
+        available_cash=5_000,
+        raw_entry_price=100.0,
+        config=config,
+    )
+
+    assert shares == 49
 
 
 def test_buy_commission_is_deducted_from_cash(tmp_path: Path) -> None:

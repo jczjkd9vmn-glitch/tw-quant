@@ -90,6 +90,26 @@ def calculate_commission(amount: float, config: TradingCostConfig) -> float:
     return round(commission, 2)
 
 
+def calculate_affordable_shares(
+    *,
+    target_value: float,
+    available_cash: float,
+    raw_entry_price: float,
+    config: TradingCostConfig,
+) -> int:
+    if target_value <= 0 or available_cash <= 0 or raw_entry_price <= 0:
+        return 0
+    adjusted_price = calculate_entry(raw_entry_price, 1, config)["entry_price"]
+    shares = int(min(target_value, available_cash) // adjusted_price) if adjusted_price > 0 else 0
+    while shares > 0:
+        entry_costs = calculate_entry(raw_entry_price, shares, config)
+        required_cash = entry_costs["position_value"] + entry_costs["entry_commission"]
+        if entry_costs["position_value"] <= target_value + 0.0001 and required_cash <= available_cash + 0.0001:
+            return shares
+        shares -= 1
+    return 0
+
+
 def total_cost(
     *,
     entry_slippage: float,

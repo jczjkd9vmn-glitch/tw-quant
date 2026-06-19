@@ -26,6 +26,7 @@ from tw_quant.reporting.data_quality import write_data_quality_health
 from tw_quant.reporting.benchmark import select_benchmark_snapshot
 from tw_quant.reporting.risk_adjusted_alpha import risk_adjusted_alpha_snapshot
 from tw_quant.reporting.strategy_readiness import strategy_can_judge_window, strategy_readiness_snapshot
+from tw_quant.workflow.daily import should_publish_public_report
 
 
 COLUMN_LABELS = {
@@ -1114,6 +1115,7 @@ DATE_COLUMNS.update({"disposition_start_date", "disposition_end_date"})
 def generate_html_report(
     reports_dir: str | Path = ROOT / "reports",
     docs_dir: str | Path | None = None,
+    publish_stale_docs: bool = False,
 ) -> Path:
     report_dir = Path(reports_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -1189,12 +1191,25 @@ def generate_html_report(
 
     output_path = report_dir / "index.html"
     output_path.write_text(html, encoding="utf-8", newline="\n")
+    wrote_docs = False
     if docs_dir is not None:
         docs_path = Path(docs_dir)
         docs_path.mkdir(parents=True, exist_ok=True)
-        (docs_path / "index.html").write_text(html, encoding="utf-8", newline="\n")
-    patch_generated_market_regime_readiness_html(report_dir, Path(docs_dir) if docs_dir is not None else None)
+        freshness_state = _docs_freshness_state(daily_summary, market_intel)
+        if publish_stale_docs or should_publish_public_report(freshness_state, active_config):
+            (docs_path / "index.html").write_text(html, encoding="utf-8", newline="\n")
+            wrote_docs = True
+    patch_generated_market_regime_readiness_html(
+        report_dir,
+        Path(docs_dir) if docs_dir is not None and wrote_docs else None,
+    )
     return output_path
+
+
+def _docs_freshness_state(daily_summary: pd.DataFrame, market_intel: pd.DataFrame) -> dict[str, object]:
+    normalized_summary = _normalize_summary_freshness_frame(daily_summary)
+    latest_summary = _normalize_summary_freshness(_first_row(normalized_summary))
+    return _freshness_snapshot(latest_summary, market_intel)
 
 
 def _render_page(
@@ -4554,7 +4569,7 @@ def _decision_count(decisions: pd.DataFrame, column: str, value: str) -> int:
 def _count_true(frame: pd.DataFrame, column: str) -> int:
     if frame.empty or column not in frame.columns:
         return 0
-    return int(frame[column].apply(_to_bool).sum())
+    return int(frame[column].apply(_truthy).sum())
 
 
 def _count_equal(frame: pd.DataFrame, column: str, value: str) -> int:
@@ -7092,9 +7107,18 @@ def main(argv: Iterable[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="產生繁體中文靜態 HTML 報表。")
     parser.add_argument("--reports-dir", default=str(ROOT / "reports"))
     parser.add_argument("--docs-dir", default=str(ROOT / "docs"))
+    parser.add_argument(
+        "--publish-stale-docs",
+        action="store_true",
+        help="即使資料超過 public_report.stale_days_threshold，也覆寫 GitHub Pages docs/index.html。",
+    )
     args = parser.parse_args(list(argv) if argv is not None else None)
 
-    output_path = generate_html_report(args.reports_dir, docs_dir=args.docs_dir)
+    output_path = generate_html_report(
+        args.reports_dir,
+        docs_dir=args.docs_dir,
+        publish_stale_docs=args.publish_stale_docs,
+    )
     print(f"html_report={output_path}")
     print(f"pages_report={Path(args.docs_dir) / 'index.html'}")
 

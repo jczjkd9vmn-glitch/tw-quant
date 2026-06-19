@@ -25,6 +25,18 @@ def test_daily_github_actions_workflow_exists_and_contains_required_steps() -> N
     assert "git diff --cached --quiet" in text
 
 
+def test_ci_github_actions_workflow_runs_quality_gates() -> None:
+    workflow = ROOT / ".github" / "workflows" / "ci.yml"
+
+    assert workflow.exists()
+    text = workflow.read_text(encoding="utf-8")
+    assert "python -m ruff check ." in text
+    assert "python -m ruff format --check" in text
+    assert "src/tw_quant/backtest/engine.py" in text
+    assert "src/tw_quant/trading/pending.py" in text
+    assert "python -m pytest -q" in text
+
+
 def test_gitignore_excludes_runtime_sqlite_and_keeps_reports() -> None:
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
 

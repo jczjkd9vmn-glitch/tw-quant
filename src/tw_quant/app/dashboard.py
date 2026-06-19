@@ -132,7 +132,7 @@ def main() -> None:
         risk_manager=risk_manager,
     )
     backtest = BacktestEngine(
-        BacktestConfig.from_mapping(config["backtest"]),
+        BacktestConfig.from_mapping(config),
         scorer=scorer,
         risk_manager=risk_manager,
     )

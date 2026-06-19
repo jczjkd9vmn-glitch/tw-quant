@@ -48,6 +48,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "sell_tax_rate_bond_etf": 0.0,
         "slippage_rate": 0.001,
     },
+    "public_report": {
+        "stale_days_threshold": 2,
+        "stale_docs_behavior": "keep_previous",
+    },
     "exit_strategy": {
         "take_profit_1_pct": 0.08,
         "take_profit_1_sell_pct": 0.50,
@@ -192,7 +196,6 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "backtest": {
         "initial_cash": 1_000_000,
         "top_n": 10,
-        "transaction_cost_bps": 14.25,
         "max_holding_days": 20,
     },
 }

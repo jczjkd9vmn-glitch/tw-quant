@@ -46,13 +46,14 @@ def test_pending_order_does_not_backfill_retroactively_when_runner_is_late(tmp_p
     result = execute_pending_orders(engine, reports_dir=tmp_path, capital=1_000_000)
 
     order = result.executed_orders.iloc[0]
-    assert order["attempted_execution_date"] == "2026-05-09"
-    assert order["actual_entry_date"] == "2026-05-09"
-    assert float(order["entry_price"]) == 101.0
-    assert order["actual_entry_date"] != "2026-05-10"
+    assert order["attempted_execution_date"] == "2026-05-10"
+    assert order["actual_entry_date"] == "2026-05-10"
+    assert int(order["order_age_trading_days"]) == 2
+    assert float(order["entry_price"]) == 110.0
+    assert order["actual_entry_date"] != "2026-05-09"
 
 
-def test_pending_order_expiry_uses_next_execution_day_not_latest_available_day(tmp_path: Path) -> None:
+def test_pending_order_expiry_uses_elapsed_trading_days_to_attempted_execution_date(tmp_path: Path) -> None:
     _write_risk_report(tmp_path)
     run_paper_trade(reports_dir=tmp_path, capital=1_000_000)
     engine = _engine_with_prices(
@@ -75,11 +76,14 @@ def test_pending_order_expiry_uses_next_execution_day_not_latest_available_day(t
         },
     )
 
-    order = result.executed_orders.iloc[0]
-    assert order["status"] == "EXECUTED"
-    assert order["attempted_execution_date"] == "2026-05-09"
-    assert int(order["order_age_trading_days"]) == 1
-    assert result.rejected_orders.empty
+    pending = pd.read_csv(tmp_path / "pending_orders_20260508.csv", dtype={"stock_id": str})
+    rejected = pd.read_csv(tmp_path / "rejected_paper_orders_20260511.csv", dtype={"stock_id": str})
+    order = pending.iloc[0]
+    assert result.executed_orders.empty
+    assert order["status"] == "EXPIRED"
+    assert order["attempted_execution_date"] == "2026-05-11"
+    assert int(order["order_age_trading_days"]) == 3
+    assert rejected.iloc[0]["final_order_status"] == "EXPIRED"
 
 
 def test_pending_order_falls_back_to_close_when_open_is_invalid(tmp_path: Path) -> None:

@@ -43,10 +43,11 @@ def test_expired_pending_order_does_not_execute_and_writes_report(tmp_path: Path
     result = execute_pending_orders(engine, reports_dir=tmp_path, capital=1_000_000, config=config)
 
     pending = pd.read_csv(tmp_path / "pending_orders_20260515.csv", dtype={"stock_id": str})
-    rejected = pd.read_csv(tmp_path / "rejected_paper_orders_20260516.csv", dtype={"stock_id": str})
+    rejected = pd.read_csv(tmp_path / "rejected_paper_orders_20260517.csv", dtype={"stock_id": str})
     assert result.executed_orders.empty
     assert pending.iloc[0]["status"] == "EXPIRED"
-    assert int(pending.iloc[0]["order_age_trading_days"]) == 1
+    assert pending.iloc[0]["attempted_execution_date"] == "2026-05-17"
+    assert int(pending.iloc[0]["order_age_trading_days"]) == 2
     assert rejected.iloc[0]["final_order_status"] == "EXPIRED"
 
 

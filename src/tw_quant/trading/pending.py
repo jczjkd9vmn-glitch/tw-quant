@@ -475,8 +475,10 @@ def _order_timing(engine: Engine, order: pd.Series) -> dict[str, object]:
     dates = dates[dates > base_date]
     if dates.empty:
         return {"attempted_execution_date": None, "order_age_trading_days": 0}
-    attempted = pd.to_datetime(dates.iloc[0])
-    return {"attempted_execution_date": attempted, "order_age_trading_days": 1}
+    # Late-runner policy: use the current/latest available symbol date as the
+    # attempted execution date, and expire by elapsed tradable days to that date.
+    attempted = pd.to_datetime(dates.iloc[-1])
+    return {"attempted_execution_date": attempted, "order_age_trading_days": int(len(dates))}
 
 
 def _order_base_date(order: pd.Series) -> pd.Timestamp | None:

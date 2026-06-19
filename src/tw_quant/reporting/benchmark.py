@@ -16,8 +16,8 @@ import pandas as pd
 from tw_quant.data.trading_calendar import filter_trading_days
 
 
-ACCEPTED_INDEX_IDS = {"TAIEX_TR", "TAIEX", "TPEx", "TPEX"}
-OFFICIAL_INDEX_PRIORITY = ["TAIEX", "TAIEX_TR", "TPEx", "TPEX"]
+ACCEPTED_INDEX_IDS = {"TAIEX_TR", "TAIEX", "TPEx_TR", "TPEX_TR", "TPEx", "TPEX"}
+OFFICIAL_INDEX_PRIORITY = ["TAIEX_TR", "TAIEX", "TPEx_TR", "TPEX_TR", "TPEx", "TPEX"]
 NO_OFFICIAL_INDEX_WARNING = "缺少正式加權 / 櫃買指數資料，未使用正式加權指數資料，也未使用正式大盤指數。"
 ALPHA_WINDOWS = [1, 5, 20, 60, 120, 252]
 
@@ -242,6 +242,8 @@ def _official_index_label(index_id: str) -> tuple[str, str]:
         return "正式加權報酬指數", ""
     if index_id == "TAIEX":
         return "正式加權指數", "使用正式 TAIEX 價格指數，非 total return；alpha 需保守解讀。"
+    if index_id in {"TPEx_TR", "TPEX_TR"}:
+        return "正式櫃買報酬指數", ""
     return "正式櫃買指數", "使用正式 TPEx 價格指數，非 total return；alpha 需保守解讀。"
 
 

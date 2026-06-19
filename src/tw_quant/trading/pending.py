@@ -211,7 +211,7 @@ def execute_pending_orders(
             if age_days != "":
                 orders.loc[index, "order_age_trading_days"] = age_days
 
-            entry = _find_entry_price(engine, row)
+            entry = _find_entry_price(engine, row, attempted_date)
             if entry is None:
                 warning = "尚無下一個有效交易日資料，等待下次執行"
                 orders.loc[index, "warning"] = warning
@@ -312,14 +312,23 @@ def execute_pending_orders(
 def _find_entry_price(
     engine: Engine,
     order: pd.Series,
+    execution_date: pd.Timestamp | None,
 ) -> tuple[pd.Timestamp, float, str, str] | None:
+    if execution_date is None or pd.isna(execution_date):
+        return None
     signal_date = pd.to_datetime(order["signal_date"])
     symbol = str(order["stock_id"]).strip()
-    history = load_price_history(engine, start_date=signal_date.strftime("%Y-%m-%d"))
+    history = load_price_history(
+        engine,
+        start_date=execution_date.strftime("%Y-%m-%d"),
+        end_date=execution_date.strftime("%Y-%m-%d"),
+    )
     if history.empty:
         return None
     history = history[
-        (pd.to_datetime(history["trade_date"]) > signal_date) & (history["symbol"].astype(str).str.strip() == symbol)
+        (pd.to_datetime(history["trade_date"]).dt.normalize() == execution_date.normalize())
+        & (pd.to_datetime(history["trade_date"]) > signal_date)
+        & (history["symbol"].astype(str).str.strip() == symbol)
     ].copy()
     if history.empty:
         return None
@@ -456,14 +465,19 @@ def _order_timing(engine: Engine, order: pd.Series) -> dict[str, object]:
     base_date = _order_base_date(order)
     if base_date is None:
         return {"attempted_execution_date": None, "order_age_trading_days": ""}
+    symbol = str(order.get("stock_id", "")).strip()
     history = load_price_history(engine, start_date=base_date.strftime("%Y-%m-%d"))
     if history.empty:
         return {"attempted_execution_date": None, "order_age_trading_days": 0}
+    if symbol and "symbol" in history.columns:
+        history = history[history["symbol"].astype(str).str.strip() == symbol].copy()
     dates = pd.to_datetime(history["trade_date"], errors="coerce").dropna().drop_duplicates().sort_values()
     dates = dates[dates > base_date]
     if dates.empty:
         return {"attempted_execution_date": None, "order_age_trading_days": 0}
-    attempted = pd.to_datetime(dates.max())
+    # Late-runner policy: use the current/latest available symbol date as the
+    # attempted execution date, and expire by elapsed tradable days to that date.
+    attempted = pd.to_datetime(dates.iloc[-1])
     return {"attempted_execution_date": attempted, "order_age_trading_days": int(len(dates))}
 
 

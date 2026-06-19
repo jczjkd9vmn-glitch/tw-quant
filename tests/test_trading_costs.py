@@ -108,20 +108,20 @@ def test_sell_commission_tax_slippage_and_after_cost_pnl(tmp_path: Path) -> None
     assert trade["entry_commission"] == 9.09
     assert trade["buy_commission"] == 9.09
     assert trade["buy_slippage_cost"] == 9.0
-    assert trade["exit_price_raw"] == 90.0
-    assert trade["exit_price"] == 89.1
-    assert trade["exit_slippage"] == 0.9
-    assert trade["exit_commission"] == 8.02
-    assert trade["sell_commission"] == 8.02
-    assert trade["exit_tax"] == 2.41
-    assert trade["sell_tax"] == 2.41
-    assert trade["sell_slippage_cost"] == 8.1
-    assert trade["total_cost"] == 36.62
-    assert trade["realized_pnl"] == -126.62
-    assert trade["realized_pnl_after_cost"] == -126.62
-    assert trade["realized_pnl_pct_after_cost"] == -0.137917
-    assert summary["realized_pnl_after_cost"] == -126.62
-    assert summary["total_equity_after_cost"] == 9873.38
+    assert trade["exit_price_raw"] == 95.0
+    assert trade["exit_price"] == 94.05
+    assert trade["exit_slippage"] == 0.95
+    assert trade["exit_commission"] == 8.46
+    assert trade["sell_commission"] == 8.46
+    assert trade["exit_tax"] == 2.54
+    assert trade["sell_tax"] == 2.54
+    assert trade["sell_slippage_cost"] == 8.55
+    assert trade["total_cost"] == 37.64
+    assert trade["realized_pnl"] == -82.64
+    assert trade["realized_pnl_after_cost"] == -82.64
+    assert trade["realized_pnl_pct_after_cost"] == -0.090013
+    assert summary["realized_pnl_after_cost"] == -82.64
+    assert summary["total_equity_after_cost"] == 9917.36
 
 
 def _engine_with_prices(tmp_path: Path, frames: list[pd.DataFrame]):

@@ -32,6 +32,60 @@ def test_pending_order_executes_on_next_valid_trading_day_using_open(tmp_path: P
     assert float(trade["entry_price"]) == 101.0
 
 
+def test_pending_order_does_not_backfill_retroactively_when_runner_is_late(tmp_path: Path) -> None:
+    _write_risk_report(tmp_path)
+    run_paper_trade(reports_dir=tmp_path, capital=1_000_000)
+    engine = _engine_with_prices(
+        tmp_path,
+        [
+            _price_frame("20260509", open_price=101.0, close=103.0),
+            _price_frame("20260510", open_price=110.0, close=112.0),
+        ],
+    )
+
+    result = execute_pending_orders(engine, reports_dir=tmp_path, capital=1_000_000)
+
+    order = result.executed_orders.iloc[0]
+    assert order["attempted_execution_date"] == "2026-05-10"
+    assert order["actual_entry_date"] == "2026-05-10"
+    assert int(order["order_age_trading_days"]) == 2
+    assert float(order["entry_price"]) == 110.0
+    assert order["actual_entry_date"] != "2026-05-09"
+
+
+def test_pending_order_expiry_uses_elapsed_trading_days_to_attempted_execution_date(tmp_path: Path) -> None:
+    _write_risk_report(tmp_path)
+    run_paper_trade(reports_dir=tmp_path, capital=1_000_000)
+    engine = _engine_with_prices(
+        tmp_path,
+        [
+            _price_frame("20260509", open_price=101.0, close=103.0),
+            _price_frame("20260510", open_price=110.0, close=112.0),
+            _price_frame("20260511", open_price=120.0, close=121.0),
+        ],
+    )
+
+    result = execute_pending_orders(
+        engine,
+        reports_dir=tmp_path,
+        capital=1_000_000,
+        config={
+            "pending_order": {"expire_after_trading_days": 1},
+            "paper_trading_guardrails": {"enabled": False},
+            "market_regime": {"enabled": False},
+        },
+    )
+
+    pending = pd.read_csv(tmp_path / "pending_orders_20260508.csv", dtype={"stock_id": str})
+    rejected = pd.read_csv(tmp_path / "rejected_paper_orders_20260511.csv", dtype={"stock_id": str})
+    order = pending.iloc[0]
+    assert result.executed_orders.empty
+    assert order["status"] == "EXPIRED"
+    assert order["attempted_execution_date"] == "2026-05-11"
+    assert int(order["order_age_trading_days"]) == 3
+    assert rejected.iloc[0]["final_order_status"] == "EXPIRED"
+
+
 def test_pending_order_falls_back_to_close_when_open_is_invalid(tmp_path: Path) -> None:
     _write_risk_report(tmp_path)
     run_paper_trade(reports_dir=tmp_path, capital=1_000_000)

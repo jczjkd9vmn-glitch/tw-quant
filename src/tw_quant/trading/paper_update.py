@@ -212,11 +212,11 @@ def update_paper_positions(
         )
 
     selected_date = pd.to_datetime(prices["trade_date"].max())
-    close_by_symbol = {str(row["symbol"]).strip(): float(row["close"]) for _, row in prices.iterrows()}
+    price_bars = {str(row["symbol"]).strip(): row for _, row in prices.iterrows()}
     history = load_price_history(engine, end_date=selected_date.strftime("%Y-%m-%d"))
     updated = _update_trades(
         trades,
-        close_by_symbol,
+        price_bars,
         history,
         selected_date,
         _resolve_trading_cost(trading_cost),
@@ -313,7 +313,7 @@ def _load_paper_trades(trades_path: Path) -> pd.DataFrame:
 
 def _update_trades(
     trades: pd.DataFrame,
-    close_by_symbol: dict[str, float],
+    price_bars: dict[str, pd.Series],
     history: pd.DataFrame,
     trade_date: pd.Timestamp,
     cost_config: TradingCostConfig,
@@ -324,10 +324,15 @@ def _update_trades(
         if row["status"] != "OPEN":
             continue
         stock_id = str(row["stock_id"]).strip()
-        if stock_id not in close_by_symbol:
+        if stock_id not in price_bars:
             continue
 
-        current_price = close_by_symbol[stock_id]
+        price_bar = price_bars[stock_id]
+        current_price = _positive_price(price_bar.get("close")) or _positive_price(price_bar.get("open"))
+        if current_price is None:
+            continue
+        day_open = _positive_price(price_bar.get("open")) or current_price
+        day_low = _positive_price(price_bar.get("low")) or min(day_open, current_price)
         entry_price = float(row["entry_price"])
         original_shares = _safe_float(row.get("original_shares")) or _safe_float(row.get("shares"))
         remaining_shares = _safe_float(row.get("remaining_shares")) or _safe_float(row.get("shares"))
@@ -349,7 +354,7 @@ def _update_trades(
         unrealized_pnl = round(market_value - position_value, 2)
         unrealized_pnl_pct = round((current_price / entry_price) - 1, 6) if entry_price else 0.0
         holding_days = _trading_days_held(history, stock_id, row.get("trade_date"), trade_date)
-        stop_loss_hit = current_price <= stop_loss
+        stop_loss_hit = day_low <= stop_loss
 
         frame.loc[index, "original_shares"] = original_shares
         frame.loc[index, "remaining_shares"] = remaining_shares
@@ -365,11 +370,13 @@ def _update_trades(
         frame.loc[index, "trailing_stop_price"] = trailing_stop_price if trailing_stop_price > 0 else None
         frame.loc[index, "last_exit_realized_pnl_after_cost"] = 0.0
 
-        exit_reason, sell_shares = _select_exit_action(
+        exit_reason, sell_shares, exit_raw_price = _select_exit_action(
             row=frame.loc[index],
             stock_id=stock_id,
             history=history,
             current_price=current_price,
+            day_open=day_open,
+            day_low=day_low,
             entry_price=entry_price,
             remaining_shares=remaining_shares,
             unrealized_pnl_pct=unrealized_pnl_pct,
@@ -384,6 +391,7 @@ def _update_trades(
                 stock_id=stock_id,
                 trade_date=trade_date,
                 current_price=current_price,
+                exit_raw_price=exit_raw_price,
                 entry_price=entry_price,
                 original_shares=original_shares,
                 sell_shares=min(sell_shares, remaining_shares),
@@ -400,33 +408,39 @@ def _select_exit_action(
     stock_id: str,
     history: pd.DataFrame,
     current_price: float,
+    day_open: float,
+    day_low: float,
     entry_price: float,
     remaining_shares: float,
     unrealized_pnl_pct: float,
     holding_days: int,
     trailing_stop_price: float,
     exit_config: ExitStrategyConfig,
-) -> tuple[str, float]:
-    if current_price <= float(row["stop_loss_price"]):
-        return "stop_loss", remaining_shares
+) -> tuple[str, float, float]:
+    stop_loss_price = float(row["stop_loss_price"])
+    stop_exit_price = _stop_exit_price(day_open, day_low, stop_loss_price)
+    if stop_exit_price is not None:
+        return "stop_loss", remaining_shares, stop_exit_price
+    # Take-profit remains close-based to preserve the existing daily paper-trading semantics.
     if (
         unrealized_pnl_pct >= exit_config.take_profit_1_pct
         and not _bool_value(row.get("partial_exit_1_done"))
     ):
-        return "take_profit_1", max(1.0, remaining_shares * exit_config.take_profit_1_sell_pct)
+        return "take_profit_1", max(1.0, remaining_shares * exit_config.take_profit_1_sell_pct), current_price
     if (
         unrealized_pnl_pct >= exit_config.take_profit_2_pct
         and not _bool_value(row.get("partial_exit_2_done"))
     ):
-        return "take_profit_2", max(1.0, remaining_shares * exit_config.take_profit_2_sell_pct)
-    if trailing_stop_price > 0 and current_price <= trailing_stop_price:
-        return "trailing_stop", remaining_shares
+        return "take_profit_2", max(1.0, remaining_shares * exit_config.take_profit_2_sell_pct), current_price
+    trailing_exit_price = _stop_exit_price(day_open, day_low, trailing_stop_price)
+    if trailing_exit_price is not None:
+        return "trailing_stop", remaining_shares, trailing_exit_price
     ma_value = _ma_value(history, stock_id, exit_config.ma_exit_window)
     if ma_value is not None and current_price < ma_value:
-        return "ma20_break", remaining_shares
+        return "ma20_break", remaining_shares, current_price
     if holding_days > exit_config.max_holding_days and unrealized_pnl_pct < exit_config.min_profit_for_holding:
-        return "max_holding_days", remaining_shares
-    return "", 0.0
+        return "max_holding_days", remaining_shares, current_price
+    return "", 0.0, current_price
 
 
 def _apply_exit(
@@ -436,6 +450,7 @@ def _apply_exit(
     stock_id: str,
     trade_date: pd.Timestamp,
     current_price: float,
+    exit_raw_price: float,
     entry_price: float,
     original_shares: float,
     sell_shares: float,
@@ -448,7 +463,7 @@ def _apply_exit(
     row = frame.loc[index]
     remaining_before = _safe_float(row.get("remaining_shares")) or _safe_float(row.get("shares"))
     sell_shares = min(sell_shares, remaining_before)
-    exit_costs = calculate_exit(current_price, sell_shares, stock_id, cost_config)
+    exit_costs = calculate_exit(exit_raw_price, sell_shares, stock_id, cost_config)
     exit_price = exit_costs["exit_price"]
     entry_commission = _safe_float(row.get("buy_commission")) or _safe_float(row.get("entry_commission"))
     entry_slippage = _safe_float(row.get("entry_slippage"))
@@ -677,6 +692,21 @@ def _bool_value(value: object) -> bool:
     except TypeError:
         pass
     return bool(value)
+
+
+def _positive_price(value: object) -> float | None:
+    price = _safe_float(value)
+    return price if price > 0 else None
+
+
+def _stop_exit_price(day_open: float, day_low: float, stop_price: float) -> float | None:
+    if stop_price <= 0:
+        return None
+    if day_open <= stop_price:
+        return day_open
+    if day_low <= stop_price:
+        return stop_price
+    return None
 
 
 def _safe_float(value: object) -> float:

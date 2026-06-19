@@ -111,8 +111,14 @@ class BacktestEngine:
                 holding_days = int((current_date - position["entry_date"]).days)
                 exit_price: float | None = None
                 exit_reason: str | None = None
-                if float(row["low"]) <= float(position["stop_loss"]):
-                    exit_price = float(position["stop_loss"])
+                stop_loss = float(position["stop_loss"])
+                open_price = float(row["open"])
+                low_price = float(row["low"])
+                if open_price <= stop_loss:
+                    exit_price = open_price
+                    exit_reason = "跳空跌破停損"
+                elif low_price <= stop_loss:
+                    exit_price = stop_loss
                     exit_reason = "觸及停損"
                 elif holding_days >= self.config.max_holding_days:
                     exit_price = float(row["close"])

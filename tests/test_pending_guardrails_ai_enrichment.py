@@ -37,13 +37,16 @@ def test_execution_guardrail_blocked_pending_order_is_not_executed(tmp_path: Pat
 def test_expired_pending_order_does_not_execute_and_writes_report(tmp_path: Path) -> None:
     _write_pending(tmp_path, signal_date="2026-05-15", candidate_grade="A")
     engine = _engine_with_prices(tmp_path, ["2026-05-16", "2026-05-17"])
+    config = _config()
+    config["pending_order"]["expire_after_trading_days"] = 0
 
-    result = execute_pending_orders(engine, reports_dir=tmp_path, capital=1_000_000, config=_config())
+    result = execute_pending_orders(engine, reports_dir=tmp_path, capital=1_000_000, config=config)
 
     pending = pd.read_csv(tmp_path / "pending_orders_20260515.csv", dtype={"stock_id": str})
     rejected = pd.read_csv(tmp_path / "rejected_paper_orders_20260517.csv", dtype={"stock_id": str})
     assert result.executed_orders.empty
     assert pending.iloc[0]["status"] == "EXPIRED"
+    assert pending.iloc[0]["attempted_execution_date"] == "2026-05-17"
     assert int(pending.iloc[0]["order_age_trading_days"]) == 2
     assert rejected.iloc[0]["final_order_status"] == "EXPIRED"
 

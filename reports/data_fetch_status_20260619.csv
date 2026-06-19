@@ -1,0 +1,10 @@
+source_name,provider_maturity,status,rows,warning,error_message,fallback_action,requested_period,actual_period,latest_available_period,source_url_or_name,is_real_data,is_mock,is_stale,data_age_days,coverage_ratio,affected_symbols_count
+monthly_revenue,best_effort,OK_WITH_FALLBACK,1082,requested month 202606 unavailable; used latest available month 202605,,wrote_new_data,202606,202605,202605,https://openapi.twse.com.tw/v1/opendata/t187ap05_L,True,False,False,49.0,1.0,1082.0
+valuation,best_effort,OK_WITH_FALLBACK,1077,"provider failed; fallback to local csv or neutral scores; provider failed, kept existing csv; 官方來源本次無法提供新資料，保留既有 CSV，rows 為既有資料筆數。","ConnectTimeout: HTTPSConnectionPool(host='openapi.twse.com.tw', port=443): Max retries exceeded with url: /v1/exchangeReport/BWIBBU_ALL (Caused by ConnectTimeoutError(<HTTPSConnection(host='openapi.twse.com.tw', port=443) at 0x7f444d8e7e60>, 'Connection to openapi.twse.com.tw timed out. (connect ...",kept_existing_csv,,,,,False,False,False,,,
+financials,best_effort,OK,1043,,,wrote_new_data,,115Q1,115Q1,https://openapi.twse.com.tw/v1/opendata/t187ap06_L_ci,True,False,False,,1.0,1043.0
+material_events,best_effort,OK,294,,,wrote_new_data,,,,https://openapi.twse.com.tw/v1/opendata/t187ap04_L,True,False,False,,1.0,294.0
+institutional,best_effort,OK_WITH_FALLBACK,1318,"official source returned no data; provider empty, kept existing csv; 官方來源本次無法提供新資料，保留既有 CSV，rows 為既有資料筆數。",,kept_existing_csv,,,,,False,False,False,,,
+margin_short,best_effort,OK_WITH_FALLBACK,1278,"official source returned no data; provider empty, kept existing csv; 官方來源本次無法提供新資料，保留既有 CSV，rows 為既有資料筆數。",,kept_existing_csv,,,,,False,False,False,,,
+attention_disposition,best_effort,OK,17,,,wrote_new_data,,,,,False,False,False,,,
+sector_strength,local_derived,OK_WITH_FALLBACK,1367,50 檔缺少產業分類，使用全市場相對強弱,,used_local_fallback,20260619,2026-06-18,2026-06-18,SQLite local OHLCV data,True,False,False,1.0,1.0,1367.0
+liquidity,local_derived,OK,1367,部分股票流動性偏低或價量資料不足,,wrote_new_data,20260619,2026-06-18,2026-06-18,SQLite local OHLCV data,True,False,False,1.0,1.0,1367.0

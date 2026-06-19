@@ -68,8 +68,8 @@ COLUMN_LABELS = {
     "institutional_positive_candidates": "籌碼加分候選股數",
     "multi_factor_data_status": "多因子資料更新狀態",
     "total_capital": "初始資金",
-    "invested_value": "投入金額",
-    "market_value": "目前市值",
+    "invested_value": "持倉投入成本",
+    "market_value": "持倉市值",
     "cash": "現金",
     "stock_id": "股票代號",
     "stock_name": "股票名稱",
@@ -128,7 +128,7 @@ COLUMN_LABELS = {
     "shares": "股數",
     "original_shares": "原始股數",
     "remaining_shares": "剩餘股數",
-    "position_value": "投入金額",
+    "position_value": "持倉投入成本",
     "status": "狀態",
     "signal_date": "訊號日",
     "planned_entry_date": "計畫進場日",
@@ -1240,6 +1240,8 @@ def _render_page(
     data_quality_health = _refresh_data_quality_health(report_dir, candidates, data_fetch_status)
     risk_pass = _normalize_attention_disposition_display(_enrich_with_fundamentals(risk_pass, candidates))
     market_intel = _normalize_attention_disposition_display(market_intel)
+    freshness_state = _freshness_snapshot(latest_summary, market_intel)
+    latest_summary = _summary_with_freshness(latest_summary, freshness_state)
     enrichment_source = _combined_enrichment_sources(ai_enrichment, candidates, risk_pass, market_intel)
     open_positions = _filter_status(paper_trades, "OPEN")
     closed_trades = _filter_status(paper_trades, "CLOSED")
@@ -1459,8 +1461,15 @@ def _render_page(
                 market_intel,
                 missing_industry_priority,
                 anysearch_industry_candidates,
+                freshness_state,
             ),
-            _freshness_readiness_dashboard(report_dir, latest_summary, performance_diagnostics, market_intel),
+            _freshness_readiness_dashboard(
+                report_dir,
+                latest_summary,
+                performance_diagnostics,
+                market_intel,
+                freshness_state,
+            ),
             _benchmark_alpha_section(report_dir, latest_summary, latest_paper_summary, recent_summaries),
             _risk_adjusted_alpha_section(performance_diagnostics),
             _underperformance_attribution_section(underperformance_attribution, performance_diagnostics),
@@ -1537,7 +1546,7 @@ def _render_page(
             "</head>",
             "<body>",
             '<main class="page">',
-            _account_header_v2(latest_summary, updated_at),
+            _account_header_v2(latest_summary, updated_at, freshness_state),
             alert,
             _nav_tabs_v2(),
             _section_shortcuts(),
@@ -1598,10 +1607,15 @@ def _nav_tabs() -> str:
     return f'<nav class="section-tabs tab-nav" aria-label="報表區塊導覽">{"".join(buttons)}</nav>'
 
 
-def _account_header_v2(summary: dict[str, object], updated_at: str) -> str:
-    requested = _format_cell("requested_date", summary.get("requested_date") or summary.get("trade_date"))
-    trade_date = _format_cell("trade_date", summary.get("trade_date"))
-    use_recent = "是" if _uses_recent_data(summary) else "否"
+def _account_header_v2(
+    summary: dict[str, object],
+    updated_at: str,
+    freshness: dict[str, object] | None = None,
+) -> str:
+    freshness = freshness or _freshness_snapshot(summary, pd.DataFrame())
+    requested = _format_cell("requested_date", freshness.get("requested_date") or summary.get("requested_date") or summary.get("trade_date"))
+    trade_date = _format_cell("trade_date", freshness.get("trade_date") or summary.get("trade_date"))
+    use_recent = "是" if bool(freshness.get("used_latest_available")) else "否"
     meta = [
         ("原始執行日期", requested),
         ("實際交易日", trade_date),
@@ -1706,6 +1720,26 @@ def _normalize_summary_freshness_frame(frame: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=frame.columns)
 
 
+def _summary_with_freshness(summary: dict[str, object], freshness: dict[str, object]) -> dict[str, object]:
+    if not summary:
+        return summary
+    output = dict(summary)
+    for column in [
+        "requested_date",
+        "trade_date",
+        "actual_data_date",
+        "fallback_date",
+        "fallback_reason",
+        "cache_age_days",
+        "data_freshness_level",
+        "is_stale_data",
+        "used_latest_available",
+    ]:
+        if column in freshness:
+            output[column] = freshness[column]
+    return output
+
+
 def _overview_dashboard(
     summary: dict[str, object],
     paper_summary: dict[str, object],
@@ -1713,9 +1747,10 @@ def _overview_dashboard(
     market_intel: pd.DataFrame,
     missing_industry_priority: pd.DataFrame,
     anysearch_candidates: pd.DataFrame,
+    freshness_state: dict[str, object] | None = None,
 ) -> str:
     data_frame = market_intel
-    freshness = _freshness_snapshot(summary, data_frame)
+    freshness = freshness_state or _freshness_snapshot(summary, data_frame)
     requested = _format_cell("requested_date", freshness["requested_date"])
     trade_date = _format_cell("trade_date", freshness["trade_date"])
     actual_data_date = _format_cell("actual_data_date", freshness["actual_data_date"])
@@ -1842,6 +1877,7 @@ def _freshness_readiness_dashboard(
     summary: dict[str, object],
     performance_diagnostics: pd.DataFrame,
     market_intel: pd.DataFrame | None = None,
+    freshness_state: dict[str, object] | None = None,
 ) -> str:
     if not summary:
         return _section(
@@ -1866,7 +1902,7 @@ def _freshness_readiness_dashboard(
     except Exception:
         risk_alpha = {}
 
-    freshness = _freshness_snapshot(summary, market_intel if market_intel is not None else pd.DataFrame())
+    freshness = freshness_state or _freshness_snapshot(summary, market_intel if market_intel is not None else pd.DataFrame())
     requested_raw = freshness["requested_date"]
     trade_raw = freshness["trade_date"]
     actual_raw = freshness["actual_data_date"]
@@ -2002,10 +2038,10 @@ def _freshness_readiness_dashboard(
 
 def _freshness_snapshot(summary: dict[str, object], market_intel: pd.DataFrame) -> dict[str, object]:
     frame = market_intel if market_intel is not None else pd.DataFrame()
-    requested = _market_intel_requested_date(summary, frame)
-    trade_date = _market_intel_reference_date(summary, frame)
-    actual_data_date = _market_intel_actual_data_date(summary, frame)
-    fallback_date = _market_intel_fallback_date(summary, frame)
+    requested = _normalized_date_text(_market_intel_requested_date(summary, frame))
+    trade_date = _normalized_date_text(_market_intel_reference_date(summary, frame))
+    actual_data_date = _normalized_date_text(_market_intel_actual_data_date(summary, frame))
+    fallback_date = _normalized_date_text(_market_intel_fallback_date(summary, frame))
     fallback_reason = _market_intel_fallback_reason(summary, frame)
     cache_age_days = _market_intel_cache_age_days(summary, frame)
     age = int(cache_age_days) if cache_age_days is not None else 0
@@ -2013,16 +2049,16 @@ def _freshness_snapshot(summary: dict[str, object], market_intel: pd.DataFrame) 
     is_stale = _market_intel_is_stale(summary, frame) or age > 0
     if is_stale and freshness_level in {"UNKNOWN", "CURRENT", "RECENT"}:
         freshness_level = "STALE"
-    used_latest = (
-        _truthy(summary.get("used_latest_available"))
-        or bool(_clean_text(fallback_date))
-        or is_stale
+    fallback_switched = bool(
+        (requested and fallback_date and requested != fallback_date)
+        or (requested and trade_date and requested != trade_date)
     )
+    used_latest = _truthy(summary.get("used_latest_available")) or fallback_switched or is_stale
     return {
-        "requested_date": requested,
-        "trade_date": trade_date,
-        "actual_data_date": actual_data_date,
-        "fallback_date": fallback_date,
+        "requested_date": requested or "-",
+        "trade_date": trade_date or "-",
+        "actual_data_date": actual_data_date or "-",
+        "fallback_date": fallback_date or "-",
         "fallback_reason": fallback_reason,
         "cache_age_days": age,
         "cache_age_text": f"{age:,.0f} 天" if cache_age_days is not None else "-",
@@ -2256,7 +2292,7 @@ def _asset_pnl_donut_card(
     cash_pct = max(0.0, min(100.0, cash_value / total_equity * 100.0)) if total_equity else 0.0
     allocation_items = _asset_allocation_items(open_positions, total_equity)
     bottom_metrics = [
-        ("總成本", _format_number_or_dash(invested_value), None),
+        ("持倉投入成本", _format_number_or_dash(invested_value), None),
         ("未實現損益", _signed_or_dash(unrealized), unrealized),
         ("已實現損益", _signed_or_dash(realized), realized),
         ("是否允許新增持倉", new_entries_allowed, None),
@@ -4010,7 +4046,7 @@ def _position_cards(frame: pd.DataFrame) -> str:
             ("剩餘股數", _format_cell("remaining_shares", row.get("remaining_shares") if not _is_blank(row.get("remaining_shares")) else row.get("shares"))),
             ("成交均價", _format_cell("entry_price", row.get("entry_price"))),
             ("最新價格", _format_cell("current_price", row.get("current_price"))),
-            ("目前市值", _format_cell("market_value", row.get("market_value"))),
+            ("持倉市值", _format_cell("market_value", row.get("market_value"))),
         ]
         metrics.extend(
             [
@@ -4947,6 +4983,8 @@ def _append_unique_text(base: object, addition: str) -> str:
 
 
 def _uses_recent_data(summary: dict[str, object]) -> bool:
+    if _truthy(summary.get("used_latest_available")):
+        return True
     requested = _normalized_date_text(summary.get("requested_date"))
     trade_date = _normalized_date_text(summary.get("trade_date"))
     fallback = _normalized_date_text(summary.get("fallback_date"))
@@ -6220,8 +6258,8 @@ def _paper_performance(summary: dict[str, object], closed_trades: pd.DataFrame, 
     if summary:
         cards = [
             ("初始資金", _format_cell("total_capital", summary.get("total_capital"))),
-            ("投入金額", _format_cell("invested_value", summary.get("invested_value"))),
-            ("目前市值", _format_cell("market_value", summary.get("market_value"))),
+            ("持倉投入成本", _format_cell("invested_value", summary.get("invested_value"))),
+            ("持倉市值", _format_cell("market_value", summary.get("market_value"))),
             ("現金", _format_cell("cash", summary.get("cash"))),
             ("未實現損益", _format_cell("unrealized_pnl", summary.get("unrealized_pnl"))),
             ("已實現損益", _format_cell("realized_pnl", summary.get("realized_pnl"))),

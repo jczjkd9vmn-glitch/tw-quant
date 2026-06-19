@@ -264,6 +264,58 @@ def test_freshness_dashboards_share_market_intel_source_when_summary_actual_blan
     assert "正式長期打敗大盤：是" not in freshness
 
 
+def test_html_report_uses_single_freshness_source_everywhere(tmp_path: Path) -> None:
+    pd.DataFrame(
+        [
+            {
+                "requested_date": "2026-06-13",
+                "trade_date": "2026-06-13",
+                "status": "OK",
+                "total_capital": 1_000_000,
+                "total_equity_after_cost": 1_000_000,
+                "actual_data_date": "",
+                "fallback_date": "",
+                "fallback_reason": "",
+                "used_latest_available": False,
+                "cache_age_days": "",
+                "is_stale_data": False,
+                "data_freshness_level": "CURRENT",
+                "market_intel_status": "OK",
+            }
+        ]
+    ).to_csv(tmp_path / "daily_summary_20260613.csv", index=False, encoding="utf-8")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-06-13",
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "requested_date": "2026-06-13",
+                "actual_data_date": "2026-06-09",
+                "cache_age_days": 4,
+                "is_stale_data": True,
+                "data_freshness_level": "STALE",
+                "market_intel_status": "OK",
+                "final_market_score": 50,
+                "confidence_score": 50,
+            }
+        ]
+    ).to_csv(tmp_path / "market_intel_20260613.csv", index=False, encoding="utf-8")
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+    header = html.split('<header class="account-header brokerage-header">', 1)[1].split("</header>", 1)[0]
+    overview = html.split('<section id="dashboard-overview"', 1)[1].split('<section id="freshness-readiness-dashboard"', 1)[0]
+    freshness = html.split('<section id="freshness-readiness-dashboard"', 1)[1].split('<section id="benchmark-alpha"', 1)[0]
+
+    assert "<b>是否使用最近有效資料</b><strong>是</strong>" in header
+    assert "<b>實際資料日</b><em>2026-06-09</em>" in overview
+    assert "<b>實際資料日</b><em>2026-06-09</em>" in freshness
+    assert "使用最近有效資料：是" in freshness
+    assert "是否使用最近有效資料</b><strong>否</strong>" not in header
+    assert "使用最近有效資料：否" not in freshness
+
+
 def test_freshness_readiness_dashboard_marks_stale_cache_age_and_windows(tmp_path: Path) -> None:
     pd.DataFrame(
         [
@@ -491,7 +543,7 @@ def test_generate_html_report_has_modern_dashboard_sections_and_badges(tmp_path:
     assert "資產 / 損益圓環卡" in html
     assert "總報酬率" in html
     assert "前幾大持倉" in html
-    assert "總成本" in html
+    assert "持倉投入成本" in html
     assert "conic-gradient" in html
     assert html.index('id="pnl-overview"') < html.index('id="dashboard-overview"')
     assert html.index('id="pnl-overview"') < html.index("今日損益圖")
@@ -518,6 +570,19 @@ def test_generate_html_report_has_modern_dashboard_sections_and_badges(tmp_path:
     assert "5 日市場報酬" in html
     assert "20 日均線站上比例" in html
     assert 'class="status-badge badge-ok freshness-badge"' in html
+
+
+def test_html_report_labels_invested_value_not_total_cost(tmp_path: Path) -> None:
+    _write_reports(tmp_path)
+
+    output_path = generate_html_report(tmp_path)
+    html = output_path.read_text(encoding="utf-8")
+    pnl = html.split('id="pnl-overview"', 1)[1].split('id="dashboard-overview"', 1)[0]
+
+    assert "持倉投入成本" in pnl
+    assert "累計交易成本" in pnl
+    assert "持倉市值" in html
+    assert "總成本" not in pnl
     assert 'class="status-badge badge-ok guardrail-badge"' in html
     assert 'data-section-target="missing-industry-section"' in html
     assert 'data-section-target="anysearch-candidates-section"' in html

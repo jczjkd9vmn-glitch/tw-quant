@@ -3,7 +3,7 @@ run_date,trade_date,check_name,category,health_status,severity,review_level,revi
 2026-06-19,,候選股投資風險,candidate,ATTENTION,MEDIUM,RISK_REVIEW,18 檔候選股有投資風險註記,18 檔候選股有投資風險註記,,False,True,20,18,18,,,,,
 2026-06-19,,產業分類覆蓋率,industry,OK,LOW,OK,0 檔缺少產業分類，使用全市場相對強弱 fallback,0 檔缺少產業分類，使用全市場相對強弱 fallback,,False,False,20,0,0,,,,,
 2026-06-19,,資料來源：monthly_revenue,source,ATTENTION,MEDIUM,DATA_REVIEW,monthly_revenue 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,monthly_revenue 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,,True,False,1082,1082,1082,,monthly_revenue,OK_WITH_FALLBACK,wrote_new_data,
-2026-06-19,,資料來源：valuation,source,ATTENTION,MEDIUM,DATA_REVIEW,valuation 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,valuation 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,,True,False,1077,1077,0,,valuation,OK_WITH_FALLBACK,kept_existing_csv,
+2026-06-19,,資料來源：valuation,source,OK,LOW,OK,資料來源正常,資料來源正常,,False,False,1078,1078,1078,,valuation,OK,wrote_new_data,
 2026-06-19,,資料來源：financials,source,OK,LOW,OK,資料來源正常,資料來源正常,,False,False,1043,1043,1043,,financials,OK,wrote_new_data,
 2026-06-19,,資料來源：material_events,source,OK,LOW,OK,資料來源正常,資料來源正常,,False,False,294,294,294,,material_events,OK,wrote_new_data,
 2026-06-19,,資料來源：institutional,source,ATTENTION,MEDIUM,DATA_REVIEW,institutional 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,institutional 使用既有資料或 fallback，屬資料完整度問題，不等同投資風險,,True,False,1318,1318,0,,institutional,OK_WITH_FALLBACK,kept_existing_csv,

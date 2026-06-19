@@ -48,6 +48,56 @@ def test_update_paper_positions_closes_stop_loss(tmp_path) -> None:
     assert bool(row["stop_loss_hit"])
 
 
+def test_stop_loss_triggers_when_intraday_low_breaks_stop_even_if_close_recovers(tmp_path) -> None:
+    engine = create_db_engine("sqlite:///:memory:")
+    init_db(engine)
+    _write_trades(tmp_path, [_trade("2330", entry_price=100, shares=10, stop_loss=90)])
+    save_daily_prices(
+        engine,
+        _ohlc_prices(
+            "20260509",
+            [
+                {"symbol": "2330", "open": 95, "high": 102, "low": 89, "close": 99},
+            ],
+        ),
+    )
+
+    result = update_paper_positions(engine, reports_dir=tmp_path, trade_date="20260509", capital=10_000)
+
+    row = result.updated_trades.iloc[0]
+    assert row["status"] == "CLOSED"
+    assert row["exit_reason"] == "stop_loss"
+    assert row["exit_price"] == 90
+    assert row["realized_pnl"] == -100
+    assert bool(row["stop_loss_hit"])
+
+
+def test_trailing_stop_uses_intraday_low_not_close_only(tmp_path) -> None:
+    engine = create_db_engine("sqlite:///:memory:")
+    init_db(engine)
+    trade = _trade("2330", entry_price=100, shares=10, stop_loss=80)
+    trade["highest_price_since_entry"] = 114
+    trade["trailing_stop_price"] = 104.88
+    _write_trades(tmp_path, [trade])
+    save_daily_prices(
+        engine,
+        _ohlc_prices(
+            "20260509",
+            [
+                {"symbol": "2330", "open": 107.5, "high": 109, "low": 104, "close": 107.5},
+            ],
+        ),
+    )
+
+    result = update_paper_positions(engine, reports_dir=tmp_path, trade_date="20260509", capital=10_000)
+
+    row = result.updated_trades.iloc[0]
+    assert row["status"] == "CLOSED"
+    assert row["exit_reason"] == "trailing_stop"
+    assert row["exit_price"] == 104.88
+    assert row["current_price"] == 107.5
+
+
 def test_update_paper_positions_warns_when_date_has_no_price_data(tmp_path) -> None:
     engine = create_db_engine("sqlite:///:memory:")
     init_db(engine)
@@ -153,6 +203,29 @@ def _prices(trade_date: str, close_by_symbol: dict[str, float]) -> pd.DataFrame:
                 "open": close,
                 "high": close * 1.02,
                 "low": close * 0.98,
+                "close": close,
+                "volume": 1_000_000,
+                "turnover": close * 1_000_000,
+                "market": "TSE",
+                "source": "TEST",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _ohlc_prices(trade_date: str, bars: list[dict[str, float | str]]) -> pd.DataFrame:
+    rows = []
+    for bar in bars:
+        symbol = str(bar["symbol"])
+        close = float(bar["close"])
+        rows.append(
+            {
+                "trade_date": pd.to_datetime(trade_date),
+                "symbol": symbol,
+                "name": symbol,
+                "open": float(bar["open"]),
+                "high": float(bar["high"]),
+                "low": float(bar["low"]),
                 "close": close,
                 "volume": 1_000_000,
                 "turnover": close * 1_000_000,

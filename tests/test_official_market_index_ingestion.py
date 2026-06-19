@@ -131,6 +131,45 @@ def test_benchmark_uses_official_taiex_before_0050_fallback(tmp_path: Path) -> N
     assert snapshot["returns"]["20d"] is None
 
 
+def test_benchmark_prefers_total_return_index_when_available(tmp_path: Path) -> None:
+    rows = []
+    for offset, trade_date in enumerate(pd.bdate_range(end="2026-06-05", periods=6)):
+        rows.append(
+            {
+                "trade_date": trade_date.strftime("%Y-%m-%d"),
+                "index_id": "TAIEX",
+                "index_name": "發行量加權股價指數",
+                "open": 100 + offset,
+                "high": 100 + offset,
+                "low": 100 + offset,
+                "close": 100 + offset,
+                "source": "twse_openapi:MI_5MINS_HIST",
+                "is_official": True,
+            }
+        )
+        rows.append(
+            {
+                "trade_date": trade_date.strftime("%Y-%m-%d"),
+                "index_id": "TAIEX_TR",
+                "index_name": "發行量加權報酬指數",
+                "open": 200 + offset,
+                "high": 200 + offset,
+                "low": 200 + offset,
+                "close": 200 + offset,
+                "source": "twse_official:TAIEX_TR",
+                "is_official": True,
+            }
+        )
+    pd.DataFrame(rows).to_csv(tmp_path / "market_indices.csv", index=False, encoding="utf-8")
+
+    snapshot = select_benchmark_snapshot(tmp_path, "2026-06-05")
+
+    assert snapshot["source_label"] == "正式加權報酬指數"
+    assert snapshot["benchmark_is_official"] is True
+    assert snapshot["warning"] == "official benchmark history_days=6，20d,60d,120d,252d alpha=DATA_INSUFFICIENT"
+    assert snapshot["returns"]["5d"] == 0.025
+
+
 def test_benchmark_window_requires_sufficient_official_history(tmp_path: Path) -> None:
     _write_official_taiex(tmp_path)
 

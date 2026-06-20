@@ -19,10 +19,20 @@ def test_daily_github_actions_workflow_exists_and_contains_required_steps() -> N
     assert "python scripts/backfill.py --days 10 --timeout 30 --retries 3 --sleep 1" in text
     assert "python scripts/run_all_daily.py --capital 1000000 --allow-fallback-latest" in text
     assert "python scripts/generate_html_report.py" in text
+    assert "reports/public_report_publish_status.csv" in text
+    assert "public_report.docs_written" in text
     assert "python scripts/send_daily_notification.py" in text
     assert "DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}" in text
     assert "git add data/ reports/ docs/" in text
     assert "git diff --cached --quiet" in text
+    assert "pages: write" in text
+    assert "id-token: write" in text
+    assert "actions/configure-pages@v5" in text
+    assert "actions/upload-pages-artifact@v4" in text
+    assert "path: docs" in text
+    assert "actions/deploy-pages@v4" in text
+    assert "GitHub Pages deploy skipped because public docs were not updated." in text
+    assert "github.ref == 'refs/heads/main'" in text
 
 
 def test_ci_github_actions_workflow_runs_quality_gates() -> None:
@@ -62,6 +72,8 @@ def test_readme_documents_github_actions_setup() -> None:
     assert "reports/" in readme
     assert "繁體中文靜態 HTML 報表" in readme
     assert "GitHub Pages 設定方式" in readme
-    assert "Deploy from a branch" in readme
-    assert "/docs" in readme
+    assert "GitHub Actions" in readme
+    assert "actions/deploy-pages" in readme
+    assert "stale_docs_behavior: keep_previous" in readme
+    assert "docs/index.html" in readme
     assert "DISCORD_WEBHOOK_URL" in readme

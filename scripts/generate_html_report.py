@@ -28,6 +28,7 @@ from tw_quant.reporting.risk_adjusted_alpha import risk_adjusted_alpha_snapshot
 from tw_quant.reporting.strategy_readiness import strategy_can_judge_window, strategy_readiness_snapshot
 from tw_quant.workflow.daily import should_publish_public_report
 
+PUBLIC_REPORT_PUBLISH_STATUS_FILE = "public_report_publish_status.csv"
 
 COLUMN_LABELS = {
     "rank": "排序",
@@ -1192,18 +1193,162 @@ def generate_html_report(
     output_path = report_dir / "index.html"
     output_path.write_text(html, encoding="utf-8", newline="\n")
     wrote_docs = False
+    docs_index_path: Path | None = None
+    freshness_state = _docs_freshness_state(daily_summary, market_intel)
+    publish_decision = _public_report_publish_decision(
+        freshness_state,
+        active_config,
+        docs_index_path=None,
+        publish_stale_docs=publish_stale_docs,
+    )
     if docs_dir is not None:
         docs_path = Path(docs_dir)
         docs_path.mkdir(parents=True, exist_ok=True)
-        freshness_state = _docs_freshness_state(daily_summary, market_intel)
-        if publish_stale_docs or should_publish_public_report(freshness_state, active_config):
-            (docs_path / "index.html").write_text(html, encoding="utf-8", newline="\n")
+        docs_index_path = docs_path / "index.html"
+        publish_decision = _public_report_publish_decision(
+            freshness_state,
+            active_config,
+            docs_index_path=docs_index_path,
+            publish_stale_docs=publish_stale_docs,
+        )
+        if publish_decision["docs_written"]:
+            docs_index_path.write_text(html, encoding="utf-8", newline="\n")
             wrote_docs = True
+    _write_public_report_publish_status(
+        report_dir,
+        report_index_path=output_path,
+        docs_index_path=docs_index_path,
+        freshness_state=freshness_state,
+        config=active_config,
+        publish_decision=publish_decision,
+    )
     patch_generated_market_regime_readiness_html(
         report_dir,
         Path(docs_dir) if docs_dir is not None and wrote_docs else None,
     )
     return output_path
+
+
+def _public_report_publish_decision(
+    freshness_state: dict[str, object],
+    config: dict[str, object],
+    docs_index_path: Path | None,
+    publish_stale_docs: bool,
+) -> dict[str, object]:
+    if docs_index_path is None:
+        return {
+            "docs_written": False,
+            "docs_publish_status": "DOCS_DISABLED",
+            "docs_publish_reason": "docs_dir was not provided; public docs were not generated.",
+        }
+    if publish_stale_docs:
+        return {
+            "docs_written": True,
+            "docs_publish_status": "PUBLISHED_STALE_OVERRIDE",
+            "docs_publish_reason": "--publish-stale-docs override was used; public docs were overwritten even if data is stale.",
+        }
+    if should_publish_public_report(freshness_state, config):
+        return {
+            "docs_written": True,
+            "docs_publish_status": "PUBLISHED",
+            "docs_publish_reason": "freshness state passed public_report stale policy.",
+        }
+    threshold = _public_report_stale_days_threshold(config)
+    cache_age_days = _status_value(freshness_state, "cache_age_days", "-")
+    actual_data_date = _status_value(freshness_state, "actual_data_date", "-")
+    requested_date = _status_value(freshness_state, "requested_date", _status_value(freshness_state, "trade_date", "-"))
+    return {
+        "docs_written": False,
+        "docs_publish_status": "SKIPPED_STALE",
+        "docs_publish_reason": (
+            "stale data exceeded public_report.stale_days_threshold="
+            f"{threshold} (cache_age_days={cache_age_days}, actual_data_date={actual_data_date}, "
+            f"requested_date={requested_date}); kept previous docs/index.html."
+        ),
+    }
+
+
+def _write_public_report_publish_status(
+    report_dir: Path,
+    report_index_path: Path,
+    docs_index_path: Path | None,
+    freshness_state: dict[str, object],
+    config: dict[str, object],
+    publish_decision: dict[str, object],
+) -> Path:
+    public_report_config = config.get("public_report", {}) if isinstance(config, dict) else {}
+    row = {
+        "generated_at_utc": pd.Timestamp.now(tz="UTC").isoformat(),
+        "reports_index_path": _path_text(report_index_path),
+        "docs_index_path": _path_text(docs_index_path),
+        "docs_written": bool(publish_decision.get("docs_written")),
+        "docs_publish_status": publish_decision.get("docs_publish_status", "UNKNOWN"),
+        "docs_publish_reason": publish_decision.get("docs_publish_reason", ""),
+        "stale_docs_behavior": _status_value(public_report_config, "stale_docs_behavior", "keep_previous"),
+        "stale_days_threshold": _public_report_stale_days_threshold(config),
+        "requested_date": _status_value(
+            freshness_state,
+            "requested_date",
+            _status_value(freshness_state, "trade_date", ""),
+        ),
+        "trade_date": _status_value(freshness_state, "trade_date", ""),
+        "actual_data_date": _status_value(freshness_state, "actual_data_date", ""),
+        "used_latest_available": _status_value(freshness_state, "used_latest_available", ""),
+        "cache_age_days": _status_value(freshness_state, "cache_age_days", ""),
+        "is_stale_data": _status_value(freshness_state, "is_stale_data", ""),
+        "data_freshness_level": _status_value(freshness_state, "data_freshness_level", ""),
+    }
+    path = report_dir / PUBLIC_REPORT_PUBLISH_STATUS_FILE
+    pd.DataFrame([row]).to_csv(path, index=False, encoding="utf-8")
+    return path
+
+
+def _public_report_stale_days_threshold(config: dict[str, object] | None) -> int:
+    if not isinstance(config, dict):
+        return 0
+    public_report = config.get("public_report", {})
+    if isinstance(public_report, dict) and "stale_days_threshold" in public_report:
+        parsed = _int_or_none(public_report.get("stale_days_threshold"))
+        return parsed if parsed is not None else 0
+    market_intel = config.get("market_intel", {})
+    if isinstance(market_intel, dict):
+        parsed = _int_or_none(market_intel.get("stale_days_threshold"))
+        return parsed if parsed is not None else 0
+    return 0
+
+
+def _int_or_none(value: object) -> int | None:
+    try:
+        number = pd.to_numeric(pd.Series([value]), errors="coerce").iloc[0]
+    except Exception:
+        return None
+    if pd.isna(number):
+        return None
+    return int(number)
+
+
+def _status_value(source: object, key: str, default: object = "") -> object:
+    if isinstance(source, dict):
+        value = source.get(key, default)
+    else:
+        value = getattr(source, key, default)
+    if value is None:
+        return default
+    try:
+        if bool(pd.isna(value)):
+            return default
+    except (TypeError, ValueError):
+        pass
+    return value
+
+
+def _path_text(path: Path | None) -> str:
+    if path is None:
+        return ""
+    try:
+        return path.resolve().relative_to(ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
 
 
 def _docs_freshness_state(daily_summary: pd.DataFrame, market_intel: pd.DataFrame) -> dict[str, object]:
@@ -7120,6 +7265,12 @@ def main(argv: Iterable[str] | None = None) -> None:
         publish_stale_docs=args.publish_stale_docs,
     )
     print(f"html_report={output_path}")
+    status = _read_csv(output_path.parent / PUBLIC_REPORT_PUBLISH_STATUS_FILE)
+    if not status.empty:
+        row = status.iloc[-1].to_dict()
+        print(f"pages_report_status={row.get('docs_publish_status', 'UNKNOWN')}")
+        print(f"pages_report_written={str(row.get('docs_written', '')).lower()}")
+        print(f"pages_report_reason={row.get('docs_publish_reason', '')}")
     print(f"pages_report={Path(args.docs_dir) / 'index.html'}")
 
 

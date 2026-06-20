@@ -7,11 +7,23 @@ on:
     - cron: "30 12 * * 1-5"
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: github-pages-daily
+  cancel-in-progress: false
 
 jobs:
   daily:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
+    outputs:
+      docs_written: ${{ steps.public_report.outputs.docs_written }}
+      docs_publish_status: ${{ steps.public_report.outputs.docs_publish_status }}
+      docs_publish_reason: ${{ steps.public_report.outputs.docs_publish_reason }}
 
     steps:
       - name: Checkout repository
@@ -45,6 +57,38 @@ jobs:
       - name: Generate Traditional Chinese HTML report and keep previous public docs if stale
         run: python scripts/generate_html_report.py
 
+      - name: Inspect public report publish status
+        id: public_report
+        shell: bash
+        run: |
+          python - <<'PY'
+          import csv
+          import os
+          from pathlib import Path
+
+          status_path = Path("reports/public_report_publish_status.csv")
+          if not status_path.exists():
+              raise SystemExit("missing reports/public_report_publish_status.csv")
+
+          rows = list(csv.DictReader(status_path.open(encoding="utf-8")))
+          if not rows:
+              raise SystemExit("reports/public_report_publish_status.csv has no rows")
+
+          row = rows[-1]
+          docs_written = str(row.get("docs_written", "")).strip().lower() in {"true", "1", "yes"}
+          docs_publish_status = row.get("docs_publish_status", "UNKNOWN")
+          docs_publish_reason = row.get("docs_publish_reason", "")
+
+          print(f"public_report.docs_written={docs_written}")
+          print(f"public_report.docs_publish_status={docs_publish_status}")
+          print(f"public_report.docs_publish_reason={docs_publish_reason}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              print(f"docs_written={'true' if docs_written else 'false'}", file=output)
+              print(f"docs_publish_status={docs_publish_status}", file=output)
+              print(f"docs_publish_reason={docs_publish_reason}", file=output)
+          PY
+
       - name: Commit updated data and reports
         shell: bash
         run: |
@@ -58,7 +102,44 @@ jobs:
             git push
           fi
 
+      - name: Configure GitHub Pages
+        if: steps.public_report.outputs.docs_written == 'true' && github.ref == 'refs/heads/main'
+        uses: actions/configure-pages@v5
+
+      - name: Upload GitHub Pages artifact
+        if: steps.public_report.outputs.docs_written == 'true' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: docs
+
+      - name: Log skipped GitHub Pages deploy for stale public docs
+        if: steps.public_report.outputs.docs_written != 'true'
+        run: |
+          echo "GitHub Pages deploy skipped because public docs were not updated."
+          echo "status=${{ steps.public_report.outputs.docs_publish_status }}"
+          echo "reason=${{ steps.public_report.outputs.docs_publish_reason }}"
+
+      - name: Log skipped GitHub Pages deploy outside main
+        if: steps.public_report.outputs.docs_written == 'true' && github.ref != 'refs/heads/main'
+        run: echo "GitHub Pages deploy skipped because this workflow is not running on refs/heads/main."
+
       - name: Send daily notification
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: python scripts/send_daily_notification.py
+
+  deploy-pages:
+    needs: daily
+    if: needs.daily.outputs.docs_written == 'true' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy GitHub Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@v4

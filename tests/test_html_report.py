@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from scripts.generate_html_report import generate_html_report
+from scripts.generate_html_report import PUBLIC_REPORT_PUBLISH_STATUS_FILE, generate_html_report
 
 
 def test_generate_html_report_creates_index_with_chinese_content(tmp_path: Path) -> None:
@@ -68,6 +68,10 @@ def test_generate_html_report_creates_docs_index_for_github_pages(tmp_path: Path
     assert "台股紙上交易帳務" in docs_html
     assert "損益總覽" in docs_html
     assert 'lang="zh-Hant"' in docs_html
+    publish_status = pd.read_csv(tmp_path / PUBLIC_REPORT_PUBLISH_STATUS_FILE, encoding="utf-8").iloc[0]
+    assert publish_status["docs_publish_status"] == "PUBLISHED"
+    assert str(publish_status["docs_written"]).lower() == "true"
+    assert str(publish_status["docs_index_path"]).endswith("docs/index.html")
 
 
 def test_daily_workflow_does_not_publish_stale_docs(tmp_path: Path) -> None:
@@ -99,6 +103,11 @@ def test_daily_workflow_does_not_publish_stale_docs(tmp_path: Path) -> None:
     assert reports_index.exists()
     assert "資料過期" in reports_index.read_text(encoding="utf-8")
     assert (docs_dir / "index.html").read_text(encoding="utf-8") == previous_public_html
+    publish_status = pd.read_csv(tmp_path / PUBLIC_REPORT_PUBLISH_STATUS_FILE, encoding="utf-8").iloc[0]
+    assert publish_status["docs_publish_status"] == "SKIPPED_STALE"
+    assert str(publish_status["docs_written"]).lower() == "false"
+    assert publish_status["cache_age_days"] == 3
+    assert "kept previous docs/index.html" in publish_status["docs_publish_reason"]
 
 
 def test_generate_html_report_translates_fallback_status(tmp_path: Path) -> None:
@@ -1477,6 +1486,10 @@ def test_generate_html_report_creates_docs_index_for_github_pages(tmp_path: Path
     assert docs_html == reports_index.read_text(encoding="utf-8")
     assert "台股紙上交易帳務" in docs_html
     assert 'lang="zh-Hant"' in docs_html
+    publish_status = pd.read_csv(tmp_path / PUBLIC_REPORT_PUBLISH_STATUS_FILE, encoding="utf-8").iloc[0]
+    assert publish_status["docs_publish_status"] == "PUBLISHED"
+    assert str(publish_status["docs_written"]).lower() == "true"
+    assert str(publish_status["docs_index_path"]).endswith("docs/index.html")
 
 
 def test_generate_html_report_translates_fallback_status(tmp_path: Path) -> None:

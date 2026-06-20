@@ -30,6 +30,7 @@ STATUS_LABELS = {
     "FAILED": "失敗",
     "no trading data": "無交易資料",
 }
+PUBLIC_REPORT_PUBLISH_STATUS_FILE = "public_report_publish_status.csv"
 
 
 def send_daily_notification(
@@ -80,6 +81,7 @@ def build_notification_message(
     trading_decisions = _load_latest_report(report_dir, "trading_decisions_*.csv")
     ai_enrichment = _load_latest_report(report_dir, "ai_enrichment_*.csv")
     market_recap = _load_latest_report(report_dir, "market_recap_*.csv")
+    public_report_status_line = _public_report_status_line(report_dir)
 
     lines = [
         "台股紙上交易每日摘要",
@@ -103,6 +105,8 @@ def build_notification_message(
                 f"是否過期資料：{'是' if is_stale_data else '否'}",
             ]
         )
+    if public_report_status_line:
+        lines.append(public_report_status_line)
     lines.extend(
         [
             f"候選股數：{_format_int(summary.get('candidate_rows'))}",
@@ -166,6 +170,25 @@ def build_notification_message(
         return message
     prefix = message[: max(0, 1850 - len(footer))].rstrip()
     return f"{prefix}\n{footer}"
+
+
+def _public_report_status_line(report_dir: Path) -> str | None:
+    status = _load_report(report_dir / PUBLIC_REPORT_PUBLISH_STATUS_FILE)
+    if status.empty:
+        return None
+    row = status.iloc[-1].to_dict()
+    publish_status = _format_text(row.get("docs_publish_status"))
+    reason = _format_text(row.get("docs_publish_reason"))
+    docs_written = _truthy(row.get("docs_written"))
+    if docs_written:
+        if publish_status == "PUBLISHED_STALE_OVERRIDE":
+            return "GitHub Pages 發布狀態：本次已強制更新 public docs，資料可能過期，等待 GitHub Pages deploy"
+        return "GitHub Pages 發布狀態：本次已更新 public docs，等待 GitHub Pages deploy"
+    if publish_status == "SKIPPED_STALE":
+        return f"GitHub Pages 發布狀態：資料過期，本次保留既有 public docs（{reason}）"
+    if publish_status != "-":
+        return f"GitHub Pages 發布狀態：{publish_status}（{reason}）"
+    return None
 
 
 def _decision_digest(summary: dict[str, object], decisions: pd.DataFrame) -> list[str]:

@@ -103,6 +103,30 @@ def test_build_notification_message_flags_stale_actual_data_date() -> None:
     assert "是否過期資料：是" in message
 
 
+def test_build_notification_message_reports_stale_public_docs_kept(tmp_path: Path) -> None:
+    pd.DataFrame(
+        [
+            {
+                "docs_written": False,
+                "docs_publish_status": "SKIPPED_STALE",
+                "docs_publish_reason": (
+                    "stale data exceeded public_report.stale_days_threshold=2 "
+                    "(cache_age_days=3); kept previous docs/index.html."
+                ),
+            }
+        ]
+    ).to_csv(tmp_path / "public_report_publish_status.csv", index=False, encoding="utf-8")
+
+    message = build_notification_message(
+        _summary_row(),
+        reports_dir=tmp_path,
+        pages_url="https://example.github.io/tw-quant/",
+    )
+
+    assert "GitHub Pages 發布狀態：資料過期，本次保留既有 public docs" in message
+    assert "kept previous docs/index.html" in message
+
+
 def test_send_daily_notification_posts_to_discord(tmp_path: Path) -> None:
     _write_summary(tmp_path)
     calls = []

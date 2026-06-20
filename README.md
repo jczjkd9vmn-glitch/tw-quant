@@ -304,10 +304,10 @@ GitHub Pages 報表會避免把「原始執行日期」與「實際使用資料�
 
 1. 開啟 GitHub repo 的 `Settings`。
 2. 點選左側 `Pages`。
-3. `Source` 選 `Deploy from a branch`。
-4. `Branch` 選 `main`。
-5. `Folder` 選 `/docs`。
-6. 儲存後等待 GitHub Pages 部署完成，即可用手機瀏覽 `docs/index.html` 對應的公開頁面。
+3. `Source` 選 `GitHub Actions`。
+4. 每日 workflow 會先產生 `reports/index.html`，並在資料未超過 `public_report.stale_days_threshold` 時更新 `docs/index.html`。
+5. 若 `public_report.stale_docs_behavior: keep_previous` 且資料過期，workflow 會保留既有 public docs、跳過 GitHub Pages deploy，並在 workflow log / Discord 通知顯示原因。
+6. 若 public docs 已更新，workflow 會上傳 `docs/` 作為 GitHub Pages artifact，並由 `actions/deploy-pages` 明確部署。
 
 ### Discord 每日通知
 

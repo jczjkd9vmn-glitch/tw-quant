@@ -1,0 +1,2 @@
+generated_at_utc,reports_index_path,docs_index_path,docs_written,docs_publish_status,docs_publish_reason,stale_docs_behavior,stale_days_threshold,requested_date,trade_date,actual_data_date,used_latest_available,cache_age_days,is_stale_data,data_freshness_level
+2026-06-20T11:43:03.141633+00:00,reports/index.html,docs/index.html,False,SKIPPED_STALE,"stale data exceeded public_report.stale_days_threshold=2 (cache_age_days=9, actual_data_date=2026-06-09, requested_date=2026-06-20); kept previous docs/index.html.",keep_previous,2,2026-06-20,2026-06-18,2026-06-09,True,9,True,STALE

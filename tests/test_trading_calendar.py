@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from tw_quant.data.trading_calendar import filter_trading_days, is_trading_day, latest_trading_day
+from tw_quant.data.trading_calendar import filter_trading_days, is_trading_day, latest_trading_day, trading_day_gap
 
 
 def test_weekend_is_not_trading_day() -> None:
@@ -37,3 +37,20 @@ def test_filter_trading_days_and_latest_trading_day_skip_weekends() -> None:
 
     assert filtered["trade_date"].dt.strftime("%Y-%m-%d").tolist() == ["2026-06-05"]
     assert latest_trading_day({"2026-06-05", "2026-06-06"}, end_date="2026-06-06").strftime("%Y-%m-%d") == "2026-06-05"
+
+
+def test_trading_day_gap_skips_weekends() -> None:
+    assert trading_day_gap("2026-06-19", "2026-06-20") == 0
+    assert trading_day_gap("2026-06-18", "2026-06-20") == 1
+
+
+def test_trading_day_gap_respects_calendar_override(tmp_path) -> None:
+    calendar = tmp_path / "trading_calendar.csv"
+    pd.DataFrame(
+        [
+            {"date": "2026-06-19", "is_trading_day": False, "reason": "holiday"},
+            {"date": "2026-06-20", "is_trading_day": False, "reason": "weekend"},
+        ]
+    ).to_csv(calendar, index=False)
+
+    assert trading_day_gap("2026-06-18", "2026-06-20", calendar_path=calendar) == 0

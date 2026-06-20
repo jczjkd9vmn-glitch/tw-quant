@@ -73,6 +73,8 @@ def build_notification_message(
     actual_data_date = _date_text(summary.get("actual_data_date"))
     effective_data_date = _effective_data_date(actual_data_date, trade_date, fallback_date)
     cache_age_days = _to_float(summary.get("cache_age_days"))
+    trading_day_lag = _to_float(summary.get("trading_day_lag"))
+    market_closed = _truthy(summary.get("market_closed"))
     is_stale_data = _truthy(summary.get("is_stale_data"))
     trading_cost = load_config(ROOT / "config.yaml").get("trading_cost", {})
     pages = pages_url or os.getenv("GITHUB_PAGES_URL") or _infer_pages_url()
@@ -102,6 +104,9 @@ def build_notification_message(
             [
                 f"實際資料日：{actual_data_date if actual_data_date != '-' else effective_data_date}",
                 f"資料年齡天數：{_format_int(cache_age_days)}",
+                f"落後有效交易日：{_format_int(trading_day_lag)}",
+                f"市場是否休市：{'是' if market_closed else '否'}",
+                f"使用最近交易日資料：{'是' if use_recent_data else '否'}",
                 f"是否過期資料：{'是' if is_stale_data else '否'}",
             ]
         )

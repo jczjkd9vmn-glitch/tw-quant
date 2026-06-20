@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pandas as pd
 
 from tw_quant.data.database import create_db_engine, init_db, save_daily_prices
-from tw_quant.workflow.daily import run_all_daily
+from tw_quant.workflow.daily import run_all_daily, should_publish_public_report
 
 
 def test_run_all_daily_success_writes_summary(tmp_path) -> None:
@@ -97,7 +97,7 @@ def test_run_all_daily_step_failure_is_summarized_without_traceback(tmp_path) ->
     assert exported.iloc[0]["status"] == "FAILED"
 
 
-def test_run_all_daily_without_date_falls_back_to_latest_sqlite_date(tmp_path) -> None:
+def test_run_all_daily_without_date_attempts_current_pipeline_before_fallback(tmp_path) -> None:
     db_url = _sqlite_url(tmp_path)
     config_path = _config(tmp_path, database_url=db_url)
     engine = create_db_engine(db_url)
@@ -128,9 +128,9 @@ def test_run_all_daily_without_date_falls_back_to_latest_sqlite_date(tmp_path) -
     )
 
     assert result.summary.status in {"OK", "OK_WITH_FALLBACK"}
-    assert calls["trade_date"] == date(2026, 5, 8)
-    assert calls["fetch"] is False
-    assert "fallback_date=2026-05-08 reason=no trading data" in result.messages
+    assert calls["trade_date"] is None
+    assert calls["fetch"] is True
+    assert not any(message.startswith("fallback_date=") for message in result.messages)
 
 
 def test_run_all_daily_fallback_overwrites_requested_date_failed_summary(tmp_path) -> None:
@@ -183,24 +183,65 @@ def test_run_all_daily_fallback_overwrites_requested_date_failed_summary(tmp_pat
     assert requested_summary.iloc[0]["total_equity"] == 1_000_000.0
 
 
-def test_run_all_daily_without_sqlite_data_fails_when_fallback_is_enabled(tmp_path) -> None:
+def test_run_all_daily_records_pipeline_fallback_when_no_requested_date(tmp_path) -> None:
     config_path = _config(tmp_path, database_url=_sqlite_url(tmp_path))
+
+    def fake_run_daily(**_kwargs):
+        return SimpleNamespace(
+            trade_date=date(2026, 5, 8),
+            fetched_rows=0,
+            scored_rows=1328,
+            candidate_rows=20,
+            message="",
+            fallback_date=date(2026, 5, 8),
+            fallback_reason="no trading data",
+        )
 
     result = run_all_daily(
         config_path=config_path,
         trade_date=None,
         capital=1_000_000,
         reports_dir=tmp_path / "reports",
-        run_daily_func=_fake_run_daily,
+        run_daily_func=fake_run_daily,
         export_func=_fake_export,
         paper_func=_fake_paper,
         execute_func=_fake_execute,
         update_func=_fake_update,
     )
 
-    assert result.summary.status == "FAILED"
-    assert result.summary.error_step == "run_daily"
-    assert "no price history available for fallback" in result.summary.error_message
+    assert result.summary.status == "OK_WITH_FALLBACK"
+    assert result.summary.requested_date
+    assert result.summary.trade_date == "2026-05-08"
+    assert result.summary.fallback_date == "2026-05-08"
+    assert result.summary.fallback_reason == "no trading data"
+    assert "fallback_date=2026-05-08 reason=no trading data" in result.messages
+
+
+def test_public_report_publish_uses_trading_day_lag_not_calendar_days() -> None:
+    config = {"public_report": {"stale_docs_behavior": "keep_previous", "stale_days_threshold": 2}}
+
+    assert should_publish_public_report(
+        {
+            "requested_date": "2026-06-20",
+            "actual_data_date": "2026-06-19",
+            "cache_age_days": 1,
+            "trading_day_lag": 0,
+            "is_stale_data": True,
+            "data_freshness_level": "STALE",
+        },
+        config,
+    )
+    assert not should_publish_public_report(
+        {
+            "requested_date": "2026-06-20",
+            "actual_data_date": "2026-06-16",
+            "cache_age_days": 4,
+            "trading_day_lag": 3,
+            "is_stale_data": True,
+            "data_freshness_level": "STALE",
+        },
+        config,
+    )
 
 
 def test_run_all_daily_with_explicit_date_runs_requested_date_normally(tmp_path) -> None:

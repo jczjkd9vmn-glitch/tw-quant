@@ -64,7 +64,10 @@ def main() -> None:
     summary = result.summary
     print(
         "summary "
+        f"requested_date={summary.requested_date} "
         f"trade_date={summary.trade_date} "
+        f"fallback_date={summary.fallback_date} "
+        f"fallback_reason={summary.fallback_reason} "
         f"scored_rows={summary.scored_rows} "
         f"candidate_rows={summary.candidate_rows} "
         f"risk_pass_rows={summary.risk_pass_rows} "
@@ -88,6 +91,9 @@ def main() -> None:
         f"market_intel_warning_count={summary.market_intel_warning_count} "
         f"actual_data_date={summary.actual_data_date} "
         f"cache_age_days={summary.cache_age_days} "
+        f"trading_day_lag={summary.trading_day_lag} "
+        f"market_closed={summary.market_closed} "
+        f"used_latest_available={summary.used_latest_available} "
         f"is_stale_data={summary.is_stale_data} "
         f"data_freshness_level={summary.data_freshness_level} "
         f"take_profit_exits={summary.take_profit_exits} "

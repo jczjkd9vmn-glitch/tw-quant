@@ -27,8 +27,11 @@ from tw_quant.reporting.benchmark import select_benchmark_snapshot
 from tw_quant.reporting.risk_adjusted_alpha import risk_adjusted_alpha_snapshot
 from tw_quant.reporting.strategy_readiness import strategy_can_judge_window, strategy_readiness_snapshot
 from tw_quant.workflow.daily import should_publish_public_report
+from tw_quant.data.trading_calendar import is_trading_day, trading_day_gap
 
 PUBLIC_REPORT_PUBLISH_STATUS_FILE = "public_report_publish_status.csv"
+TRADING_CALENDAR_PATH = ROOT / "data" / "trading_calendar.csv"
+DEFAULT_STALE_TRADING_DAY_THRESHOLD = 2
 
 COLUMN_LABELS = {
     "rank": "排序",
@@ -38,6 +41,9 @@ COLUMN_LABELS = {
     "fallback_reason": "替代原因",
     "actual_data_date": "實際資料日",
     "cache_age_days": "快取 / 資料年齡天數",
+    "trading_day_lag": "落後有效交易日數",
+    "market_closed": "市場是否休市",
+    "freshness_reason": "資料鮮度原因",
     "is_stale_data": "是否過期資料",
     "data_freshness_level": "資料鮮度等級",
     "scored_rows": "已評分標的數",
@@ -1255,6 +1261,8 @@ def _public_report_publish_decision(
         }
     threshold = _public_report_stale_days_threshold(config)
     cache_age_days = _status_value(freshness_state, "cache_age_days", "-")
+    trading_day_lag = _status_value(freshness_state, "trading_day_lag", "-")
+    market_closed = _status_value(freshness_state, "market_closed", "-")
     actual_data_date = _status_value(freshness_state, "actual_data_date", "-")
     requested_date = _status_value(freshness_state, "requested_date", _status_value(freshness_state, "trade_date", "-"))
     return {
@@ -1262,8 +1270,10 @@ def _public_report_publish_decision(
         "docs_publish_status": "SKIPPED_STALE",
         "docs_publish_reason": (
             "stale data exceeded public_report.stale_days_threshold="
-            f"{threshold} (cache_age_days={cache_age_days}, actual_data_date={actual_data_date}, "
-            f"requested_date={requested_date}); kept previous docs/index.html."
+            f"{threshold} trading days (trading_day_lag={trading_day_lag}, "
+            f"cache_age_days={cache_age_days}, market_closed={market_closed}, "
+            f"actual_data_date={actual_data_date}, requested_date={requested_date}); "
+            "kept previous docs/index.html."
         ),
     }
 
@@ -1295,6 +1305,9 @@ def _write_public_report_publish_status(
         "actual_data_date": _status_value(freshness_state, "actual_data_date", ""),
         "used_latest_available": _status_value(freshness_state, "used_latest_available", ""),
         "cache_age_days": _status_value(freshness_state, "cache_age_days", ""),
+        "trading_day_lag": _status_value(freshness_state, "trading_day_lag", ""),
+        "market_closed": _status_value(freshness_state, "market_closed", ""),
+        "freshness_reason": _status_value(freshness_state, "freshness_reason", ""),
         "is_stale_data": _status_value(freshness_state, "is_stale_data", ""),
         "data_freshness_level": _status_value(freshness_state, "data_freshness_level", ""),
     }
@@ -1349,6 +1362,13 @@ def _path_text(path: Path | None) -> str:
         return path.resolve().relative_to(ROOT).as_posix()
     except ValueError:
         return path.as_posix()
+
+
+def _market_closed(value: object) -> bool:
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed):
+        return False
+    return not is_trading_day(parsed, calendar_path=TRADING_CALENDAR_PATH)
 
 
 def _docs_freshness_state(daily_summary: pd.DataFrame, market_intel: pd.DataFrame) -> dict[str, object]:
@@ -1860,15 +1880,30 @@ def _normalize_summary_freshness(summary: dict[str, object]) -> dict[str, object
     if not summary:
         return summary
     output = dict(summary)
-    reference = _first_raw(output.get("trade_date"), output.get("requested_date"))
+    reference = _first_raw(output.get("requested_date"), output.get("trade_date"))
     actual = output.get("actual_data_date")
-    gap_days = _date_gap_days(reference, actual)
-    if gap_days <= 0:
+    gap_days = max(_date_gap_days(reference, actual), 0)
+    trading_lag = trading_day_gap(actual, reference, calendar_path=TRADING_CALENDAR_PATH)
+    market_closed = _market_closed(reference)
+    output["market_closed"] = market_closed
+    if trading_lag is not None:
+        output["trading_day_lag"] = trading_lag
+    if gap_days <= 0 and trading_lag in {None, 0}:
         return output
     current_age = _to_float(output.get("cache_age_days")) or 0
     output["cache_age_days"] = max(int(current_age), gap_days)
-    output["data_freshness_level"] = "STALE"
-    output["is_stale_data"] = True
+    if trading_lag is not None and trading_lag <= DEFAULT_STALE_TRADING_DAY_THRESHOLD:
+        output["data_freshness_level"] = "CURRENT" if trading_lag == 0 else "RECENT"
+        output["is_stale_data"] = False
+        output["freshness_reason"] = (
+            "market_closed_recent_trading_day"
+            if market_closed and trading_lag == 0
+            else f"trading_day_lag={trading_lag}"
+        )
+    else:
+        output["data_freshness_level"] = "STALE"
+        output["is_stale_data"] = True
+        output["freshness_reason"] = f"trading_day_lag={trading_lag}" if trading_lag is not None else ""
     output["used_latest_available"] = True
     return output
 
@@ -1891,6 +1926,9 @@ def _summary_with_freshness(summary: dict[str, object], freshness: dict[str, obj
         "fallback_date",
         "fallback_reason",
         "cache_age_days",
+        "trading_day_lag",
+        "market_closed",
+        "freshness_reason",
         "data_freshness_level",
         "is_stale_data",
         "used_latest_available",
@@ -1914,6 +1952,8 @@ def _overview_dashboard(
     requested = _format_cell("requested_date", freshness["requested_date"])
     trade_date = _format_cell("trade_date", freshness["trade_date"])
     actual_data_date = _format_cell("actual_data_date", freshness["actual_data_date"])
+    market_closed = bool(freshness.get("market_closed"))
+    trading_day_lag = _format_cell("trading_day_lag", freshness.get("trading_day_lag"))
     freshness_level = str(freshness["data_freshness_level"])
     market_status = _first_raw(summary.get("market_intel_status"), _frame_first(data_frame, "market_intel_status"), summary.get("status"))
     guardrail_status = _first_raw(summary.get("guardrail_status"), "UNKNOWN")
@@ -1924,6 +1964,8 @@ def _overview_dashboard(
     freshness_note = (
         "市場資料過期，不建議短線進場"
         if stale
+        else "市場休市，使用最近交易日資料"
+        if market_closed and bool(freshness.get("used_latest_available"))
         else "資料為最新或目前可用資料"
     )
 
@@ -1964,6 +2006,8 @@ def _overview_dashboard(
                 ("實際交易日", trade_date),
                 ("實際資料日", actual_data_date),
                 ("快取 / 資料年齡", freshness["cache_age_text"]),
+                ("落後有效交易日", trading_day_lag),
+                ("市場是否休市", "是" if market_closed else "否"),
             ],
             tone="danger" if stale else "ok",
         ),
@@ -2067,13 +2111,17 @@ def _freshness_readiness_dashboard(
     trade_raw = freshness["trade_date"]
     actual_raw = freshness["actual_data_date"]
     cache_age_days = int(freshness["cache_age_days"])
+    trading_day_lag = _int_or_none(freshness.get("trading_day_lag"))
+    market_closed = bool(freshness.get("market_closed"))
     display_freshness_level = freshness["data_freshness_level"]
     is_stale = bool(freshness["is_stale_data"])
     used_latest = bool(freshness["used_latest_available"])
     freshness_primary = "資料非最新交易日" if is_stale else "資料最新或可用"
     freshness_note = (
-        f"資料非最新交易日；使用最近有效資料；資料落後 {cache_age_days} 天。"
+        f"資料非最新交易日；使用最近有效資料；資料落後 {trading_day_lag if trading_day_lag is not None else cache_age_days} 個有效交易日。"
         if is_stale
+        else "市場休市，使用最近交易日資料。"
+        if market_closed and used_latest
         else "目前未偵測到資料落後。"
     )
 
@@ -2133,6 +2181,8 @@ def _freshness_readiness_dashboard(
                 ("實際交易日", _format_cell("trade_date", trade_raw)),
                 ("實際資料日", _format_cell("actual_data_date", actual_raw)),
                 ("資料落後", f"{cache_age_days} 天"),
+                ("落後有效交易日", "-" if trading_day_lag is None else f"{trading_day_lag} 個"),
+                ("市場是否休市", "是" if market_closed else "否"),
             ],
             tone="danger" if is_stale else "ok",
         ),
@@ -2143,6 +2193,7 @@ def _freshness_readiness_dashboard(
                 ("使用替代交易日", _format_cell("fallback_date", freshness["fallback_date"])),
                 ("Fallback 原因", _format_cell("fallback_reason", freshness["fallback_reason"])),
                 ("是否過期資料", "是" if is_stale else "否"),
+                ("資料鮮度原因", _format_cell("freshness_reason", freshness.get("freshness_reason"))),
                 ("資料鮮度等級", _format_cell("data_freshness_level", display_freshness_level)),
             ],
             tone="warning" if used_latest else "ok",
@@ -2206,14 +2257,31 @@ def _freshness_snapshot(summary: dict[str, object], market_intel: pd.DataFrame) 
     cache_age_days = _market_intel_cache_age_days(summary, frame)
     age = int(cache_age_days) if cache_age_days is not None else 0
     freshness_level = _market_intel_freshness_level(summary, frame)
-    is_stale = _market_intel_is_stale(summary, frame) or age > 0
-    if is_stale and freshness_level in {"UNKNOWN", "CURRENT", "RECENT"}:
+    trading_lag = _int_or_none(summary.get("trading_day_lag"))
+    if trading_lag is None:
+        trading_lag = trading_day_gap(actual_data_date, requested, calendar_path=TRADING_CALENDAR_PATH)
+    market_closed = _truthy(summary.get("market_closed")) or _market_closed(requested)
+    is_stale = (
+        trading_lag > DEFAULT_STALE_TRADING_DAY_THRESHOLD
+        if trading_lag is not None
+        else _market_intel_is_stale(summary, frame) and age > DEFAULT_STALE_TRADING_DAY_THRESHOLD
+    )
+    if is_stale:
         freshness_level = "STALE"
+    elif trading_lag == 0:
+        freshness_level = "CURRENT"
+    elif trading_lag is not None:
+        freshness_level = "RECENT"
     fallback_switched = bool(
         (requested and fallback_date and requested != fallback_date)
         or (requested and trade_date and requested != trade_date)
     )
-    used_latest = _truthy(summary.get("used_latest_available")) or fallback_switched or is_stale
+    used_latest = _truthy(summary.get("used_latest_available")) or fallback_switched or is_stale or bool(trading_lag)
+    freshness_reason = _first_non_blank(
+        summary.get("freshness_reason"),
+        "market_closed_recent_trading_day" if market_closed and trading_lag == 0 else "",
+        f"trading_day_lag={trading_lag}" if trading_lag is not None else "",
+    )
     return {
         "requested_date": requested or "-",
         "trade_date": trade_date or "-",
@@ -2222,6 +2290,9 @@ def _freshness_snapshot(summary: dict[str, object], market_intel: pd.DataFrame) 
         "fallback_reason": fallback_reason,
         "cache_age_days": age,
         "cache_age_text": f"{age:,.0f} 天" if cache_age_days is not None else "-",
+        "trading_day_lag": trading_lag if trading_lag is not None else "",
+        "market_closed": market_closed,
+        "freshness_reason": freshness_reason,
         "data_freshness_level": freshness_level,
         "is_stale_data": is_stale,
         "used_latest_available": used_latest,
@@ -6282,8 +6353,16 @@ def _market_intel_display_frame(summary: dict[str, object], frame: pd.DataFrame)
     gap_days = _date_gap_days(_market_intel_reference_date(summary, output), _market_intel_actual_data_date(summary, output))
     if gap_days <= 0:
         return output
-    output["data_freshness_level"] = "STALE"
-    output["is_stale_data"] = True
+    trading_lag = trading_day_gap(
+        _market_intel_actual_data_date(summary, output),
+        _market_intel_requested_date(summary, output),
+        calendar_path=TRADING_CALENDAR_PATH,
+    )
+    stale = trading_lag is None or trading_lag > DEFAULT_STALE_TRADING_DAY_THRESHOLD
+    output["data_freshness_level"] = "STALE" if stale else ("CURRENT" if trading_lag == 0 else "RECENT")
+    output["is_stale_data"] = stale
+    output["trading_day_lag"] = trading_lag if trading_lag is not None else ""
+    output["market_closed"] = _market_closed(_market_intel_requested_date(summary, output))
     existing_age = pd.to_numeric(output.get("cache_age_days", pd.Series([0] * len(output), index=output.index)), errors="coerce").fillna(0)
     output["cache_age_days"] = existing_age.apply(lambda value: max(int(value), gap_days))
     return output

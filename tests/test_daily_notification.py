@@ -89,6 +89,8 @@ def test_build_notification_message_flags_stale_actual_data_date() -> None:
         "status": "OK",
         "actual_data_date": "2026-06-09",
         "cache_age_days": 4,
+        "trading_day_lag": 3,
+        "market_closed": False,
         "is_stale_data": True,
         "used_latest_available": True,
     }
@@ -100,7 +102,35 @@ def test_build_notification_message_flags_stale_actual_data_date() -> None:
     assert "使用資料日期：2026-06-09" in message
     assert "實際資料日：2026-06-09" in message
     assert "資料年齡天數：4" in message
+    assert "落後有效交易日：3" in message
+    assert "市場是否休市：否" in message
+    assert "使用最近交易日資料：是" in message
     assert "是否過期資料：是" in message
+
+
+def test_build_notification_message_reports_market_closed_recent_trading_day() -> None:
+    summary = {
+        **_summary_row(),
+        "requested_date": "2026-06-20",
+        "trade_date": "2026-06-19",
+        "actual_data_date": "2026-06-19",
+        "cache_age_days": 1,
+        "trading_day_lag": 0,
+        "market_closed": True,
+        "is_stale_data": False,
+        "used_latest_available": True,
+        "fallback_date": "2026-06-19",
+        "fallback_reason": "non_trading_day",
+    }
+
+    message = build_notification_message(summary, pages_url="https://example.github.io/tw-quant/")
+
+    assert "原始執行日期：2026-06-20" in message
+    assert "實際資料日：2026-06-19" in message
+    assert "落後有效交易日：0" in message
+    assert "市場是否休市：是" in message
+    assert "使用最近交易日資料：是" in message
+    assert "是否過期資料：否" in message
 
 
 def test_build_notification_message_reports_stale_public_docs_kept(tmp_path: Path) -> None:

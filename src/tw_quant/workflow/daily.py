@@ -1445,6 +1445,38 @@ def _write_summary(report_dir: Path, summary: DailyWorkflowSummary) -> Path:
     return paths[-1]
 
 
+def should_publish_public_report(summary: DailyWorkflowSummary | dict[str, Any], config: dict[str, Any] | None) -> bool:
+    settings = (config or {}).get("public_report", {}) if isinstance(config, dict) else {}
+    behavior = str(settings.get("stale_docs_behavior", "keep_previous")).strip().lower()
+    if behavior not in {"keep_previous", "keep-previous"}:
+        return True
+    threshold = _public_report_stale_days_threshold(config)
+    cache_age_days = _to_int_or_none(_summary_value(summary, "cache_age_days")) or 0
+    freshness_level = str(_summary_value(summary, "data_freshness_level", "")).strip().upper()
+    stale = _to_bool(_summary_value(summary, "is_stale_data", False)) or freshness_level in {"STALE", "CACHE"}
+    return not (stale and cache_age_days > threshold)
+
+
+def _public_report_stale_days_threshold(config: dict[str, Any] | None) -> int:
+    if not isinstance(config, dict):
+        return 0
+    public_report = config.get("public_report", {})
+    if isinstance(public_report, dict) and "stale_days_threshold" in public_report:
+        parsed = _to_int_or_none(public_report.get("stale_days_threshold"))
+        return parsed if parsed is not None else 0
+    market_intel = config.get("market_intel", {})
+    if isinstance(market_intel, dict):
+        parsed = _to_int_or_none(market_intel.get("stale_days_threshold"))
+        return parsed if parsed is not None else 0
+    return 0
+
+
+def _summary_value(summary: DailyWorkflowSummary | dict[str, Any], key: str, default: Any = None) -> Any:
+    if isinstance(summary, dict):
+        return summary.get(key, default)
+    return getattr(summary, key, default)
+
+
 def _date_text(value: str | date | pd.Timestamp | None) -> str:
     if value is None:
         return pd.Timestamp.today().strftime("%Y-%m-%d")

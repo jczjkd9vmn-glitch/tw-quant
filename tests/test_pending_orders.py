@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
+import tw_quant.trading.pending as pending_module
 from tw_quant.data.database import create_db_engine, init_db, save_daily_prices
 from tw_quant.trading.paper import run_paper_trade
 from tw_quant.trading.pending import execute_pending_orders
@@ -113,6 +114,36 @@ def test_pending_order_stays_pending_without_next_trading_day_data(tmp_path: Pat
     assert "尚無下一個有效交易日資料" in pending.iloc[0]["warning"]
 
 
+def test_pending_order_loads_price_history_once_for_multiple_orders(tmp_path: Path, monkeypatch) -> None:
+    pd.DataFrame(
+        [
+            _pending_row("2330", "台積電"),
+            _pending_row("2317", "鴻海"),
+        ]
+    ).to_csv(tmp_path / "pending_orders_20260508.csv", index=False, encoding="utf-8")
+    engine = _engine_with_prices(
+        tmp_path,
+        [
+            _price_frame("20260509", open_price=101.0, close=103.0, symbol="2330", name="台積電"),
+            _price_frame("20260509", open_price=151.0, close=153.0, symbol="2317", name="鴻海"),
+        ],
+    )
+    calls = 0
+    original_load = pending_module.load_price_history
+
+    def counting_load(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original_load(*args, **kwargs)
+
+    monkeypatch.setattr(pending_module, "load_price_history", counting_load)
+
+    result = execute_pending_orders(engine, reports_dir=tmp_path, capital=1_000_000)
+
+    assert calls == 1
+    assert len(result.executed_orders) == 2
+
+
 def test_pending_order_skips_when_existing_open_position_and_preserves_old_trade(tmp_path: Path) -> None:
     _write_risk_report(tmp_path)
     old_trade = pd.DataFrame(
@@ -178,13 +209,31 @@ def _write_risk_report(path: Path) -> None:
     ).to_csv(path / "risk_pass_candidates_20260508.csv", index=False, encoding="utf-8")
 
 
-def _price_frame(trade_date: str, open_price: float, close: float) -> pd.DataFrame:
+def _pending_row(stock_id: str, stock_name: str) -> dict[str, object]:
+    return {
+        "signal_date": "2026-05-08",
+        "planned_entry_date": "NEXT_AVAILABLE_TRADING_DAY",
+        "stock_id": stock_id,
+        "stock_name": stock_name,
+        "stop_loss_price": 90.0,
+        "suggested_position_pct": 0.1,
+        "status": "PENDING",
+    }
+
+
+def _price_frame(
+    trade_date: str,
+    open_price: float,
+    close: float,
+    symbol: str = "2330",
+    name: str = "台積電",
+) -> pd.DataFrame:
     return pd.DataFrame(
         [
             {
                 "trade_date": trade_date,
-                "symbol": "2330",
-                "name": "台積電",
+                "symbol": symbol,
+                "name": name,
                 "open": open_price,
                 "high": max(open_price, close, 1.0) + 5,
                 "low": min(value for value in [open_price, close] if value > 0) - 1,

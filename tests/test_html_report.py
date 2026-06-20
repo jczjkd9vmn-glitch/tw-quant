@@ -70,6 +70,37 @@ def test_generate_html_report_creates_docs_index_for_github_pages(tmp_path: Path
     assert 'lang="zh-Hant"' in docs_html
 
 
+def test_daily_workflow_does_not_publish_stale_docs(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    previous_public_html = "<html><body>previous fresh public report</body></html>"
+    (docs_dir / "index.html").write_text(previous_public_html, encoding="utf-8")
+    _write_reports(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "requested_date": "2026-05-11",
+                "trade_date": "2026-05-11",
+                "actual_data_date": "2026-05-08",
+                "cache_age_days": 3,
+                "is_stale_data": True,
+                "data_freshness_level": "STALE",
+                "used_latest_available": True,
+                "status": "OK_WITH_FALLBACK",
+                "scored_rows": 1328,
+                "candidate_rows": 20,
+                "risk_pass_rows": 6,
+            }
+        ]
+    ).to_csv(tmp_path / "daily_summary_20260511.csv", index=False, encoding="utf-8")
+
+    reports_index = generate_html_report(tmp_path, docs_dir=docs_dir)
+
+    assert reports_index.exists()
+    assert "資料過期" in reports_index.read_text(encoding="utf-8")
+    assert (docs_dir / "index.html").read_text(encoding="utf-8") == previous_public_html
+
+
 def test_generate_html_report_translates_fallback_status(tmp_path: Path) -> None:
     _write_reports(tmp_path)
 

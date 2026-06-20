@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -10,22 +10,40 @@ import pandas as pd
 
 from tw_quant.risk.controls import RiskConfig, RiskManager
 from tw_quant.strategy.scoring import ScoringConfig, StockScorer
+from tw_quant.trading.costs import TradingCostConfig, calculate_affordable_shares, calculate_entry, calculate_exit
 
 
 @dataclass(frozen=True)
 class BacktestConfig:
     initial_cash: float = 1_000_000
     top_n: int = 10
-    transaction_cost_bps: float = 14.25
     max_holding_days: int = 20
+    trading_cost: TradingCostConfig = field(default_factory=TradingCostConfig)
+    transaction_cost_bps: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.transaction_cost_bps is None:
+            return
+        # Legacy compatibility only. New configuration should use trading_cost so
+        # backtest and paper trading share the same fee, tax, and slippage model.
+        legacy_rate = float(self.transaction_cost_bps) / 10_000
+        object.__setattr__(self, "trading_cost", TradingCostConfig(commission_rate=legacy_rate))
 
     @classmethod
     def from_mapping(cls, values: dict[str, Any]) -> "BacktestConfig":
+        data = values or {}
+        backtest_data = data.get("backtest", data) if isinstance(data.get("backtest", data), dict) else data
+        trading_cost_data = backtest_data.get("trading_cost")
+        if trading_cost_data is None and isinstance(data.get("trading_cost"), dict):
+            trading_cost_data = data["trading_cost"]
         return cls(
-            initial_cash=float(values.get("initial_cash", cls.initial_cash)),
-            top_n=int(values.get("top_n", cls.top_n)),
-            transaction_cost_bps=float(values.get("transaction_cost_bps", cls.transaction_cost_bps)),
-            max_holding_days=int(values.get("max_holding_days", cls.max_holding_days)),
+            initial_cash=float(backtest_data.get("initial_cash", cls.initial_cash)),
+            top_n=int(backtest_data.get("top_n", cls.top_n)),
+            max_holding_days=int(backtest_data.get("max_holding_days", cls.max_holding_days)),
+            trading_cost=TradingCostConfig.from_mapping(trading_cost_data),
+            transaction_cost_bps=(
+                float(backtest_data["transaction_cost_bps"]) if "transaction_cost_bps" in backtest_data else None
+            ),
         )
 
 
@@ -76,29 +94,43 @@ class BacktestEngine:
                 if open_price <= 0:
                     continue
                 target_value = equity_at_open * float(order["suggested_position_pct"])
-                quantity = np.floor(target_value / open_price)
+                quantity = calculate_affordable_shares(
+                    target_value=target_value,
+                    available_cash=cash,
+                    raw_entry_price=open_price,
+                    config=self.config.trading_cost,
+                )
                 if quantity <= 0:
                     continue
-                cost = quantity * open_price
-                fee = _fee(cost, self.config.transaction_cost_bps)
-                if cost + fee > cash:
+                entry_costs = calculate_entry(open_price, int(quantity), self.config.trading_cost)
+                cash_required = entry_costs["position_value"] + entry_costs["entry_commission"]
+                if cash_required > cash:
                     continue
-                cash -= cost + fee
+                cash -= cash_required
                 positions[symbol] = {
                     "quantity": quantity,
-                    "entry_price": open_price,
+                    "entry_price": entry_costs["entry_price"],
+                    "entry_price_raw": entry_costs["entry_price_raw"],
                     "entry_date": current_date,
                     "stop_loss": float(order["stop_loss"]),
                     "reason": order["buy_reasons"],
-                    "fee": fee,
+                    "entry_commission": entry_costs["entry_commission"],
+                    "entry_slippage": entry_costs["entry_slippage"],
+                    "buy_slippage_cost": entry_costs["buy_slippage_cost"],
                 }
                 trade_rows.append(
                     {
                         "trade_date": current_date,
                         "symbol": symbol,
                         "side": "BUY",
-                        "price": open_price,
+                        "price": entry_costs["entry_price"],
+                        "raw_price": entry_costs["entry_price_raw"],
                         "quantity": quantity,
+                        "commission": entry_costs["entry_commission"],
+                        "tax": 0.0,
+                        "slippage": entry_costs["entry_slippage"],
+                        "slippage_cost": entry_costs["buy_slippage_cost"],
+                        "total_cost": round(entry_costs["entry_commission"] + entry_costs["buy_slippage_cost"], 2),
                         "reason": order["buy_reasons"],
                     }
                 )
@@ -125,16 +157,31 @@ class BacktestEngine:
                     exit_reason = "達最大持有天數"
 
                 if exit_price is not None:
-                    proceeds = float(position["quantity"]) * exit_price
-                    fee = _fee(proceeds, self.config.transaction_cost_bps)
-                    cash += proceeds - fee
+                    exit_costs = calculate_exit(
+                        exit_price,
+                        float(position["quantity"]),
+                        symbol,
+                        self.config.trading_cost,
+                    )
+                    cash += exit_costs["exit_proceeds"] - exit_costs["exit_commission"] - exit_costs["exit_tax"]
                     trade_rows.append(
                         {
                             "trade_date": current_date,
                             "symbol": symbol,
                             "side": "SELL",
-                            "price": exit_price,
+                            "price": exit_costs["exit_price"],
+                            "raw_price": exit_costs["exit_price_raw"],
                             "quantity": position["quantity"],
+                            "commission": exit_costs["exit_commission"],
+                            "tax": exit_costs["exit_tax"],
+                            "slippage": exit_costs["exit_slippage"],
+                            "slippage_cost": exit_costs["sell_slippage_cost"],
+                            "total_cost": round(
+                                exit_costs["exit_commission"]
+                                + exit_costs["exit_tax"]
+                                + exit_costs["sell_slippage_cost"],
+                                2,
+                            ),
                             "reason": exit_reason,
                         }
                     )
@@ -154,13 +201,9 @@ class BacktestEngine:
             scores = self.scorer.score(history, as_of=current_date)
             if not scores.empty:
                 scores = self.risk_manager.apply_candidate_controls(scores)
-                next_candidates = scores[(scores["is_candidate"]) & (scores["risk_pass"])].head(
-                    self.config.top_n
-                )
+                next_candidates = scores[(scores["is_candidate"]) & (scores["risk_pass"])].head(self.config.top_n)
                 pending_orders = [
-                    row.to_dict()
-                    for _, row in next_candidates.iterrows()
-                    if row["symbol"] not in positions
+                    row.to_dict() for _, row in next_candidates.iterrows() if row["symbol"] not in positions
                 ]
 
         equity_curve = pd.DataFrame(equity_rows)
@@ -181,10 +224,6 @@ def _portfolio_value(
             continue
         value += float(position["quantity"]) * float(day.loc[symbol, price_column])
     return float(value)
-
-
-def _fee(value: float, bps: float) -> float:
-    return float(value) * (float(bps) / 10_000)
 
 
 def _metrics(equity_curve: pd.DataFrame, trades: pd.DataFrame, initial_cash: float) -> dict[str, float]:

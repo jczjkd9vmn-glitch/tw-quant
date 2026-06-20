@@ -11,7 +11,7 @@ from sqlalchemy import Engine
 from tw_quant.config import load_config
 from tw_quant.data.database import load_price_history
 from tw_quant.market_regime import MarketRegimeResult, evaluate_market_regime
-from tw_quant.trading.costs import TradingCostConfig, calculate_entry
+from tw_quant.trading.costs import TradingCostConfig, calculate_affordable_shares, calculate_entry
 from tw_quant.trading.guardrails import build_guardrail_context, evaluate_candidate_entry
 from tw_quant.trading.paper import (
     PENDING_ORDER_COLUMNS,
@@ -89,6 +89,7 @@ def execute_pending_orders(
     rejected_rows: list[dict] = []
     warnings: list[str] = []
     all_pending_frames: list[pd.DataFrame] = []
+    price_history = _load_pending_price_history(engine, pending_files)
 
     for pending_path in pending_files:
         orders = _load_pending_orders(pending_path)
@@ -101,7 +102,7 @@ def execute_pending_orders(
                 continue
 
             stock_id = str(row["stock_id"]).strip()
-            order_timing = _order_timing(engine, row)
+            order_timing = _order_timing(price_history, row)
             attempted_date = order_timing["attempted_execution_date"]
             age_days = order_timing["order_age_trading_days"]
             expiry_status = _expiry_status(row, active_config, order_timing)
@@ -211,7 +212,7 @@ def execute_pending_orders(
             if age_days != "":
                 orders.loc[index, "order_age_trading_days"] = age_days
 
-            entry = _find_entry_price(engine, row, attempted_date)
+            entry = _find_entry_price(price_history, row, attempted_date)
             if entry is None:
                 warning = "尚無下一個有效交易日資料，等待下次執行"
                 orders.loc[index, "warning"] = warning
@@ -221,11 +222,11 @@ def execute_pending_orders(
             entry_date, raw_entry_price, entry_source, warning = entry
             suggested_pct = _safe_float(row.get("suggested_position_pct")) or 0.0
             target_value = float(capital) * suggested_pct
-            shares = _calculate_affordable_shares(
+            shares = calculate_affordable_shares(
                 target_value=target_value,
                 available_cash=available_cash,
                 raw_entry_price=raw_entry_price,
-                cost_config=cost_config,
+                config=cost_config,
             )
             if shares <= 0:
                 reason = "建議部位不足以建立整股持倉"
@@ -310,7 +311,7 @@ def execute_pending_orders(
 
 
 def _find_entry_price(
-    engine: Engine,
+    price_history: pd.DataFrame,
     order: pd.Series,
     execution_date: pd.Timestamp | None,
 ) -> tuple[pd.Timestamp, float, str, str] | None:
@@ -318,17 +319,12 @@ def _find_entry_price(
         return None
     signal_date = pd.to_datetime(order["signal_date"])
     symbol = str(order["stock_id"]).strip()
-    history = load_price_history(
-        engine,
-        start_date=execution_date.strftime("%Y-%m-%d"),
-        end_date=execution_date.strftime("%Y-%m-%d"),
-    )
-    if history.empty:
+    if price_history.empty:
         return None
-    history = history[
-        (pd.to_datetime(history["trade_date"]).dt.normalize() == execution_date.normalize())
-        & (pd.to_datetime(history["trade_date"]) > signal_date)
-        & (history["symbol"].astype(str).str.strip() == symbol)
+    history = price_history[
+        (pd.to_datetime(price_history["trade_date"]).dt.normalize() == execution_date.normalize())
+        & (pd.to_datetime(price_history["trade_date"]) > signal_date)
+        & (price_history["symbol"].astype(str).str.strip() == symbol)
     ].copy()
     if history.empty:
         return None
@@ -461,14 +457,39 @@ def _safe_market_regime(engine: Engine, config: dict, report_dir: Path) -> Marke
         )
 
 
-def _order_timing(engine: Engine, order: pd.Series) -> dict[str, object]:
+def _load_pending_price_history(engine: Engine, pending_files: list[Path]) -> pd.DataFrame:
+    base_dates: list[pd.Timestamp] = []
+    symbols: set[str] = set()
+    for pending_path in pending_files:
+        orders = _load_pending_orders(pending_path)
+        if orders.empty:
+            continue
+        pending_orders = orders[orders["status"].fillna("").astype(str) == PENDING_STATUS]
+        for _, row in pending_orders.iterrows():
+            base_date = _order_base_date(row)
+            if base_date is not None:
+                base_dates.append(base_date)
+            symbol = str(row.get("stock_id", "")).strip()
+            if symbol:
+                symbols.add(symbol)
+    if not base_dates:
+        return pd.DataFrame()
+    history = load_price_history(engine, start_date=min(base_dates).strftime("%Y-%m-%d"))
+    if history.empty:
+        return history
+    if symbols and "symbol" in history.columns:
+        history = history[history["symbol"].astype(str).str.strip().isin(symbols)].copy()
+    return history
+
+
+def _order_timing(price_history: pd.DataFrame, order: pd.Series) -> dict[str, object]:
     base_date = _order_base_date(order)
     if base_date is None:
         return {"attempted_execution_date": None, "order_age_trading_days": ""}
     symbol = str(order.get("stock_id", "")).strip()
-    history = load_price_history(engine, start_date=base_date.strftime("%Y-%m-%d"))
-    if history.empty:
+    if price_history.empty:
         return {"attempted_execution_date": None, "order_age_trading_days": 0}
+    history = price_history[pd.to_datetime(price_history["trade_date"], errors="coerce") >= base_date].copy()
     if symbol and "symbol" in history.columns:
         history = history[history["symbol"].astype(str).str.strip() == symbol].copy()
     dates = pd.to_datetime(history["trade_date"], errors="coerce").dropna().drop_duplicates().sort_values()
@@ -564,7 +585,9 @@ def _write_execution_rejections(report_dir: Path, rows: list[dict]) -> pd.DataFr
         merged = _merge_rejected_orders(_load_rejected_orders(path), group)
         merged.to_csv(path, index=False, encoding="utf-8")
         output_frames.append(merged)
-    return pd.concat(output_frames, ignore_index=True) if output_frames else pd.DataFrame(columns=REJECTED_ORDER_COLUMNS)
+    return (
+        pd.concat(output_frames, ignore_index=True) if output_frames else pd.DataFrame(columns=REJECTED_ORDER_COLUMNS)
+    )
 
 
 def _load_trades(path: Path) -> pd.DataFrame:
@@ -597,26 +620,6 @@ def _resolve_trading_cost(trading_cost: dict | TradingCostConfig | None) -> Trad
     if isinstance(trading_cost, TradingCostConfig):
         return trading_cost
     return TradingCostConfig.from_mapping(trading_cost)
-
-
-def _calculate_affordable_shares(
-    *,
-    target_value: float,
-    available_cash: float,
-    raw_entry_price: float,
-    cost_config: TradingCostConfig,
-) -> int:
-    if target_value <= 0 or available_cash <= 0 or raw_entry_price <= 0:
-        return 0
-    adjusted_price = calculate_entry(raw_entry_price, 1, cost_config)["entry_price"]
-    shares = int(min(target_value, available_cash) // adjusted_price) if adjusted_price > 0 else 0
-    while shares > 0:
-        entry_costs = calculate_entry(raw_entry_price, shares, cost_config)
-        required_cash = entry_costs["position_value"] + entry_costs["entry_commission"]
-        if entry_costs["position_value"] <= target_value + 0.0001 and required_cash <= available_cash + 0.0001:
-            return shares
-        shares -= 1
-    return 0
 
 
 def _available_cash(trades: pd.DataFrame, capital: float) -> float:

@@ -37,6 +37,44 @@ def test_daily_github_actions_workflow_exists_and_contains_required_steps() -> N
     assert "github.ref == 'refs/heads/main'" in text
 
 
+def test_daily_github_actions_smoke_tests_deployed_pages_report() -> None:
+    workflow = ROOT / ".github" / "workflows" / "daily.yml"
+
+    text = workflow.read_text(encoding="utf-8")
+    deploy_step_index = text.index("uses: actions/deploy-pages@v4")
+    smoke_step_index = text.index("name: Smoke test deployed GitHub Pages report")
+
+    assert deploy_step_index < smoke_step_index
+    assert "if: needs.daily.outputs.docs_written == 'true' && github.ref == 'refs/heads/main'" in text
+    assert "report_requested_date: ${{ steps.public_report.outputs.requested_date }}" in text
+    assert "report_trade_date: ${{ steps.public_report.outputs.trade_date }}" in text
+    assert "report_actual_data_date: ${{ steps.public_report.outputs.actual_data_date }}" in text
+    assert "report_trading_day_lag: ${{ steps.public_report.outputs.trading_day_lag }}" in text
+    assert "report_freshness_source: ${{ steps.public_report.outputs.freshness_source }}" in text
+    assert "public_report.trade_date" in text
+    assert "public_report.freshness_source" in text
+    assert "PAGES_URL: ${{ steps.deployment.outputs.page_url }}" in text
+    assert "REPORT_REQUESTED_DATE: ${{ needs.daily.outputs.report_requested_date }}" in text
+    assert "REPORT_TRADE_DATE: ${{ needs.daily.outputs.report_trade_date }}" in text
+    assert "REPORT_ACTUAL_DATA_DATE: ${{ needs.daily.outputs.report_actual_data_date }}" in text
+    assert "REPORT_TRADING_DAY_LAG: ${{ needs.daily.outputs.report_trading_day_lag }}" in text
+    assert "REPORT_FRESHNESS_SOURCE: ${{ needs.daily.outputs.report_freshness_source }}" in text
+    assert "max_attempts=8" in text
+    assert "sleep_seconds=12" in text
+    assert "curl -L --silent --show-error --connect-timeout 10 --max-time 30" in text
+    assert "HTTP status=${http_status}" in text
+    assert "Smoke test attempt ${attempt}/${max_attempts}" in text
+    assert "Failure reason: ${failure_reason}" in text
+    assert "Smoke test failed after ${max_attempts} attempts." in text
+    assert "台股" in text
+    assert "紙上交易" in text
+    assert "實際交易日" in text
+    assert "freshness_source" in text
+    assert "資料來源" in text
+    assert "trading_day_lag" in text
+    assert "落後有效交易日" in text
+
+
 def test_ci_github_actions_workflow_runs_quality_gates() -> None:
     workflow = ROOT / ".github" / "workflows" / "ci.yml"
 

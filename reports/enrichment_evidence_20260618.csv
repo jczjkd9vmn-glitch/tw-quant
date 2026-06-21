@@ -8,6 +8,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,1342,八貫,candidate,csv,2026-06-18,price_return_5d,0.18114406779661,price_return_5d=0.18114406779661,False,0.8
 2026-06-18,1342,八貫,candidate,csv,2026-06-18,liquidity_score,75.0,liquidity_score=75.0,False,0.8
 2026-06-18,1342,八貫,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
+2026-06-18,1342,八貫,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,3022,威強電,candidate,csv,2026-06-18,candidate_grade,B,candidate_grade=B,False,0.8
 2026-06-18,3022,威強電,candidate,csv,2026-06-18,decision,WATCH_ONLY,decision=WATCH_ONLY,False,0.8
 2026-06-18,3022,威強電,candidate,csv,2026-06-18,pe_ratio,22.38,pe_ratio=22.38,False,0.8
@@ -18,6 +19,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,3022,威強電,candidate,csv,2026-06-18,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-06-18,3022,威強電,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,3022,威強電,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲,risk_flags=融資連增但股價不漲,False,0.8
+2026-06-18,3022,威強電,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,2414,精技,candidate,csv,2026-06-18,candidate_grade,B,candidate_grade=B,False,0.8
 2026-06-18,2414,精技,candidate,csv,2026-06-18,decision,WATCH_ONLY,decision=WATCH_ONLY,False,0.8
 2026-06-18,2414,精技,candidate,csv,2026-06-18,pe_ratio,14.67,pe_ratio=14.67,False,0.8
@@ -28,6 +30,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,2414,精技,candidate,csv,2026-06-18,liquidity_score,60.0,liquidity_score=60.0,False,0.8
 2026-06-18,2414,精技,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,2414,精技,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲,risk_flags=融資連增但股價不漲,False,0.8
+2026-06-18,2414,精技,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,2597,潤弘,candidate,csv,2026-06-18,candidate_grade,B,candidate_grade=B,False,0.8
 2026-06-18,2597,潤弘,candidate,csv,2026-06-18,decision,WATCH_ONLY,decision=WATCH_ONLY,False,0.8
 2026-06-18,2597,潤弘,candidate,csv,2026-06-18,pe_ratio,16.24,pe_ratio=16.24,False,0.8
@@ -38,6 +41,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,2597,潤弘,candidate,csv,2026-06-18,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-06-18,2597,潤弘,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,2597,潤弘,candidate,csv,2026-06-18,risk_flags,PB 偏高,risk_flags=PB 偏高,False,0.8
+2026-06-18,2597,潤弘,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,0055,元大MSCI金融,candidate,csv,2026-06-18,candidate_grade,C,candidate_grade=C,False,0.8
 2026-06-18,0055,元大MSCI金融,candidate,csv,2026-06-18,decision,WATCH_ONLY,decision=WATCH_ONLY,False,0.8
 2026-06-18,0055,元大MSCI金融,candidate,csv,2026-06-18,margin_change_5d,142.0,margin_change_5d=142.0,False,0.8
@@ -45,6 +49,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,0055,元大MSCI金融,candidate,csv,2026-06-18,liquidity_score,60.0,liquidity_score=60.0,False,0.8
 2026-06-18,0055,元大MSCI金融,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,0055,元大MSCI金融,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲,risk_flags=融資連增但股價不漲,False,0.8
+2026-06-18,0055,元大MSCI金融,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,3550,聯穎,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,3550,聯穎,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,3550,聯穎,candidate,csv,2026-06-18,pb_ratio,1.52,pb_ratio=1.52,False,0.8
@@ -53,6 +58,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,3550,聯穎,candidate,csv,2026-06-18,liquidity_score,75.0,liquidity_score=75.0,False,0.8
 2026-06-18,3550,聯穎,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,3550,聯穎,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲；PE 為空或負值；未通過既有風控,risk_flags=融資連增但股價不漲；PE 為空或負值；未通過既有風控,False,0.8
+2026-06-18,3550,聯穎,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,6585,鼎基,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,6585,鼎基,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,6585,鼎基,candidate,csv,2026-06-18,pe_ratio,25.1,pe_ratio=25.1,False,0.8
@@ -64,6 +70,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,6585,鼎基,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,6585,鼎基,candidate,csv,2026-06-18,event_risk_level,MEDIUM,event_risk_level=MEDIUM,False,0.8
 2026-06-18,6585,鼎基,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲；未通過既有風控,risk_flags=融資連增但股價不漲；未通過既有風控,False,0.8
+2026-06-18,6585,鼎基,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,4739,康普,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,4739,康普,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,4739,康普,candidate,csv,2026-06-18,pe_ratio,36.92,pe_ratio=36.92,False,0.8
@@ -74,6 +81,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,4739,康普,candidate,csv,2026-06-18,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-06-18,4739,康普,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,4739,康普,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲；未通過既有風控,risk_flags=融資連增但股價不漲；未通過既有風控,False,0.8
+2026-06-18,4739,康普,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,2484,希華,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,2484,希華,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,2484,希華,candidate,csv,2026-06-18,pe_ratio,74.73,pe_ratio=74.73,False,0.8
@@ -85,6 +93,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,2484,希華,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,2484,希華,candidate,csv,2026-06-18,event_risk_level,MEDIUM,event_risk_level=MEDIUM,False,0.8
 2026-06-18,2484,希華,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲；PE 偏高；未通過既有風控,risk_flags=融資連增但股價不漲；PE 偏高；未通過既有風控,False,0.8
+2026-06-18,2484,希華,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,2478,大毅,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,2478,大毅,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,2478,大毅,candidate,csv,2026-06-18,pe_ratio,40.97,pe_ratio=40.97,False,0.8
@@ -95,6 +104,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,2478,大毅,candidate,csv,2026-06-18,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-06-18,2478,大毅,candidate,csv,2026-06-18,sector_strength_score,86.0,sector_strength_score=86.0,False,0.8
 2026-06-18,2478,大毅,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲；融資暴增但法人賣超；PE 偏高；未通過既有風控,risk_flags=融資連增但股價不漲；融資暴增但法人賣超；PE 偏高；未通過既有風控,False,0.8
+2026-06-18,2478,大毅,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,2059,川湖,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,2059,川湖,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,2059,川湖,candidate,csv,2026-06-18,pe_ratio,54.47,pe_ratio=54.47,False,0.8
@@ -106,6 +116,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,2059,川湖,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,2059,川湖,candidate,csv,2026-06-18,event_risk_level,MEDIUM,event_risk_level=MEDIUM,False,0.8
 2026-06-18,2059,川湖,candidate,csv,2026-06-18,risk_flags,PE 偏高；PB 偏高；未通過既有風控,risk_flags=PE 偏高；PB 偏高；未通過既有風控,False,0.8
+2026-06-18,2059,川湖,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,2457,飛宏,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,2457,飛宏,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,2457,飛宏,candidate,csv,2026-06-18,pb_ratio,1.33,pb_ratio=1.33,False,0.8
@@ -114,6 +125,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,2457,飛宏,candidate,csv,2026-06-18,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-06-18,2457,飛宏,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,2457,飛宏,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲；PE 為空或負值；EPS 為負；未通過既有風控,risk_flags=融資連增但股價不漲；PE 為空或負值；EPS 為負；未通過既有風控,False,0.8
+2026-06-18,2457,飛宏,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,2535,達欣工,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,2535,達欣工,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,2535,達欣工,candidate,csv,2026-06-18,pe_ratio,10.26,pe_ratio=10.26,False,0.8
@@ -124,6 +136,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,2535,達欣工,candidate,csv,2026-06-18,liquidity_score,75.0,liquidity_score=75.0,False,0.8
 2026-06-18,2535,達欣工,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,2535,達欣工,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲；月營收 YoY 明顯衰退；未通過既有風控,risk_flags=融資連增但股價不漲；月營收 YoY 明顯衰退；未通過既有風控,False,0.8
+2026-06-18,2535,達欣工,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,2241,艾姆勒,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,2241,艾姆勒,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,2241,艾姆勒,candidate,csv,2026-06-18,pb_ratio,3.05,pb_ratio=3.05,False,0.8
@@ -132,6 +145,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,2241,艾姆勒,candidate,csv,2026-06-18,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-06-18,2241,艾姆勒,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,2241,艾姆勒,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲；PE 為空或負值；EPS 為負；未通過既有風控,risk_flags=融資連增但股價不漲；PE 為空或負值；EPS 為負；未通過既有風控,False,0.8
+2026-06-18,2241,艾姆勒,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,7788,松川精密,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,7788,松川精密,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,7788,松川精密,candidate,csv,2026-06-18,pe_ratio,65.08,pe_ratio=65.08,False,0.8
@@ -142,6 +156,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,7788,松川精密,candidate,csv,2026-06-18,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-06-18,7788,松川精密,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,7788,松川精密,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲；PE 偏高；未通過既有風控,risk_flags=融資連增但股價不漲；PE 偏高；未通過既有風控,False,0.8
+2026-06-18,7788,松川精密,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,5288,豐祥-KY,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,5288,豐祥-KY,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,5288,豐祥-KY,candidate,csv,2026-06-18,pe_ratio,14.26,pe_ratio=14.26,False,0.8
@@ -152,6 +167,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,5288,豐祥-KY,candidate,csv,2026-06-18,liquidity_score,60.0,liquidity_score=60.0,False,0.8
 2026-06-18,5288,豐祥-KY,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,5288,豐祥-KY,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲；未通過既有風控,risk_flags=融資連增但股價不漲；未通過既有風控,False,0.8
+2026-06-18,5288,豐祥-KY,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,2883,凱基金,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,2883,凱基金,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,2883,凱基金,candidate,csv,2026-06-18,pe_ratio,15.03,pe_ratio=15.03,False,0.8
@@ -163,6 +179,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,2883,凱基金,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,2883,凱基金,candidate,csv,2026-06-18,event_risk_level,MEDIUM,event_risk_level=MEDIUM,False,0.8
 2026-06-18,2883,凱基金,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲；未通過既有風控,risk_flags=融資連增但股價不漲；未通過既有風控,False,0.8
+2026-06-18,2883,凱基金,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,2882,國泰金,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,2882,國泰金,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,2882,國泰金,candidate,csv,2026-06-18,pe_ratio,14.42,pe_ratio=14.42,False,0.8
@@ -173,6 +190,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,2882,國泰金,candidate,csv,2026-06-18,liquidity_score,92.0,liquidity_score=92.0,False,0.8
 2026-06-18,2882,國泰金,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,2882,國泰金,candidate,csv,2026-06-18,risk_flags,融資連增但股價不漲；未通過既有風控,risk_flags=融資連增但股價不漲；未通過既有風控,False,0.8
+2026-06-18,2882,國泰金,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,2881,富邦金,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,2881,富邦金,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,2881,富邦金,candidate,csv,2026-06-18,pe_ratio,15.96,pe_ratio=15.96,False,0.8
@@ -184,6 +202,7 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,2881,富邦金,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,2881,富邦金,candidate,csv,2026-06-18,event_risk_level,HIGH,event_risk_level=HIGH,False,0.8
 2026-06-18,2881,富邦金,candidate,csv,2026-06-18,risk_flags,未通過既有風控；重大事件；未通過事件風控；新聞明顯偏負面；事件風險偏高；高風險事件,risk_flags=未通過既有風控；重大事件；未通過事件風控；新聞明顯偏負面；事件風險偏高；高風險事件,False,0.8
+2026-06-18,2881,富邦金,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8
 2026-06-18,2025,千興,candidate,csv,2026-06-18,candidate_grade,D,candidate_grade=D,False,0.8
 2026-06-18,2025,千興,candidate,csv,2026-06-18,decision,NO_TRADE,decision=NO_TRADE,False,0.8
 2026-06-18,2025,千興,candidate,csv,2026-06-18,pe_ratio,91.88,pe_ratio=91.88,False,0.8
@@ -194,3 +213,4 @@ trade_date,stock_id,stock_name,source_name,source_type,source_date,field_name,fi
 2026-06-18,2025,千興,candidate,csv,2026-06-18,sector_strength_score,78.0,sector_strength_score=78.0,False,0.8
 2026-06-18,2025,千興,candidate,csv,2026-06-18,event_risk_level,MEDIUM,event_risk_level=MEDIUM,False,0.8
 2026-06-18,2025,千興,candidate,csv,2026-06-18,risk_flags,流動性偏低；PE 偏高；未通過既有風控,risk_flags=流動性偏低；PE 偏高；未通過既有風控,False,0.8
+2026-06-18,2025,千興,candidate,csv,2026-06-18,liquidity_warning,價量資料少於 20 日,liquidity_warning=價量資料少於 20 日,False,0.8

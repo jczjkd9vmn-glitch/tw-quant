@@ -55,6 +55,23 @@ def latest_trading_day(values: object, end_date: object | None = None, calendar_
     return None
 
 
+def trading_day_gap(
+    actual_date: object,
+    requested_date: object,
+    calendar_path: str | Path | None = None,
+) -> int | None:
+    actual = pd.to_datetime(actual_date, errors="coerce")
+    requested = pd.to_datetime(requested_date, errors="coerce")
+    if pd.isna(actual) or pd.isna(requested):
+        return None
+    actual = actual.normalize()
+    requested = requested.normalize()
+    if actual >= requested:
+        return 0
+    days = pd.date_range(actual + pd.Timedelta(days=1), requested, freq="D")
+    return int(sum(is_trading_day(day, calendar_path=calendar_path) for day in days))
+
+
 def _calendar_override(path: Path, target: str) -> bool | None:
     if not path.exists():
         return None

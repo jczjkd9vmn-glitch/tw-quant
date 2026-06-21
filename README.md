@@ -305,9 +305,10 @@ GitHub Pages 報表會避免把「原始執行日期」與「實際使用資料�
 1. 開啟 GitHub repo 的 `Settings`。
 2. 點選左側 `Pages`。
 3. `Source` 選 `GitHub Actions`。
-4. 每日 workflow 會先產生 `reports/index.html`，並在資料未超過 `public_report.stale_days_threshold` 時更新 `docs/index.html`。
-5. 若 `public_report.stale_docs_behavior: keep_previous` 且資料過期，workflow 會保留既有 public docs、跳過 GitHub Pages deploy，並在 workflow log / Discord 通知顯示原因。
-6. 若 public docs 已更新，workflow 會上傳 `docs/` 作為 GitHub Pages artifact，並由 `actions/deploy-pages` 明確部署。
+4. 每日 workflow 每天執行，會先 backfill 近期價量資料並產生 `reports/index.html`。
+5. Public docs freshness 使用有效交易日落後數判斷；週末或休市日若使用最近交易日資料，不會只因日曆天數被視為 stale。
+6. 若 `public_report.stale_docs_behavior: keep_previous` 且資料落後超過 `public_report.stale_days_threshold` 個有效交易日，workflow 會保留既有 public docs、跳過 GitHub Pages deploy，並在 workflow log / Discord 通知顯示原因。
+7. 若 public docs 已更新，workflow 會上傳 `docs/` 作為 GitHub Pages artifact，並由 `actions/deploy-pages` 明確部署。
 
 ### Discord 每日通知
 

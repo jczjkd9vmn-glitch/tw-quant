@@ -85,8 +85,9 @@ def test_daily_workflow_does_not_publish_stale_docs(tmp_path: Path) -> None:
             {
                 "requested_date": "2026-05-11",
                 "trade_date": "2026-05-11",
-                "actual_data_date": "2026-05-08",
-                "cache_age_days": 3,
+                "actual_data_date": "2026-05-06",
+                "cache_age_days": 5,
+                "trading_day_lag": 3,
                 "is_stale_data": True,
                 "data_freshness_level": "STALE",
                 "used_latest_available": True,
@@ -106,8 +107,87 @@ def test_daily_workflow_does_not_publish_stale_docs(tmp_path: Path) -> None:
     publish_status = pd.read_csv(tmp_path / PUBLIC_REPORT_PUBLISH_STATUS_FILE, encoding="utf-8").iloc[0]
     assert publish_status["docs_publish_status"] == "SKIPPED_STALE"
     assert str(publish_status["docs_written"]).lower() == "false"
-    assert publish_status["cache_age_days"] == 3
+    assert publish_status["cache_age_days"] == 5
+    assert publish_status["trading_day_lag"] == 3
     assert "kept previous docs/index.html" in publish_status["docs_publish_reason"]
+
+
+def test_html_report_publishes_weekend_recent_trading_day_docs(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "index.html").write_text("<html>previous</html>", encoding="utf-8")
+    _write_reports(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "requested_date": "2026-06-20",
+                "trade_date": "2026-06-19",
+                "actual_data_date": "2026-06-19",
+                "cache_age_days": 1,
+                "trading_day_lag": 0,
+                "market_closed": True,
+                "is_stale_data": False,
+                "data_freshness_level": "CURRENT",
+                "used_latest_available": True,
+                "status": "OK_WITH_FALLBACK",
+                "fallback_date": "2026-06-19",
+                "fallback_reason": "non_trading_day",
+                "scored_rows": 1328,
+                "candidate_rows": 20,
+                "risk_pass_rows": 6,
+            }
+        ]
+    ).to_csv(tmp_path / "daily_summary_20260620.csv", index=False, encoding="utf-8")
+
+    reports_index = generate_html_report(tmp_path, docs_dir=docs_dir)
+    docs_html = (docs_dir / "index.html").read_text(encoding="utf-8")
+    publish_status = pd.read_csv(tmp_path / PUBLIC_REPORT_PUBLISH_STATUS_FILE, encoding="utf-8").iloc[0]
+
+    assert docs_html == reports_index.read_text(encoding="utf-8")
+    assert publish_status["docs_publish_status"] == "PUBLISHED"
+    assert str(publish_status["docs_written"]).lower() == "true"
+    assert publish_status["trading_day_lag"] == 0
+    assert str(publish_status["market_closed"]).lower() == "true"
+    assert "市場休市，使用最近交易日資料" in docs_html
+    assert "資料過期" not in docs_html
+
+
+def test_html_report_skips_public_docs_when_multiple_trading_days_late(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    previous_public_html = "<html><body>previous fresh public report</body></html>"
+    (docs_dir / "index.html").write_text(previous_public_html, encoding="utf-8")
+    _write_reports(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "requested_date": "2026-06-20",
+                "trade_date": "2026-06-19",
+                "actual_data_date": "2026-06-16",
+                "cache_age_days": 4,
+                "trading_day_lag": 3,
+                "market_closed": True,
+                "is_stale_data": True,
+                "data_freshness_level": "STALE",
+                "used_latest_available": True,
+                "status": "OK_WITH_FALLBACK",
+                "fallback_date": "2026-06-19",
+                "fallback_reason": "non_trading_day",
+                "scored_rows": 1328,
+                "candidate_rows": 20,
+                "risk_pass_rows": 6,
+            }
+        ]
+    ).to_csv(tmp_path / "daily_summary_20260620.csv", index=False, encoding="utf-8")
+
+    generate_html_report(tmp_path, docs_dir=docs_dir)
+    publish_status = pd.read_csv(tmp_path / PUBLIC_REPORT_PUBLISH_STATUS_FILE, encoding="utf-8").iloc[0]
+
+    assert (docs_dir / "index.html").read_text(encoding="utf-8") == previous_public_html
+    assert publish_status["docs_publish_status"] == "SKIPPED_STALE"
+    assert str(publish_status["docs_written"]).lower() == "false"
+    assert publish_status["trading_day_lag"] == 3
+    assert "trading_day_lag=3" in publish_status["docs_publish_reason"]
 
 
 def test_generate_html_report_translates_fallback_status(tmp_path: Path) -> None:
@@ -408,7 +488,7 @@ def test_freshness_readiness_dashboard_marks_stale_cache_age_and_windows(tmp_pat
 
     assert "資料新鮮度與策略成熟度" in html
     assert "資料非最新交易日" in html
-    assert "資料落後 4 天" in html
+    assert "資料落後 3 個有效交易日" in html
     assert "使用最近有效資料：是" in html
     assert "無交易資料" in html
     assert "資料最新或可用" not in html
@@ -577,7 +657,7 @@ def test_generate_html_report_has_modern_dashboard_sections_and_badges(tmp_path:
     assert "今日決策統計" in html
     assert "產業分類缺口" in html
     assert "AnySearch 候選資料" in html
-    assert "資料為最新或目前可用資料" in html
+    assert "市場休市，使用最近交易日資料" in html
     assert 'id="pnl-overview"' in html
     assert 'class="asset-donut-card"' in html
     assert "資產 / 損益圓環卡" in html

@@ -10,11 +10,11 @@ from typing import Any, Callable
 import pandas as pd
 
 from tw_quant.config import load_config
-from tw_quant.data.database import create_db_engine, init_db, load_latest_price_date
+from tw_quant.data.database import create_db_engine, init_db
 from tw_quant.data.database import load_existing_price_dates
 from tw_quant.data.exceptions import TradingHalted
 from tw_quant.data.pipeline import run_daily_pipeline
-from tw_quant.data.trading_calendar import is_trading_day, latest_trading_day
+from tw_quant.data.trading_calendar import is_trading_day, latest_trading_day, trading_day_gap
 from tw_quant.data_sources.local_derived_provider import LocalDerivedProvider
 from tw_quant.decision.engine import decision_counts, generate_trading_decisions
 from tw_quant.enrichment.industry import update_industry_map
@@ -90,6 +90,9 @@ class DailyWorkflowSummary:
     fallback_date: str = ""
     fallback_reason: str = ""
     cache_age_days: int | None = None
+    trading_day_lag: int | None = None
+    market_closed: bool = False
+    freshness_reason: str = ""
     is_stale_data: bool = False
     data_freshness_level: str = ""
     used_latest_available: bool = False
@@ -321,6 +324,8 @@ def run_all_daily(
                 summary_values,
                 export_result.candidates,
                 getattr(export_result, "data_fetch_status", pd.DataFrame()),
+                calendar_path=Path(config_path).resolve().parent / "data" / "trading_calendar.csv",
+                stale_trading_days_threshold=_public_report_stale_days_threshold(config),
             )
             summary_values["market_intel_warning_count"] = _count_market_intel_warnings(export_result.candidates)
             summary_values["market_intel_top_score"] = _max_numeric(
@@ -956,23 +961,7 @@ def _resolve_trade_date(
 
     if not allow_fallback_latest:
         return trade_date, "", None, ""
-
-    config = load_config(config_path)
-    engine = create_db_engine(config["database"]["url"])
-    init_db(engine)
-    calendar_path = Path(config_path).resolve().parent / "data" / "trading_calendar.csv"
-    latest_date = latest_trading_day(load_existing_price_dates(engine), calendar_path=calendar_path)
-    if latest_date is None:
-        latest_date = load_latest_price_date(engine)
-    if latest_date is None:
-        raise TradingHalted("no price history available for fallback")
-    fallback_reason = "no trading data"
-    return (
-        latest_date,
-        f"fallback_date={latest_date} reason={fallback_reason}",
-        latest_date,
-        fallback_reason,
-    )
+    return trade_date, "", None, ""
 
 
 def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, Any]:
@@ -1029,6 +1018,9 @@ def _empty_summary(trade_date: str | date | None, capital: float) -> dict[str, A
         "fallback_date": "",
         "fallback_reason": "",
         "cache_age_days": None,
+        "trading_day_lag": None,
+        "market_closed": False,
+        "freshness_reason": "",
         "is_stale_data": False,
         "data_freshness_level": "",
         "used_latest_available": False,
@@ -1314,6 +1306,8 @@ def _apply_market_intel_freshness_summary(
     summary_values: dict[str, Any],
     candidates: pd.DataFrame,
     data_fetch_status: pd.DataFrame,
+    calendar_path: Path | None = None,
+    stale_trading_days_threshold: int = 0,
 ) -> None:
     status_row = _market_intel_status_row(data_fetch_status)
     actual = _first_non_blank(
@@ -1337,14 +1331,45 @@ def _apply_market_intel_freshness_summary(
     summary_values["data_freshness_level"] = str(level or "UNKNOWN")
     parsed_age = _to_int_or_none(cache_age)
     actual_text = summary_values["actual_data_date"]
-    reference_text = _first_non_blank(summary_values.get("trade_date", ""), summary_values.get("requested_date", ""))
-    date_gap = _date_gap_days(reference_text, actual_text)
+    requested_text = _first_non_blank(summary_values.get("requested_date", ""), summary_values.get("trade_date", ""))
+    date_gap = _date_gap_days(requested_text, actual_text)
+    trading_lag = trading_day_gap(actual_text, requested_text, calendar_path=calendar_path)
+    market_closed = _is_market_closed(requested_text, calendar_path)
     if date_gap > 0:
         parsed_age = max(parsed_age or 0, date_gap)
+    if trading_lag is not None:
+        summary_values["trading_day_lag"] = trading_lag
+    summary_values["market_closed"] = market_closed
+    stale_by_trading_days = (
+        trading_lag is not None and trading_lag > max(int(stale_trading_days_threshold), 0)
+    )
+    if stale_by_trading_days:
         summary_values["data_freshness_level"] = "STALE"
+    elif trading_lag == 0:
+        summary_values["data_freshness_level"] = "CURRENT"
+    elif trading_lag is not None:
+        summary_values["data_freshness_level"] = "RECENT"
+    if market_closed and trading_lag == 0:
+        summary_values["freshness_reason"] = "market_closed_recent_trading_day"
+    elif trading_lag is not None:
+        summary_values["freshness_reason"] = f"trading_day_lag={trading_lag}"
     summary_values["cache_age_days"] = parsed_age
-    summary_values["is_stale_data"] = bool(_to_bool(stale) or date_gap > 0)
-    summary_values["used_latest_available"] = bool(date_gap > 0 or _to_bool(summary_values.get("used_latest_available")))
+    if trading_lag is None:
+        summary_values["is_stale_data"] = bool(_to_bool(stale) or date_gap > max(int(stale_trading_days_threshold), 0))
+    else:
+        summary_values["is_stale_data"] = stale_by_trading_days
+    summary_values["used_latest_available"] = bool(
+        date_gap > 0
+        or market_closed
+        or _to_bool(summary_values.get("used_latest_available"))
+    )
+
+
+def _is_market_closed(value: object, calendar_path: Path | None) -> bool:
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed):
+        return False
+    return not is_trading_day(parsed, calendar_path=calendar_path)
 
 
 def _market_intel_status_row(status: pd.DataFrame) -> dict[str, Any]:
@@ -1451,6 +1476,9 @@ def should_publish_public_report(summary: DailyWorkflowSummary | dict[str, Any],
     if behavior not in {"keep_previous", "keep-previous"}:
         return True
     threshold = _public_report_stale_days_threshold(config)
+    trading_day_lag = _to_int_or_none(_summary_value(summary, "trading_day_lag"))
+    if trading_day_lag is not None:
+        return trading_day_lag <= threshold
     cache_age_days = _to_int_or_none(_summary_value(summary, "cache_age_days")) or 0
     freshness_level = str(_summary_value(summary, "data_freshness_level", "")).strip().upper()
     stale = _to_bool(_summary_value(summary, "is_stale_data", False)) or freshness_level in {"STALE", "CACHE"}

@@ -13,14 +13,16 @@ def test_daily_github_actions_workflow_exists_and_contains_required_steps() -> N
     text = workflow.read_text(encoding="utf-8")
     assert "workflow_dispatch:" in text
     assert "schedule:" in text
-    assert 'cron: "30 12 * * 1-5"' in text
+    assert 'cron: "30 12 * * *"' in text
     assert 'python-version: "3.12"' in text
     assert "python -m pytest" in text
-    assert "python scripts/backfill.py --days 10 --timeout 30 --retries 3 --sleep 1" in text
+    assert "python scripts/backfill.py --days 45 --timeout 30 --retries 3 --sleep 1" in text
     assert "python scripts/run_all_daily.py --capital 1000000 --allow-fallback-latest" in text
     assert "python scripts/generate_html_report.py" in text
     assert "reports/public_report_publish_status.csv" in text
     assert "public_report.docs_written" in text
+    assert "public_report.trading_day_lag" in text
+    assert "public_report.market_closed" in text
     assert "python scripts/send_daily_notification.py" in text
     assert "DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}" in text
     assert "git add data/ reports/ docs/" in text

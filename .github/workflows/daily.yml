@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # GitHub Actions cron uses UTC. 12:30 UTC = 20:30 Asia/Taipei.
-    - cron: "30 12 * * 1-5"
+    - cron: "30 12 * * *"
 
 permissions:
   contents: read
@@ -46,7 +46,7 @@ jobs:
         run: python -m pytest
 
       - name: Backfill recent trading data
-        run: python scripts/backfill.py --days 10 --timeout 30 --retries 3 --sleep 1
+        run: python scripts/backfill.py --days 45 --timeout 30 --retries 3 --sleep 1
 
       - name: Fetch multi-factor data
         run: python scripts/fetch_multi_factor_data.py
@@ -82,6 +82,11 @@ jobs:
           print(f"public_report.docs_written={docs_written}")
           print(f"public_report.docs_publish_status={docs_publish_status}")
           print(f"public_report.docs_publish_reason={docs_publish_reason}")
+          print(f"public_report.requested_date={row.get('requested_date', '')}")
+          print(f"public_report.actual_data_date={row.get('actual_data_date', '')}")
+          print(f"public_report.market_closed={row.get('market_closed', '')}")
+          print(f"public_report.trading_day_lag={row.get('trading_day_lag', '')}")
+          print(f"public_report.used_latest_available={row.get('used_latest_available', '')}")
 
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               print(f"docs_written={'true' if docs_written else 'false'}", file=output)

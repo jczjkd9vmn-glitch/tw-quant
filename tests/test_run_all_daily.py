@@ -217,6 +217,90 @@ def test_run_all_daily_records_pipeline_fallback_when_no_requested_date(tmp_path
     assert "fallback_date=2026-05-08 reason=no trading data" in result.messages
 
 
+def test_run_all_daily_export_warning_still_writes_freshness_summary(tmp_path) -> None:
+    db_url = _sqlite_url(tmp_path)
+    config_path = _config(
+        tmp_path,
+        database_url=db_url,
+        extra="public_report:\n  stale_days_threshold: 2\n",
+    )
+    engine = create_db_engine(db_url)
+    init_db(engine)
+    save_daily_prices(engine, _price_frame("20260618"))
+
+    def fake_run_daily(**kwargs):
+        return SimpleNamespace(
+            trade_date=kwargs["trade_date"],
+            fetched_rows=0,
+            scored_rows=0,
+            candidate_rows=0,
+            message="",
+        )
+
+    def fake_export_warning(*_args, **_kwargs):
+        return SimpleNamespace(
+            trade_date=None,
+            candidates=pd.DataFrame(),
+            risk_pass_candidates=pd.DataFrame(),
+            data_fetch_status=pd.DataFrame(
+                [
+                    {
+                        "source_name": "liquidity",
+                        "provider_maturity": "local_derived",
+                        "status": "OK",
+                        "requested_period": "20260621",
+                        "actual_period": "2026-06-18",
+                        "latest_available_period": "2026-06-18",
+                        "source_url_or_name": "SQLite local OHLCV data",
+                        "is_stale": False,
+                        "data_age_days": 3,
+                    }
+                ]
+            ),
+            warning="no scoring data found",
+        )
+
+    result = run_all_daily(
+        config_path=config_path,
+        trade_date="20260621",
+        capital=1_000_000,
+        reports_dir=tmp_path / "reports",
+        skip_paper_trade=True,
+        skip_update=True,
+        run_daily_func=fake_run_daily,
+        export_func=fake_export_warning,
+        loss_attribution_func=_fake_empty_workflow_result,
+        validation_func=_fake_empty_workflow_result,
+        decision_func=_fake_empty_workflow_result,
+        candidate_coverage_func=_fake_empty_workflow_result,
+        position_review_func=_fake_empty_workflow_result,
+        missing_industry_priority_func=_fake_empty_workflow_result,
+        anysearch_industry_research_func=_fake_empty_workflow_result,
+        pnl_chart_func=_fake_empty_workflow_result,
+        market_recap_func=_fake_empty_workflow_result,
+        factor_diagnostics_func=_fake_empty_workflow_result,
+        performance_diagnostics_func=_fake_empty_workflow_result,
+        underperformance_attribution_func=_fake_empty_workflow_result,
+        candidate_forward_returns_func=_fake_empty_workflow_result,
+        market_regime_threshold_optimization_func=_fake_empty_workflow_result,
+    )
+
+    exported = pd.read_csv(result.summary_path).iloc[0]
+
+    assert result.summary.status == "OK_WITH_FALLBACK"
+    assert result.summary.actual_data_date == "2026-06-18"
+    assert result.summary.cache_age_days == 3
+    assert result.summary.trading_day_lag == 1
+    assert result.summary.market_closed is True
+    assert result.summary.used_latest_available is True
+    assert result.summary.data_freshness_level == "RECENT"
+    assert result.summary.is_stale_data is False
+    assert exported["actual_data_date"] == "2026-06-18"
+    assert exported["trading_day_lag"] == 1
+    assert str(exported["market_closed"]).lower() == "true"
+    assert any("export_candidates warning no scoring data found" in message for message in result.messages)
+
+
 def test_public_report_publish_uses_trading_day_lag_not_calendar_days() -> None:
     config = {"public_report": {"stale_docs_behavior": "keep_previous", "stale_days_threshold": 2}}
 
@@ -514,6 +598,27 @@ def _fake_flat_update(*_args, **_kwargs):
             ]
         ),
         warning="",
+    )
+
+
+def _fake_empty_workflow_result(*_args, **_kwargs):
+    return SimpleNamespace(
+        attribution=pd.DataFrame(),
+        validation=pd.DataFrame(),
+        decisions=pd.DataFrame(),
+        coverage=pd.DataFrame(),
+        review=pd.DataFrame(),
+        enrichment=pd.DataFrame(),
+        priority=pd.DataFrame(),
+        candidates=pd.DataFrame(),
+        frame=pd.DataFrame(),
+        factor_attribution=pd.DataFrame(),
+        benchmark_diagnostics=pd.DataFrame(),
+        guardrail_impact=pd.DataFrame(),
+        status="OK",
+        warning="",
+        coverage_5d=0.0,
+        coverage_20d=0.0,
     )
 
 

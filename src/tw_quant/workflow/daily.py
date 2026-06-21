@@ -290,8 +290,22 @@ def run_all_daily(
                 export_result = export_func(engine, output_dir=report_dir, config=config)
             except TypeError:
                 export_result = export_func(engine, output_dir=report_dir)
+        export_data_fetch_status = _export_data_fetch_status(
+            export_result,
+            report_dir,
+            summary_values,
+        )
         if getattr(export_result, "warning", ""):
             messages.append(f"export_candidates warning {export_result.warning}")
+            summary_values["multi_factor_data_status"] = _data_status_text(export_data_fetch_status)
+            summary_values["market_intel_status"] = _market_intel_status(export_data_fetch_status)
+            _apply_market_intel_freshness_summary(
+                summary_values,
+                getattr(export_result, "candidates", pd.DataFrame()),
+                export_data_fetch_status,
+                calendar_path=Path(config_path).resolve().parent / "data" / "trading_calendar.csv",
+                stale_trading_days_threshold=_public_report_stale_days_threshold(config),
+            )
         else:
             summary_values["trade_date"] = _date_text(export_result.trade_date)
             summary_values["candidate_rows"] = len(export_result.candidates)
@@ -315,15 +329,15 @@ def run_all_daily(
                 export_result.candidates
             )
             summary_values["multi_factor_data_status"] = _data_status_text(
-                getattr(export_result, "data_fetch_status", pd.DataFrame())
+                export_data_fetch_status
             )
             summary_values["market_intel_status"] = _market_intel_status(
-                getattr(export_result, "data_fetch_status", pd.DataFrame())
+                export_data_fetch_status
             )
             _apply_market_intel_freshness_summary(
                 summary_values,
                 export_result.candidates,
-                getattr(export_result, "data_fetch_status", pd.DataFrame()),
+                export_data_fetch_status,
                 calendar_path=Path(config_path).resolve().parent / "data" / "trading_calendar.csv",
                 stale_trading_days_threshold=_public_report_stale_days_threshold(config),
             )
@@ -1302,6 +1316,47 @@ def _market_intel_status(status: pd.DataFrame) -> str:
     return str(frame.iloc[-1].get("status", "")).strip()
 
 
+def _export_data_fetch_status(
+    export_result: Any,
+    report_dir: Path,
+    summary_values: dict[str, Any],
+) -> pd.DataFrame:
+    status = getattr(export_result, "data_fetch_status", pd.DataFrame())
+    if isinstance(status, pd.DataFrame) and not status.empty:
+        return status
+    return _read_data_fetch_status_for_summary(report_dir, summary_values)
+
+
+def _read_data_fetch_status_for_summary(report_dir: Path, summary_values: dict[str, Any]) -> pd.DataFrame:
+    labels = [
+        _safe_date_label(summary_values.get("requested_date")),
+        _safe_date_label(summary_values.get("trade_date")),
+        _safe_date_label(summary_values.get("fallback_date")),
+    ]
+    for label in [value for value in dict.fromkeys(labels) if value]:
+        path = report_dir / f"data_fetch_status_{label}.csv"
+        if path.exists():
+            return _read_csv_safely(path)
+    paths = sorted(report_dir.glob("data_fetch_status_*.csv"))
+    if not paths:
+        return pd.DataFrame()
+    return _read_csv_safely(paths[-1])
+
+
+def _read_csv_safely(path: Path) -> pd.DataFrame:
+    try:
+        return pd.read_csv(path)
+    except Exception:
+        return pd.DataFrame()
+
+
+def _safe_date_label(value: object) -> str:
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed):
+        return ""
+    return parsed.strftime("%Y%m%d")
+
+
 def _apply_market_intel_freshness_summary(
     summary_values: dict[str, Any],
     candidates: pd.DataFrame,
@@ -1310,9 +1365,15 @@ def _apply_market_intel_freshness_summary(
     stale_trading_days_threshold: int = 0,
 ) -> None:
     status_row = _market_intel_status_row(data_fetch_status)
+    local_row = _local_derived_status_row(data_fetch_status)
     actual = _first_non_blank(
         _frame_first_non_blank(candidates, "actual_data_date"),
         status_row.get("actual_period", "") if status_row else "",
+        _first_non_blank(
+            local_row.get("actual_period", "") if local_row else "",
+            local_row.get("latest_available_period", "") if local_row else "",
+        ),
+        summary_values.get("fallback_date", ""),
         summary_values.get("trade_date", ""),
     )
     level = _first_non_blank(
@@ -1322,10 +1383,12 @@ def _apply_market_intel_freshness_summary(
     cache_age = _first_non_blank(
         _max_numeric_value(candidates, "cache_age_days"),
         status_row.get("data_age_days", "") if status_row else "",
+        local_row.get("data_age_days", "") if local_row else "",
     )
     stale = _first_non_blank(
         _any_true(candidates, "is_stale_data"),
         status_row.get("is_stale", "") if status_row else "",
+        local_row.get("is_stale", "") if local_row else "",
     )
     summary_values["actual_data_date"] = _date_text_or_blank(actual)
     summary_values["data_freshness_level"] = str(level or "UNKNOWN")
@@ -1379,6 +1442,33 @@ def _market_intel_status_row(status: pd.DataFrame) -> dict[str, Any]:
     if frame.empty:
         return {}
     return frame.iloc[-1].to_dict()
+
+
+def _local_derived_status_row(status: pd.DataFrame) -> dict[str, Any]:
+    if status is None or status.empty:
+        return {}
+    frame = status.copy()
+    source = frame.get("source_name", pd.Series([""] * len(frame), index=frame.index)).fillna("").astype(str)
+    provider = frame.get("provider_maturity", pd.Series([""] * len(frame), index=frame.index)).fillna("").astype(str)
+    source_url = frame.get("source_url_or_name", pd.Series([""] * len(frame), index=frame.index)).fillna("").astype(str)
+    mask = (
+        source.isin({"sector_strength", "liquidity"})
+        | provider.str.lower().eq("local_derived")
+        | source_url.str.contains("SQLite local OHLCV", case=False, na=False)
+    )
+    frame = frame[mask].copy()
+    if frame.empty:
+        return {}
+    actual_values = frame.apply(
+        lambda row: _first_non_blank(row.get("actual_period", ""), row.get("latest_available_period", "")),
+        axis=1,
+    )
+    frame["_actual_date"] = pd.to_datetime(actual_values, errors="coerce")
+    frame = frame.dropna(subset=["_actual_date"])
+    if frame.empty:
+        return {}
+    frame = frame.sort_values("_actual_date")
+    return frame.iloc[-1].drop(labels=["_actual_date"], errors="ignore").to_dict()
 
 
 def _max_numeric(frame: pd.DataFrame, column: str) -> float:

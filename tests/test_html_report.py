@@ -146,10 +146,92 @@ def test_html_report_publishes_weekend_recent_trading_day_docs(tmp_path: Path) -
     assert docs_html == reports_index.read_text(encoding="utf-8")
     assert publish_status["docs_publish_status"] == "PUBLISHED"
     assert str(publish_status["docs_written"]).lower() == "true"
+    assert publish_status["actual_data_date"] == "2026-06-19"
     assert publish_status["trading_day_lag"] == 0
     assert str(publish_status["market_closed"]).lower() == "true"
+    assert publish_status["freshness_source"] == "daily_summary"
     assert "市場休市，使用最近交易日資料" in docs_html
     assert "資料過期" not in docs_html
+
+
+def test_html_report_uses_local_data_fetch_status_when_summary_freshness_is_blank(
+    tmp_path: Path,
+    capsys,
+) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir()
+    (docs_dir / "index.html").write_text("<html>previous stale decision</html>", encoding="utf-8")
+    _write_reports(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "requested_date": "2026-06-21",
+                "trade_date": "2026-06-18",
+                "actual_data_date": "",
+                "cache_age_days": "",
+                "trading_day_lag": "",
+                "market_closed": True,
+                "is_stale_data": False,
+                "data_freshness_level": "",
+                "used_latest_available": True,
+                "status": "OK_WITH_FALLBACK",
+                "fallback_date": "2026-06-18",
+                "fallback_reason": "non_trading_day",
+                "scored_rows": 0,
+                "candidate_rows": 0,
+                "risk_pass_rows": 0,
+            }
+        ]
+    ).to_csv(tmp_path / "daily_summary_20260621.csv", index=False, encoding="utf-8")
+    pd.DataFrame(
+        [
+            {
+                "source_name": "liquidity",
+                "provider_maturity": "local_derived",
+                "status": "OK",
+                "requested_period": "20260621",
+                "actual_period": "2026-06-18",
+                "latest_available_period": "2026-06-18",
+                "source_url_or_name": "SQLite local OHLCV data",
+                "is_stale": False,
+                "data_age_days": 3,
+            }
+        ]
+    ).to_csv(tmp_path / "data_fetch_status_20260621.csv", index=False, encoding="utf-8")
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-06-09",
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "requested_date": "2026-06-21",
+                "actual_data_date": "2026-06-09",
+                "cache_age_days": 12,
+                "trading_day_lag": 8,
+                "is_stale_data": True,
+                "data_freshness_level": "STALE",
+                "market_intel_status": "OK",
+                "final_market_score": 50,
+                "confidence_score": 50,
+            }
+        ]
+    ).to_csv(tmp_path / "market_intel_20260609.csv", index=False, encoding="utf-8")
+
+    reports_index = generate_html_report(tmp_path, docs_dir=docs_dir)
+    publish_status = pd.read_csv(tmp_path / PUBLIC_REPORT_PUBLISH_STATUS_FILE, encoding="utf-8").iloc[0]
+    captured = capsys.readouterr()
+
+    assert (docs_dir / "index.html").read_text(encoding="utf-8") == reports_index.read_text(encoding="utf-8")
+    assert publish_status["docs_publish_status"] == "PUBLISHED"
+    assert str(publish_status["docs_written"]).lower() == "true"
+    assert publish_status["actual_data_date"] == "2026-06-18"
+    assert publish_status["cache_age_days"] == 3
+    assert publish_status["trading_day_lag"] == 1
+    assert str(publish_status["market_closed"]).lower() == "true"
+    assert publish_status["data_freshness_level"] == "RECENT"
+    assert publish_status["freshness_source"] == "data_fetch_status:liquidity"
+    assert "market_intel actual_data_date=2026-06-09" in publish_status["freshness_source_warning"]
+    assert "warning public_report freshness source mismatch" in captured.out
 
 
 def test_html_report_skips_public_docs_when_multiple_trading_days_late(tmp_path: Path) -> None:

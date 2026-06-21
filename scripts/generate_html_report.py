@@ -1157,6 +1157,7 @@ def generate_html_report(
     position_review = _read_latest_csv(report_dir, "position_review_summary_*.csv")
     missing_industry_priority = _read_csv(report_dir / "missing_industry_priority.csv")
     anysearch_industry_candidates = _read_csv(report_dir / "anysearch_industry_candidates.csv")
+    data_fetch_status = _read_latest_csv(report_dir, "data_fetch_status_*.csv")
     active_config = load_config(ROOT / "config.yaml")
     trading_cost = active_config.get("trading_cost", {})
 
@@ -1170,6 +1171,7 @@ def generate_html_report(
         paper_summary=paper_summary,
         pending_orders=pending_orders,
         market_intel=market_intel,
+        data_fetch_status=data_fetch_status,
         strategy_validation=strategy_validation,
         trading_decisions=trading_decisions,
         loss_attribution=loss_attribution,
@@ -1200,7 +1202,7 @@ def generate_html_report(
     output_path.write_text(html, encoding="utf-8", newline="\n")
     wrote_docs = False
     docs_index_path: Path | None = None
-    freshness_state = _docs_freshness_state(daily_summary, market_intel)
+    freshness_state = _docs_freshness_state(daily_summary, market_intel, data_fetch_status)
     publish_decision = _public_report_publish_decision(
         freshness_state,
         active_config,
@@ -1308,6 +1310,8 @@ def _write_public_report_publish_status(
         "trading_day_lag": _status_value(freshness_state, "trading_day_lag", ""),
         "market_closed": _status_value(freshness_state, "market_closed", ""),
         "freshness_reason": _status_value(freshness_state, "freshness_reason", ""),
+        "freshness_source": _status_value(freshness_state, "freshness_source", ""),
+        "freshness_source_warning": _status_value(freshness_state, "freshness_source_warning", ""),
         "is_stale_data": _status_value(freshness_state, "is_stale_data", ""),
         "data_freshness_level": _status_value(freshness_state, "data_freshness_level", ""),
     }
@@ -1371,10 +1375,177 @@ def _market_closed(value: object) -> bool:
     return not is_trading_day(parsed, calendar_path=TRADING_CALENDAR_PATH)
 
 
-def _docs_freshness_state(daily_summary: pd.DataFrame, market_intel: pd.DataFrame) -> dict[str, object]:
+def _docs_freshness_state(
+    daily_summary: pd.DataFrame,
+    market_intel: pd.DataFrame,
+    data_fetch_status: pd.DataFrame | None = None,
+) -> dict[str, object]:
     normalized_summary = _normalize_summary_freshness_frame(daily_summary)
     latest_summary = _normalize_summary_freshness(_first_row(normalized_summary))
-    return _freshness_snapshot(latest_summary, market_intel)
+    status_frame = data_fetch_status if data_fetch_status is not None else pd.DataFrame()
+    return _freshness_state_from_sources(latest_summary, market_intel, status_frame)
+
+
+def _freshness_state_from_sources(
+    summary: dict[str, object],
+    market_intel: pd.DataFrame,
+    data_fetch_status: pd.DataFrame,
+    emit_warning: bool = True,
+) -> dict[str, object]:
+    summary_state = _freshness_snapshot(summary, pd.DataFrame())
+    summary_state["freshness_source"] = "daily_summary"
+    local_state = _data_fetch_status_freshness_state(summary, data_fetch_status)
+    market_state = _freshness_snapshot(summary, market_intel)
+    market_state["freshness_source"] = "market_intel"
+
+    if _has_freshness_actual(summary_state):
+        selected = summary_state
+    elif _has_freshness_actual(local_state):
+        selected = local_state
+    elif _has_freshness_actual(market_state):
+        selected = market_state
+    else:
+        selected = summary_state
+
+    warnings = _freshness_source_mismatch_warnings(selected, [summary_state, local_state, market_state])
+    if warnings:
+        warning = " | ".join(warnings)
+        selected = dict(selected)
+        selected["freshness_source_warning"] = warning
+        if emit_warning:
+            print(f"warning public_report freshness source mismatch: {warning}")
+    return selected
+
+
+def _data_fetch_status_freshness_state(
+    summary: dict[str, object],
+    data_fetch_status: pd.DataFrame,
+) -> dict[str, object]:
+    row = _local_derived_data_fetch_status_row(data_fetch_status)
+    if not row:
+        return {}
+    actual = _normalized_date_text(_first_raw(row.get("actual_period"), row.get("latest_available_period")))
+    if not actual:
+        return {}
+    requested = _normalized_date_text(
+        _first_raw(summary.get("requested_date"), row.get("requested_period"), summary.get("trade_date"))
+    )
+    trade_date = _normalized_date_text(_first_raw(summary.get("trade_date"), actual))
+    fallback_date = _normalized_date_text(_first_raw(summary.get("fallback_date"), actual if requested and requested != actual else ""))
+    fallback_reason = _first_non_blank(summary.get("fallback_reason"), row.get("fallback_action"), "-")
+    trading_lag = trading_day_gap(actual, requested, calendar_path=TRADING_CALENDAR_PATH)
+    market_closed = _market_closed(requested)
+    gap_days = _date_gap_days(requested, actual)
+    status_age = _to_float(row.get("data_age_days"))
+    age = int(max([value for value in [status_age, float(gap_days)] if value is not None], default=0.0))
+    stale = (
+        trading_lag > DEFAULT_STALE_TRADING_DAY_THRESHOLD
+        if trading_lag is not None
+        else _truthy(row.get("is_stale")) and age > DEFAULT_STALE_TRADING_DAY_THRESHOLD
+    )
+    if stale:
+        freshness_level = "STALE"
+    elif trading_lag == 0:
+        freshness_level = "CURRENT"
+    elif trading_lag is not None:
+        freshness_level = "RECENT"
+    else:
+        freshness_level = "UNKNOWN"
+    source_name = _first_non_blank(row.get("source_name"), "local_derived")
+    freshness_reason = (
+        "market_closed_recent_trading_day"
+        if market_closed and trading_lag == 0
+        else f"trading_day_lag={trading_lag}"
+        if trading_lag is not None
+        else f"data_fetch_status:{source_name}"
+    )
+    return {
+        "requested_date": requested or "-",
+        "trade_date": trade_date or "-",
+        "actual_data_date": actual,
+        "fallback_date": fallback_date or "-",
+        "fallback_reason": fallback_reason,
+        "cache_age_days": age,
+        "cache_age_text": f"{age:,.0f} 天",
+        "trading_day_lag": trading_lag if trading_lag is not None else "",
+        "market_closed": market_closed,
+        "freshness_reason": freshness_reason,
+        "data_freshness_level": freshness_level,
+        "is_stale_data": stale,
+        "used_latest_available": bool(
+            _truthy(summary.get("used_latest_available"))
+            or market_closed
+            or (requested and actual and requested != actual)
+        ),
+        "freshness_source": f"data_fetch_status:{source_name}",
+    }
+
+
+def _local_derived_data_fetch_status_row(data_fetch_status: pd.DataFrame) -> dict[str, object]:
+    if data_fetch_status is None or data_fetch_status.empty:
+        return {}
+    frame = data_fetch_status.copy()
+    source = frame.get("source_name", pd.Series([""] * len(frame), index=frame.index)).fillna("").astype(str)
+    provider = frame.get("provider_maturity", pd.Series([""] * len(frame), index=frame.index)).fillna("").astype(str)
+    source_url = frame.get("source_url_or_name", pd.Series([""] * len(frame), index=frame.index)).fillna("").astype(str)
+    mask = (
+        source.isin({"sector_strength", "liquidity"})
+        | provider.str.lower().eq("local_derived")
+        | source_url.str.contains("SQLite local OHLCV", case=False, na=False)
+    )
+    frame = frame[mask].copy()
+    if frame.empty:
+        return {}
+    actual_values = frame.apply(
+        lambda row: _first_raw(row.get("actual_period"), row.get("latest_available_period")),
+        axis=1,
+    )
+    frame["_actual_date"] = pd.to_datetime(actual_values, errors="coerce")
+    frame = frame.dropna(subset=["_actual_date"])
+    if frame.empty:
+        return {}
+    source_priority = {"liquidity": 2, "sector_strength": 1}
+    frame["_source_priority"] = source.map(source_priority).fillna(0)
+    frame = frame.sort_values(["_actual_date", "_source_priority"])
+    return frame.iloc[-1].drop(labels=["_actual_date", "_source_priority"], errors="ignore").to_dict()
+
+
+def _has_freshness_actual(state: dict[str, object]) -> bool:
+    return bool(_normalized_date_text(state.get("actual_data_date")))
+
+
+def _freshness_source_mismatch_warnings(
+    selected: dict[str, object],
+    candidates: list[dict[str, object]],
+) -> list[str]:
+    selected_actual = _normalized_date_text(selected.get("actual_data_date"))
+    if not selected_actual:
+        return []
+    selected_source = str(selected.get("freshness_source", "selected"))
+    selected_stale = _truthy(selected.get("is_stale_data"))
+    selected_lag = _int_or_none(selected.get("trading_day_lag"))
+    warnings: list[str] = []
+    for candidate in candidates:
+        source = str(candidate.get("freshness_source", "") or "")
+        if not source or source == selected_source:
+            continue
+        actual = _normalized_date_text(candidate.get("actual_data_date"))
+        if not actual:
+            continue
+        lag = _int_or_none(candidate.get("trading_day_lag"))
+        stale = _truthy(candidate.get("is_stale_data"))
+        lag_conflict = selected_lag is not None and lag is not None and abs(selected_lag - lag) > DEFAULT_STALE_TRADING_DAY_THRESHOLD
+        stale_conflict = stale != selected_stale and (
+            lag_conflict
+            or max(selected_lag or 0, lag or 0) > DEFAULT_STALE_TRADING_DAY_THRESHOLD
+        )
+        date_conflict = actual != selected_actual and (lag_conflict or stale_conflict)
+        if date_conflict or stale_conflict:
+            warnings.append(
+                f"{selected_source} actual_data_date={selected_actual} trading_day_lag={selected_lag} "
+                f"conflicts with {source} actual_data_date={actual} trading_day_lag={lag}"
+            )
+    return warnings
 
 
 def _render_page(
@@ -1387,6 +1558,7 @@ def _render_page(
     paper_summary: pd.DataFrame,
     pending_orders: pd.DataFrame,
     market_intel: pd.DataFrame,
+    data_fetch_status: pd.DataFrame | None,
     strategy_validation: pd.DataFrame,
     trading_decisions: pd.DataFrame,
     loss_attribution: pd.DataFrame,
@@ -1415,12 +1587,18 @@ def _render_page(
     daily_summary = _normalize_summary_freshness_frame(daily_summary)
     recent_summaries = _normalize_summary_freshness_frame(recent_summaries)
     latest_summary = _normalize_summary_freshness(_first_row(daily_summary))
-    data_fetch_status = _read_latest_csv(report_dir, "data_fetch_status_*.csv")
+    if data_fetch_status is None:
+        data_fetch_status = _read_latest_csv(report_dir, "data_fetch_status_*.csv")
     candidates = _normalize_attention_disposition_display(candidates)
     data_quality_health = _refresh_data_quality_health(report_dir, candidates, data_fetch_status)
     risk_pass = _normalize_attention_disposition_display(_enrich_with_fundamentals(risk_pass, candidates))
     market_intel = _normalize_attention_disposition_display(market_intel)
-    freshness_state = _freshness_snapshot(latest_summary, market_intel)
+    freshness_state = _freshness_state_from_sources(
+        latest_summary,
+        market_intel,
+        data_fetch_status,
+        emit_warning=False,
+    )
     latest_summary = _summary_with_freshness(latest_summary, freshness_state)
     enrichment_source = _combined_enrichment_sources(ai_enrichment, candidates, risk_pass, market_intel)
     open_positions = _filter_status(paper_trades, "OPEN")

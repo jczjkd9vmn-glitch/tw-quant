@@ -29,7 +29,7 @@ stock_id,stock_name,market_type,latest_relative_mode,fallback_reason,appear_in_c
 01010T,京城樂富R1,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,79780.35,479780.0,2026-06-26,0,LOW,暫緩補資料
 1101B,台泥乙特,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,42584.65,273671.0,2026-06-26,0,LOW,暫緩補資料
 1312A,國喬特,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,13013.05,502450.0,2026-06-26,0,LOW,暫緩補資料
-1522A,堤維西甲特,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,5900.529411764706,289219.0,2026-06-26,0,LOW,暫緩補資料
+1522A,堤維西甲特,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,6206.8125,289219.0,2026-06-26,0,LOW,暫緩補資料
 2002A,中鋼特,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,32036.25,1492259.0,2026-06-26,0,LOW,暫緩補資料
 2348A,海悅甲特,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,24628.35,150050.0,2026-06-26,0,LOW,暫緩補資料
 2836A,高雄銀甲特,UNKNOWN,market_relative_fallback,缺少產業分類，使用全市場相對強弱,0,0,0,0,0,0,35.0,26588.55,823989.0,2026-06-26,0,LOW,暫緩補資料

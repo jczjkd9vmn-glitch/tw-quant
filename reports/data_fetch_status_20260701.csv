@@ -1,0 +1,10 @@
+source_name,provider_maturity,status,rows,warning,error_message,fallback_action,requested_period,actual_period,latest_available_period,source_url_or_name,is_real_data,is_mock,is_stale,data_age_days,coverage_ratio,affected_symbols_count
+monthly_revenue,best_effort,OK_WITH_FALLBACK,1082,requested month 202607 unavailable; used latest available month 202605,,wrote_new_data,202607,202605,202605,https://openapi.twse.com.tw/v1/opendata/t187ap05_L,True,False,False,61.0,1.0,1082.0
+valuation,best_effort,OK,1078,,,wrote_new_data,,2026-06-30,2026-06-30,https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL,True,False,False,1.0,1.0,1078.0
+financials,best_effort,OK,1042,,,wrote_new_data,,115Q1,115Q1,https://openapi.twse.com.tw/v1/opendata/t187ap06_L_ci,True,False,False,,1.0,1042.0
+material_events,best_effort,OK,216,,,wrote_new_data,,,,https://openapi.twse.com.tw/v1/opendata/t187ap04_L,True,False,False,,1.0,216.0
+institutional,best_effort,OK,1327,,,wrote_new_data,,,,,False,False,False,,,
+margin_short,best_effort,OK,1279,,,wrote_new_data,,,,,False,False,False,,,
+attention_disposition,best_effort,OK,62,,,wrote_new_data,,,,,False,False,False,,,
+sector_strength,local_derived,OK_WITH_FALLBACK,1371,52 檔缺少產業分類，使用全市場相對強弱；排除 1 筆跨日價格跳動異常資料,,used_local_fallback,20260701,2026-07-01,2026-07-01,SQLite local OHLCV data,True,False,False,0.0,1.0,1371.0
+liquidity,local_derived,OK,1371,部分股票流動性偏低或價量資料不足；排除 1 筆跨日價格跳動異常資料,,wrote_new_data,20260701,2026-07-01,2026-07-01,SQLite local OHLCV data,True,False,False,0.0,1.0,1371.0

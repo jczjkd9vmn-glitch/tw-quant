@@ -1,0 +1,2 @@
+trade_date,market_regime_score,regime_label,twse_index,tpex_index,advancers,decliners,unchanged,limit_up_count,limit_down_count,market_breadth_summary,recap_summary,fallback_used,data_quality_note
+2026-07-01,50.0,大盤震盪,47018.99,431.23,583,677,103,35,1,上漲 583、下跌 677、平盤 103，市場廣度偏震盪,大盤震盪；上漲 583、下跌 677、平盤 103，市場廣度偏震盪；market_regime_score=50，目前紙上新增持倉需保守。,True,未接正式指數來源時，使用本地 SQLite 全市場價量 fallback；排除 1 筆跨日價格跳動異常資料

@@ -602,3 +602,5 @@ trade_date,index_id,index_name,open,high,low,close,source,is_official
 2026-06-30,TPEx,櫃買指數,426.97,426.97,426.97,426.97,tpex_official:daily_trading_index_st41,True
 2026-07-01,TAIEX,發行量加權股價指數,46234.7,47293.1,46234.7,47018.99,twse_official:MI_5MINS_HIST_monthly,True
 2026-07-01,TPEx,櫃買指數,430.29,437.56,430.29,431.23,tpex_openapi:tpex_index,True
+2026-07-02,TAIEX,發行量加權股價指數,46833.89,46910.31,45981.89,46744.16,twse_official:MI_5MINS_HIST_monthly,True
+2026-07-02,TPEx,櫃買指數,429.41,439.51,424.2,439.51,tpex_openapi:tpex_index,True

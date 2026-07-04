@@ -1,8 +1,8 @@
 trade_date,attribution_type,diagnostic_item,stock_id,stock_name,industry,window,position_weight,cash_ratio,strategy_value,benchmark_value,alpha,pnl_after_cost,pnl_contribution_pct,drawdown_contribution,top3_contribution_pct,diagnostic_status,conclusion,data_quality_warning,notes
 2026-07-03,stock_selection_alpha,持有股票平均報酬 vs benchmark,,,,20d,,,,0.006134,,,,,,DATA_INSUFFICIENT,缺少持倉或 sector_strength 資料，無法判斷選股 alpha。,DATA_INSUFFICIENT,此區只做診斷，不修改策略。
 2026-07-03,entry_timing_alpha,進場後 1d 表現,,,,1d,,,,-0.005845,,,,,,DATA_INSUFFICIENT,缺少進場後 1d forward return，不能判斷進場時機。,DATA_INSUFFICIENT,需要逐筆進場後 forward return；此區只做診斷。
-2026-07-03,entry_timing_alpha,進場後 5d 表現,,,,5d,,,0.05999280844834497,0.01057,0.049423,,,,,OBSERVATION_ONLY,進場後表現未落後 benchmark。,OBSERVATION_ONLY,缺少逐筆 forward_return_5d，使用最新 sector_strength stock_return_5d 作觀察 proxy。 此區只做診斷，不修改策略。
-2026-07-03,entry_timing_alpha,進場後 20d 表現,,,,20d,,,,0.006134,,,,,,DATA_INSUFFICIENT,缺少進場後 20d forward return，不能判斷進場時機。,DATA_INSUFFICIENT,需要逐筆進場後 forward return；此區只做診斷。
+2026-07-03,entry_timing_alpha,進場後 5d 表現,,,,5d,,,0.0690921500384617,0.01057,0.058522,,,,,OBSERVATION_ONLY,進場後表現未落後 benchmark。,OBSERVATION_ONLY,缺少逐筆 forward_return_5d，使用最新 sector_strength stock_return_5d 作觀察 proxy。 此區只做診斷，不修改策略。
+2026-07-03,entry_timing_alpha,進場後 20d 表現,,,,20d,,,0.09825155347431452,0.006134,0.092118,,,,,OBSERVATION_ONLY,進場後表現未落後 benchmark。,OBSERVATION_ONLY,缺少逐筆 forward_return_20d，使用最新 sector_strength stock_return_20d 作觀察 proxy。 此區只做診斷，不修改策略。
 2026-07-03,exit_timing_diagnostic,停損後是否反彈,,,,,,,,,,,,,,DATA_INSUFFICIENT,缺少停損後 forward return，不能正式判斷是否反彈。,DATA_INSUFFICIENT,樣本數=14；現有 CSV 尚無出場後 5 日報酬；此區只做診斷，不修改出場規則。
 2026-07-03,exit_timing_diagnostic,停利後是否續漲,,,,,,,,,,,,,,DATA_INSUFFICIENT,缺少停利後 forward return，不能正式判斷是否續漲。,DATA_INSUFFICIENT,樣本數=10；現有 CSV 尚無出場後 5 日報酬；此區只做診斷，不修改出場規則。
 2026-07-03,drawdown_contribution,最大回撤股票,2030,彰源,,,,,,,,,,-0.39441,,OBSERVATION_ONLY,少數股票造成較大回撤，需檢查選股與部位控管。,OBSERVATION_ONLY,以 max_adverse_excursion 或交易報酬 proxy 回撤貢獻；此區只做診斷。

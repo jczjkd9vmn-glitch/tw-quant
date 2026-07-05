@@ -62,7 +62,10 @@ def test_daily_github_actions_smoke_tests_deployed_pages_report() -> None:
     assert "max_attempts=8" in text
     assert "sleep_seconds=12" in text
     assert "curl -L --silent --show-error --connect-timeout 10 --max-time 30" in text
+    assert "expected HTTP status 200 but got ${http_status}" in text
     assert "HTTP status=${http_status}" in text
+    assert 'for value in "${REPORT_REQUESTED_DATE}" "${REPORT_TRADE_DATE}" "${REPORT_ACTUAL_DATA_DATE}"' in text
+    assert "response body is missing expected freshness date: ${expected_date}" in text
     assert "Smoke test attempt ${attempt}/${max_attempts}" in text
     assert "Failure reason: ${failure_reason}" in text
     assert "Smoke test failed after ${max_attempts} attempts." in text

@@ -515,13 +515,12 @@ def _load_rejected_orders(path: Path) -> pd.DataFrame:
 
 
 def _merge_rejected_orders(existing: pd.DataFrame, new_orders: pd.DataFrame) -> pd.DataFrame:
-    if new_orders.empty:
-        merged = existing.copy()
-    else:
+    if not new_orders.empty:
         for column in REJECTED_ORDER_COLUMNS:
             if column not in new_orders.columns:
                 new_orders[column] = ""
-        merged = pd.concat([existing, new_orders[REJECTED_ORDER_COLUMNS]], ignore_index=True)
+        new_orders = new_orders[REJECTED_ORDER_COLUMNS]
+    merged = _concat_non_empty_frames([existing, new_orders], columns=REJECTED_ORDER_COLUMNS)
     if merged.empty:
         return pd.DataFrame(columns=REJECTED_ORDER_COLUMNS)
     for column in REJECTED_ORDER_COLUMNS:
@@ -538,11 +537,13 @@ def _merge_rejected_orders(existing: pd.DataFrame, new_orders: pd.DataFrame) -> 
 
 
 def _merge_pending_orders(existing: pd.DataFrame, new_orders: pd.DataFrame) -> pd.DataFrame:
+    existing = _drop_all_na_rows(existing)
+    new_orders = _drop_all_na_rows(new_orders)
     if existing.empty:
         return new_orders.copy()
     if new_orders.empty:
         return existing.copy()
-    combined = pd.concat([existing, new_orders], ignore_index=True)
+    combined = pd.concat([existing, new_orders], ignore_index=True, sort=False)
     combined["stock_id"] = combined["stock_id"].astype(str).str.strip()
     return combined.drop_duplicates(subset=["signal_date", "stock_id"], keep="first")[
         PENDING_ORDER_COLUMNS
@@ -550,6 +551,8 @@ def _merge_pending_orders(existing: pd.DataFrame, new_orders: pd.DataFrame) -> p
 
 
 def _append_trades(existing: pd.DataFrame, new_positions: pd.DataFrame) -> pd.DataFrame:
+    existing = _drop_all_na_rows(existing)
+    new_positions = _drop_all_na_rows(new_positions)
     if existing.empty:
         return new_positions.copy()
     if new_positions.empty:
@@ -558,7 +561,28 @@ def _append_trades(existing: pd.DataFrame, new_positions: pd.DataFrame) -> pd.Da
     for column in new_positions.columns:
         if column not in columns:
             columns.append(column)
-    return pd.concat([existing, new_positions], ignore_index=True)[columns]
+    return pd.concat([existing, new_positions], ignore_index=True, sort=False)[columns]
+
+
+def _concat_non_empty_frames(frames: list[pd.DataFrame], columns: list[str]) -> pd.DataFrame:
+    usable = [_drop_all_na_rows(frame) for frame in frames if not frame.empty]
+    usable = [frame for frame in usable if not frame.empty]
+    if not usable:
+        return pd.DataFrame(columns=columns)
+    if len(usable) == 1:
+        merged = usable[0].copy()
+    else:
+        merged = pd.concat(usable, ignore_index=True, sort=False)
+    for column in columns:
+        if column not in merged.columns:
+            merged[column] = ""
+    return merged[columns].copy()
+
+
+def _drop_all_na_rows(frame: pd.DataFrame) -> pd.DataFrame:
+    if frame.empty:
+        return frame.copy()
+    return frame.dropna(how="all").copy()
 
 
 def _open_positions(trades: pd.DataFrame) -> pd.DataFrame:

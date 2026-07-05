@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import warnings
+
 import pandas as pd
 
 from tw_quant.trading.paper import (
     PENDING_ORDER_COLUMNS,
     POSITION_COLUMNS,
+    REJECTED_ORDER_COLUMNS,
     find_latest_risk_pass_report,
+    _merge_rejected_orders,
     run_paper_trade,
 )
 
@@ -83,6 +87,33 @@ def test_find_latest_risk_pass_report_uses_latest_date(tmp_path) -> None:
 
     assert latest is not None
     assert latest.name == "risk_pass_candidates_20260508.csv"
+
+
+def test_merge_rejected_orders_skips_empty_all_na_concat_inputs() -> None:
+    existing = pd.DataFrame({column: [pd.NA] for column in REJECTED_ORDER_COLUMNS})
+    new_orders = pd.DataFrame(
+        [
+            {
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "trade_date": "2026-05-08",
+                "signal_date": "2026-05-08",
+                "rejection_stage": "signal",
+                "final_order_status": "REJECTED_GUARDRAIL",
+                "attempted_execution_date": "2026-05-08",
+            }
+        ]
+    )
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always", FutureWarning)
+        merged = _merge_rejected_orders(existing, new_orders)
+
+    future_warnings = [warning for warning in caught if issubclass(warning.category, FutureWarning)]
+    assert future_warnings == []
+    assert len(merged) == 1
+    assert merged.iloc[0]["stock_id"] == "2330"
+    assert list(merged.columns) == REJECTED_ORDER_COLUMNS
 
 
 def _write_risk_report(path, date_label: str) -> None:

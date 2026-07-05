@@ -1,2 +1,2 @@
 trade_date,market_regime_score,source,twse_above_20ma,twse_above_60ma,tpex_above_20ma,tpex_above_60ma,market_return_5d,market_return_20d,market_above_20ma_ratio,market_above_60ma_ratio,warning
-2026-07-03,84.0,official_index,True,True,True,True,0.041551,0.009066,,,使用正式 TAIEX 價格指數，非 total return；alpha 需保守解讀。
+2026-07-03,84.0,official_index,True,True,True,True,0.061045,0.018074,,,使用正式 TAIEX 價格指數，非 total return；alpha 需保守解讀。

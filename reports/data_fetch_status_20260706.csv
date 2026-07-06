@@ -3,8 +3,8 @@ monthly_revenue,best_effort,OK_WITH_FALLBACK,1082,requested month 202607 unavail
 valuation,best_effort,OK,1078,,,wrote_new_data,,2026-07-03,2026-07-03,https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_ALL,True,False,False,3.0,1.0,1078.0
 financials,best_effort,OK,1042,,,wrote_new_data,,115Q1,115Q1,https://openapi.twse.com.tw/v1/opendata/t187ap06_L_ci,True,False,False,,1.0,1042.0
 material_events,best_effort,OK,2,,,wrote_new_data,,,,https://openapi.twse.com.tw/v1/opendata/t187ap04_L,True,False,False,,1.0,2.0
-institutional,best_effort,OK_WITH_FALLBACK,1328,"provider failed; fallback to local csv or neutral scores; provider failed, kept existing csv; 官方來源本次無法提供新資料，保留既有 CSV，rows 為既有資料筆數。","ValueError: official payload has no matching table; payload keys=['stat', 'total']; fields summary=; required=證券代號,股票代號,代號; 證券名稱,股票名稱,名稱",kept_existing_csv,,,,,False,False,False,,,
+institutional,best_effort,OK,1329,,,wrote_new_data,,,,,False,False,False,,,
 margin_short,best_effort,OK,1279,,,wrote_new_data,,,,,False,False,False,,,
 attention_disposition,best_effort,OK,61,,,wrote_new_data,,,,,False,False,False,,,
-sector_strength,local_derived,OK_WITH_FALLBACK,1438,106 檔缺少產業分類，使用全市場相對強弱；排除 1031 筆跨日價格跳動異常資料,,used_local_fallback,20260706,2026-07-06,2026-07-06,SQLite local OHLCV data,True,False,False,0.0,1.0,1438.0
-liquidity,local_derived,OK,1438,部分股票流動性偏低或價量資料不足；排除 1031 筆跨日價格跳動異常資料,,wrote_new_data,20260706,2026-07-06,2026-07-06,SQLite local OHLCV data,True,False,False,0.0,1.0,1438.0
+sector_strength,local_derived,OK_WITH_FALLBACK,1438,105 檔缺少產業分類，使用全市場相對強弱；排除 1056 筆跨日價格跳動異常資料,,used_local_fallback,20260706,2026-07-06,2026-07-06,SQLite local OHLCV data,True,False,False,0.0,1.0,1438.0
+liquidity,local_derived,OK,1438,部分股票流動性偏低或價量資料不足；排除 1056 筆跨日價格跳動異常資料,,wrote_new_data,20260706,2026-07-06,2026-07-06,SQLite local OHLCV data,True,False,False,0.0,1.0,1438.0

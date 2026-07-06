@@ -352,7 +352,8 @@ def _candidate_digest(candidates: pd.DataFrame) -> list[str]:
         return ["今日綜合分數最高前 5 名：無候選股資料"]
     frame = candidates.copy()
     score_column = "final_market_score" if "final_market_score" in frame.columns else "multi_factor_score"
-    frame["_score"] = pd.to_numeric(frame.get(score_column), errors="coerce").fillna(-1)
+    score_values = frame[score_column] if score_column in frame.columns else pd.Series([-1] * len(frame), index=frame.index)
+    frame["_score"] = pd.to_numeric(score_values, errors="coerce").fillna(-1)
     top = frame.sort_values("_score", ascending=False).head(5)
     rows = [
         f"{_format_text(row.get('stock_id'))} {_format_text(row.get('stock_name'))} {_format_amount(row.get(score_column))}分"

@@ -239,6 +239,23 @@ def test_build_notification_message_includes_decision_summary(tmp_path: Path) ->
     assert "保證獲利" not in message
 
 
+def test_build_notification_message_handles_candidates_without_score_columns(tmp_path: Path) -> None:
+    _write_summary(tmp_path)
+    pd.DataFrame(
+        [
+            {
+                "trade_date": "2026-05-08",
+                "stock_id": "2330",
+                "stock_name": "台積電",
+            }
+        ]
+    ).to_csv(tmp_path / "candidates_20260508.csv", index=False, encoding="utf-8")
+
+    message = build_notification_message(_summary_row(), reports_dir=tmp_path)
+
+    assert "今日綜合分數最高前 5 名：2330 台積電 -分" in message
+
+
 def _write_summary(path: Path, date_label: str = "20260510", candidate_rows: int = 20) -> None:
     pd.DataFrame([{**_summary_row(), "candidate_rows": candidate_rows}]).to_csv(
         path / f"daily_summary_{date_label}.csv",

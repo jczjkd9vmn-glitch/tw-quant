@@ -289,9 +289,8 @@ def apply_multi_factor_scores(
     for column, default in _multi_factor_defaults().items():
         if column not in frame.columns:
             frame[column] = default
-        if isinstance(default, (int, float, bool)):
-            frame[column] = frame[column].fillna(default)
-        else:
+            continue
+        if default is not None:
             frame[column] = frame[column].fillna(default)
 
     if not bool(multi_config.get("block_on_high_risk_event", True)):

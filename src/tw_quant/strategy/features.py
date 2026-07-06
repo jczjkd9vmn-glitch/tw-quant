@@ -30,9 +30,7 @@ def build_feature_frame(prices: pd.DataFrame) -> pd.DataFrame:
     frame["ma20_slope_10"] = (frame["ma20"] / frame["ma20_prev10"]) - 1
     frame["high_20"] = grouped["high"].transform(lambda s: s.rolling(20, min_periods=10).max())
     frame["low_20"] = grouped["low"].transform(lambda s: s.rolling(20, min_periods=10).min())
-    frame["volatility_20"] = grouped["daily_return"].transform(
-        lambda s: s.rolling(20, min_periods=10).std()
-    )
+    frame["volatility_20"] = grouped["daily_return"].transform(lambda s: s.rolling(20, min_periods=10).std())
     frame["volume_ma20"] = grouped["volume"].transform(lambda s: s.rolling(20, min_periods=10).mean())
     frame["volume_ratio"] = frame["volume"] / frame["volume_ma20"]
     frame["liquidity_value"] = frame["close"] * frame["volume"]
@@ -47,9 +45,7 @@ def build_feature_frame(prices: pd.DataFrame) -> pd.DataFrame:
         axis=1,
     ).max(axis=1)
     frame["true_range"] = true_range
-    frame["atr14"] = frame.groupby("symbol")["true_range"].transform(
-        lambda s: s.rolling(14, min_periods=5).mean()
-    )
+    frame["atr14"] = frame.groupby("symbol")["true_range"].transform(lambda s: s.rolling(14, min_periods=5).mean())
 
     frame["drawdown_20"] = (frame["close"] / frame["high_20"]) - 1
     frame["near_20d_high"] = np.where(frame["high_20"] > 0, frame["close"] / frame["high_20"], np.nan)

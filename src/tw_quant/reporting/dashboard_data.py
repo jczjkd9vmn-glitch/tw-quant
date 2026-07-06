@@ -66,7 +66,11 @@ def generate_pnl_chart_data(
     summaries = _read_all_reports(report_dir, "daily_summary_*.csv")
     if current_summary:
         current_frame = pd.DataFrame([current_summary])
-        summaries = pd.concat([summaries, current_frame], ignore_index=True, sort=False) if not summaries.empty else current_frame
+        summaries = (
+            pd.concat([summaries, current_frame], ignore_index=True, sort=False)
+            if not summaries.empty
+            else current_frame
+        )
     if summaries.empty:
         target = trade_date or pd.Timestamp.today().strftime("%Y-%m-%d")
         frame = pd.DataFrame(columns=PNL_CHART_COLUMNS)

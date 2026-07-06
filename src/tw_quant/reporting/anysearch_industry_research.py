@@ -314,7 +314,11 @@ def _extract_source(raw_result: object) -> dict[str, str]:
         return {"title": markdown.group(1).strip(), "url": markdown.group(2).strip(), "snippet": text[:500]}
     url_match = re.search(r"https?://[^\s)>\]]+", text)
     if url_match:
-        return {"title": _line_before_url(text, url_match.start()), "url": url_match.group(0).strip(), "snippet": text[:500]}
+        return {
+            "title": _line_before_url(text, url_match.start()),
+            "url": url_match.group(0).strip(),
+            "snippet": text[:500],
+        }
     return {"title": "", "url": "", "snippet": text[:500]}
 
 
@@ -443,7 +447,9 @@ def _manual_check_row(
             "stock_id": str(row.get("stock_id", "") or "").strip(),
             "stock_name": str(row.get("stock_name", "") or "").strip(),
             "query": query,
-            "proposed_market_type": _proposed_market_type(str(row.get("stock_id", "") or ""), str(row.get("stock_name", "") or "")),
+            "proposed_market_type": _proposed_market_type(
+                str(row.get("stock_id", "") or ""), str(row.get("stock_name", "") or "")
+            ),
             "proposed_industry": "",
             "proposed_sub_industry": "",
             "source_title": "",

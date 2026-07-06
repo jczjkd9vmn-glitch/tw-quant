@@ -84,9 +84,7 @@ def evaluate_market_regime(
         if result is not None:
             return _write_result(result, reports_dir)
 
-    fallback_allowed = bool(
-        active_config.get("market_regime", {}).get("fallback_to_equal_weight_market", True)
-    )
+    fallback_allowed = bool(active_config.get("market_regime", {}).get("fallback_to_equal_weight_market", True))
     if not fallback_allowed:
         return _result(latest_date, 50.0, "EMPTY", "缺少指數資料且未啟用全市場 fallback", reports_dir)
     result = _score_equal_weight_regime(frame, latest_date)
@@ -340,7 +338,9 @@ def _result(
         ],
         columns=REGIME_COLUMNS,
     )
-    return _write_result(MarketRegimeResult(trade_date, _bound(score), source, warning=warning, frame=frame), reports_dir)
+    return _write_result(
+        MarketRegimeResult(trade_date, _bound(score), source, warning=warning, frame=frame), reports_dir
+    )
 
 
 def _period_return(close: pd.Series, days: int) -> float:

@@ -511,49 +511,49 @@ COLUMN_LABELS.update(
         "slippage_risk_score": "滑價風險分數",
         "risk_light": "持倉風險燈號",
         "holding_action_hint": "持倉提示",
-    "holding_risk_reason": "燈號原因",
-    "strategy_validation_status": "策略驗證狀態",
-    "trading_decisions_status": "決策引擎狀態",
-    "buy_candidate_count": "買進候選數",
-    "watch_only_count": "觀察名單數",
-    "no_trade_count": "不交易名單數",
-    "hold_count": "持倉 HOLD 數",
-    "reduce_count": "REDUCE review 數",
-    "exit_review_count": "EXIT review 數",
-    "grade_a_count": "A 級候選股數",
-    "grade_b_count": "B 級候選股數",
-    "grade_c_count": "C 級候選股數",
-    "grade_d_count": "D 級候選股數",
-    "decision_date": "決策日期",
-    "source": "來源",
-    "current_status": "目前狀態",
-    "decision": "決策",
-    "decision_level": "決策層級",
-    "action": "動作",
-    "candidate_grade": "候選分級",
-    "grade_reason": "分級理由",
-    "grade_risk_flags": "分級風險標籤",
-    "requires_manual_review": "需要人工確認",
-    "review_level": "檢查層級",
-    "review_reason": "檢查原因",
-    "position_size_suggestion": "部位提示",
-    "can_auto_trade": "可否自動交易",
-    "data_quality_note": "資料品質註記",
-    "validation_date": "驗證日期",
-    "model_name": "模型名稱",
-    "description": "說明",
-    "selected_count": "選取數",
-    "simulated_trades": "模擬交易數",
-    "win_rate": "勝率",
-    "avg_return_pct": "平均報酬",
-    "median_return_pct": "中位報酬",
-    "total_return_pct": "總報酬",
-    "max_drawdown_pct": "最大回撤",
-    "avg_holding_days": "平均持有天數",
-    "profit_factor": "獲利因子",
-    "expectancy": "期望值",
-    "consecutive_loss_count": "連續虧損數",
-    "notes": "備註",
+        "holding_risk_reason": "燈號原因",
+        "strategy_validation_status": "策略驗證狀態",
+        "trading_decisions_status": "決策引擎狀態",
+        "buy_candidate_count": "買進候選數",
+        "watch_only_count": "觀察名單數",
+        "no_trade_count": "不交易名單數",
+        "hold_count": "持倉 HOLD 數",
+        "reduce_count": "REDUCE review 數",
+        "exit_review_count": "EXIT review 數",
+        "grade_a_count": "A 級候選股數",
+        "grade_b_count": "B 級候選股數",
+        "grade_c_count": "C 級候選股數",
+        "grade_d_count": "D 級候選股數",
+        "decision_date": "決策日期",
+        "source": "來源",
+        "current_status": "目前狀態",
+        "decision": "決策",
+        "decision_level": "決策層級",
+        "action": "動作",
+        "candidate_grade": "候選分級",
+        "grade_reason": "分級理由",
+        "grade_risk_flags": "分級風險標籤",
+        "requires_manual_review": "需要人工確認",
+        "review_level": "檢查層級",
+        "review_reason": "檢查原因",
+        "position_size_suggestion": "部位提示",
+        "can_auto_trade": "可否自動交易",
+        "data_quality_note": "資料品質註記",
+        "validation_date": "驗證日期",
+        "model_name": "模型名稱",
+        "description": "說明",
+        "selected_count": "選取數",
+        "simulated_trades": "模擬交易數",
+        "win_rate": "勝率",
+        "avg_return_pct": "平均報酬",
+        "median_return_pct": "中位報酬",
+        "total_return_pct": "總報酬",
+        "max_drawdown_pct": "最大回撤",
+        "avg_holding_days": "平均持有天數",
+        "profit_factor": "獲利因子",
+        "expectancy": "期望值",
+        "consecutive_loss_count": "連續虧損數",
+        "notes": "備註",
     }
 )
 
@@ -1006,7 +1006,19 @@ PERCENT_COLUMNS.update(
 AMOUNT_COLUMNS.update({"monthly_revenue", "avg_turnover_20d", "latest_turnover"})
 AMOUNT_COLUMNS.update({"fund_size"})
 PNL_COLUMNS.update({"total_realized_pnl_after_cost", "avg_realized_pnl_after_cost"})
-INTEGER_COLUMNS.update({"stock_count", "trade_count", "total_stock_count", "total_trade_count", "rejected_count", "missed_winner_count", "avoided_loser_count", "observation_count", "daily_return_count"})
+INTEGER_COLUMNS.update(
+    {
+        "stock_count",
+        "trade_count",
+        "total_stock_count",
+        "total_trade_count",
+        "rejected_count",
+        "missed_winner_count",
+        "avoided_loser_count",
+        "observation_count",
+        "daily_return_count",
+    }
+)
 PERCENT_COLUMNS.update({"expense_ratio", "discount_premium"})
 PERCENT_COLUMNS.update(
     {
@@ -1431,7 +1443,9 @@ def _data_fetch_status_freshness_state(
         _first_raw(summary.get("requested_date"), row.get("requested_period"), summary.get("trade_date"))
     )
     trade_date = _normalized_date_text(_first_raw(summary.get("trade_date"), actual))
-    fallback_date = _normalized_date_text(_first_raw(summary.get("fallback_date"), actual if requested and requested != actual else ""))
+    fallback_date = _normalized_date_text(
+        _first_raw(summary.get("fallback_date"), actual if requested and requested != actual else "")
+    )
     fallback_reason = _first_non_blank(summary.get("fallback_reason"), row.get("fallback_action"), "-")
     trading_lag = trading_day_gap(actual, requested, calendar_path=TRADING_CALENDAR_PATH)
     market_closed = _market_closed(requested)
@@ -1534,10 +1548,13 @@ def _freshness_source_mismatch_warnings(
             continue
         lag = _int_or_none(candidate.get("trading_day_lag"))
         stale = _truthy(candidate.get("is_stale_data"))
-        lag_conflict = selected_lag is not None and lag is not None and abs(selected_lag - lag) > DEFAULT_STALE_TRADING_DAY_THRESHOLD
+        lag_conflict = (
+            selected_lag is not None
+            and lag is not None
+            and abs(selected_lag - lag) > DEFAULT_STALE_TRADING_DAY_THRESHOLD
+        )
         stale_conflict = stale != selected_stale and (
-            lag_conflict
-            or max(selected_lag or 0, lag or 0) > DEFAULT_STALE_TRADING_DAY_THRESHOLD
+            lag_conflict or max(selected_lag or 0, lag or 0) > DEFAULT_STALE_TRADING_DAY_THRESHOLD
         )
         date_conflict = actual != selected_actual and (lag_conflict or stale_conflict)
         if date_conflict or stale_conflict:
@@ -1604,7 +1621,9 @@ def _render_page(
     open_positions = _filter_status(paper_trades, "OPEN")
     closed_trades = _filter_status(paper_trades, "CLOSED")
     latest_paper_summary = _first_row(paper_summary)
-    open_positions = _mark_missing_market_context(_enrich_with_fundamentals(open_positions, enrichment_source), enrichment_source)
+    open_positions = _mark_missing_market_context(
+        _enrich_with_fundamentals(open_positions, enrichment_source), enrichment_source
+    )
     open_positions = _enrich_with_local_factor_csv(open_positions)
     open_positions = _apply_holding_risk_lights(open_positions, config or {})
     if position_review.empty:
@@ -1845,8 +1864,18 @@ def _render_page(
                 candidate_forward_returns,
                 config or {},
             ),
-            _section("今日重點結論", _key_conclusions_v2(latest_summary, data_fetch_status), class_name="key-conclusion-section"),
-            _section("今日操作重點", _today_action_summary(latest_summary, pending_orders, open_positions, data_fetch_status, trading_decisions), class_name="today-action-section"),
+            _section(
+                "今日重點結論",
+                _key_conclusions_v2(latest_summary, data_fetch_status),
+                class_name="key-conclusion-section",
+            ),
+            _section(
+                "今日操作重點",
+                _today_action_summary(
+                    latest_summary, pending_orders, open_positions, data_fetch_status, trading_decisions
+                ),
+                class_name="today-action-section",
+            ),
             _decision_dashboard(latest_summary, trading_decisions, candidates, open_positions),
             _position_review_section(position_review, open_positions),
             _market_recap_section(market_recap, latest_summary),
@@ -1871,7 +1900,12 @@ def _render_page(
             _multi_factor_summary(candidates, latest_summary),
             _fundamental_summary(candidates),
             _candidate_coverage_section(candidate_coverage),
-            _section("候選股", _details_block("今日候選股詳細表", candidate_detail, open_by_default=True), section_id="candidate-detail-section", class_name="candidate-section"),
+            _section(
+                "候選股",
+                _details_block("今日候選股詳細表", candidate_detail, open_by_default=True),
+                section_id="candidate-detail-section",
+                class_name="candidate-section",
+            ),
             _details_block("通過風控股票詳細表", risk_pass_detail),
             _details_block("資料來源依據", _evidence_table(enrichment_evidence)),
         ]
@@ -1887,7 +1921,12 @@ def _render_page(
             _details_block("系統健康檢查詳細項目", _health_section(_non_data_source_health_items(health_items))),
             _details_block("最近每日 summary", recent_summary_brief),
             _details_block("完整每日 summary 原始資料", recent_summary_full),
-            _section("系統設定摘要", _details_block("配置說明", _config_summary(config or {}), open_by_default=True), section_id="config-summary-section", class_name="config-summary-section"),
+            _section(
+                "系統設定摘要",
+                _details_block("配置說明", _config_summary(config or {}), open_by_default=True),
+                section_id="config-summary-section",
+                class_name="config-summary-section",
+            ),
         ]
     )
     decision_content = _decision_engine_content(trading_decisions, strategy_validation)
@@ -1935,10 +1974,10 @@ def _account_header(summary: dict[str, object], updated_at: str) -> str:
     ]
     chips = "".join(f"<span>{escape(label)}：{escape(value)}</span>" for label, value in meta)
     return (
-        "<header class=\"account-header\">"
+        '<header class="account-header">'
         "<p>台股量化系統</p>"
         "<h1>台股紙上交易帳務</h1>"
-        f"<div class=\"header-meta\">{chips}</div>"
+        f'<div class="header-meta">{chips}</div>'
         "<small>所有內容僅供紙上模擬交易與策略檢查使用，不代表投資建議，也不承諾投資結果。</small>"
         "</header>"
     )
@@ -1971,7 +2010,9 @@ def _account_header_v2(
     freshness: dict[str, object] | None = None,
 ) -> str:
     freshness = freshness or _freshness_snapshot(summary, pd.DataFrame())
-    requested = _format_cell("requested_date", freshness.get("requested_date") or summary.get("requested_date") or summary.get("trade_date"))
+    requested = _format_cell(
+        "requested_date", freshness.get("requested_date") or summary.get("requested_date") or summary.get("trade_date")
+    )
     trade_date = _format_cell("trade_date", freshness.get("trade_date") or summary.get("trade_date"))
     use_recent = "是" if bool(freshness.get("used_latest_available")) else "否"
     meta = [
@@ -2133,11 +2174,15 @@ def _overview_dashboard(
     market_closed = bool(freshness.get("market_closed"))
     trading_day_lag = _format_cell("trading_day_lag", freshness.get("trading_day_lag"))
     freshness_level = str(freshness["data_freshness_level"])
-    market_status = _first_raw(summary.get("market_intel_status"), _frame_first(data_frame, "market_intel_status"), summary.get("status"))
+    market_status = _first_raw(
+        summary.get("market_intel_status"), _frame_first(data_frame, "market_intel_status"), summary.get("status")
+    )
     guardrail_status = _first_raw(summary.get("guardrail_status"), "UNKNOWN")
     using_cache = str(summary.get("market_intel_status", "")).strip().upper() == "CACHE"
     if not data_frame.empty and "market_intel_status" in data_frame.columns:
-        using_cache = using_cache or data_frame["market_intel_status"].fillna("").astype(str).str.upper().eq("CACHE").any()
+        using_cache = (
+            using_cache or data_frame["market_intel_status"].fillna("").astype(str).str.upper().eq("CACHE").any()
+        )
     stale = bool(freshness["is_stale_data"]) or using_cache
     freshness_note = (
         "市場資料過期，不建議短線進場"
@@ -2148,19 +2193,27 @@ def _overview_dashboard(
     )
 
     equity_source = paper_summary or summary
-    total_equity = _format_cell("total_equity", _first_raw(
-        equity_source.get("total_equity_after_cost"),
-        equity_source.get("total_equity"),
-        summary.get("total_equity_after_cost"),
-        summary.get("total_equity"),
-    ))
-    unrealized = _format_cell("unrealized_pnl", _first_raw(equity_source.get("unrealized_pnl"), summary.get("unrealized_pnl")))
-    realized = _format_cell("realized_pnl_after_cost", _first_raw(
-        equity_source.get("realized_pnl_after_cost"),
-        equity_source.get("realized_pnl"),
-        summary.get("realized_pnl_after_cost"),
-        summary.get("realized_pnl"),
-    ))
+    total_equity = _format_cell(
+        "total_equity",
+        _first_raw(
+            equity_source.get("total_equity_after_cost"),
+            equity_source.get("total_equity"),
+            summary.get("total_equity_after_cost"),
+            summary.get("total_equity"),
+        ),
+    )
+    unrealized = _format_cell(
+        "unrealized_pnl", _first_raw(equity_source.get("unrealized_pnl"), summary.get("unrealized_pnl"))
+    )
+    realized = _format_cell(
+        "realized_pnl_after_cost",
+        _first_raw(
+            equity_source.get("realized_pnl_after_cost"),
+            equity_source.get("realized_pnl"),
+            summary.get("realized_pnl_after_cost"),
+            summary.get("realized_pnl"),
+        ),
+    )
 
     buy_count = _summary_or_decision_count(summary, decisions, "buy_candidate_count", "BUY_CANDIDATE")
     watch_count = _summary_or_decision_count(summary, decisions, "watch_only_count", "WATCH_ONLY")
@@ -2178,7 +2231,8 @@ def _overview_dashboard(
     cards = [
         _kpi_card(
             "今日市場資料狀態",
-            _status_badge(market_status, "market_intel_status") + _status_badge(freshness_level, "data_freshness_level", "freshness-badge"),
+            _status_badge(market_status, "market_intel_status")
+            + _status_badge(freshness_level, "data_freshness_level", "freshness-badge"),
             [
                 ("報表日期", requested),
                 ("實際交易日", trade_date),
@@ -2284,7 +2338,9 @@ def _freshness_readiness_dashboard(
     except Exception:
         risk_alpha = {}
 
-    freshness = freshness_state or _freshness_snapshot(summary, market_intel if market_intel is not None else pd.DataFrame())
+    freshness = freshness_state or _freshness_snapshot(
+        summary, market_intel if market_intel is not None else pd.DataFrame()
+    )
     requested_raw = freshness["requested_date"]
     trade_raw = freshness["trade_date"]
     actual_raw = freshness["actual_data_date"]
@@ -2303,7 +2359,9 @@ def _freshness_readiness_dashboard(
         else "目前未偵測到資料落後。"
     )
 
-    primary_window = str(_first_raw(perf_row.get("primary_alpha_window"), risk_alpha.get("primary_alpha_window")) or "").strip()
+    primary_window = str(
+        _first_raw(perf_row.get("primary_alpha_window"), risk_alpha.get("primary_alpha_window")) or ""
+    ).strip()
     if not primary_window or primary_window == "-":
         primary_window = "20d"
     primary_strategy_return = _first_float(
@@ -2324,7 +2382,9 @@ def _freshness_readiness_dashboard(
         risk_alpha.get("excess_return"),
         risk_alpha.get(f"excess_return_{primary_window}"),
     )
-    conclusion_status = str(_first_raw(perf_row.get("conclusion_status"), risk_alpha.get("conclusion_status"), "DATA_INSUFFICIENT"))
+    conclusion_status = str(
+        _first_raw(perf_row.get("conclusion_status"), risk_alpha.get("conclusion_status"), "DATA_INSUFFICIENT")
+    )
     risk_status = str(
         _first_raw(
             perf_row.get("risk_adjusted_alpha_status"),
@@ -2345,15 +2405,24 @@ def _freshness_readiness_dashboard(
     )
     formal_long_term_text = "是" if long_term_confirmed else "否"
 
-    strategy_history_days = int(_to_float(_first_raw(perf_row.get("strategy_history_days"), readiness.get("strategy_history_days"))) or 0)
-    benchmark_history_days = int(_to_float(_first_raw(perf_row.get("benchmark_history_days"), benchmark.get("benchmark_history_days"))) or 0)
-    valid_trade_count = int(_to_float(_first_raw(perf_row.get("valid_trade_count"), readiness.get("valid_trade_count"))) or 0)
-    holding_record_count = int(_to_float(_first_raw(perf_row.get("holding_record_count"), readiness.get("holding_record_count"))) or 0)
+    strategy_history_days = int(
+        _to_float(_first_raw(perf_row.get("strategy_history_days"), readiness.get("strategy_history_days"))) or 0
+    )
+    benchmark_history_days = int(
+        _to_float(_first_raw(perf_row.get("benchmark_history_days"), benchmark.get("benchmark_history_days"))) or 0
+    )
+    valid_trade_count = int(
+        _to_float(_first_raw(perf_row.get("valid_trade_count"), readiness.get("valid_trade_count"))) or 0
+    )
+    holding_record_count = int(
+        _to_float(_first_raw(perf_row.get("holding_record_count"), readiness.get("holding_record_count"))) or 0
+    )
 
     freshness_cards = [
         _kpi_card(
             "資料新鮮度",
-            _status_badge(display_freshness_level, "data_freshness_level") + f'<span class="readiness-primary">{escape(freshness_primary)}</span>',
+            _status_badge(display_freshness_level, "data_freshness_level")
+            + f'<span class="readiness-primary">{escape(freshness_primary)}</span>',
             [
                 ("原始執行日期", _format_cell("requested_date", requested_raw)),
                 ("實際交易日", _format_cell("trade_date", trade_raw)),
@@ -2399,7 +2468,9 @@ def _freshness_readiness_dashboard(
                 ("短期跑贏", short_term_outperformance),
                 ("正式長期打敗大盤", formal_long_term_text),
             ],
-            tone="ok" if long_term_confirmed else ("info" if primary_can_judge and primary_excess_return and primary_excess_return > 0 else "warning"),
+            tone="ok"
+            if long_term_confirmed
+            else ("info" if primary_can_judge and primary_excess_return and primary_excess_return > 0 else "warning"),
         ),
     ]
     content = (
@@ -2485,7 +2556,9 @@ def _strategy_window_ready(perf_row: dict[str, object], readiness: dict[str, obj
 
 def _benchmark_window_ready(perf_row: dict[str, object], benchmark: dict[str, object], window: str) -> bool:
     key = "can_judge_alpha" if window == "total" else f"can_judge_alpha_{window}"
-    value = _first_raw(perf_row.get(key), benchmark.get(key), perf_row.get("can_judge_alpha"), benchmark.get("can_judge_alpha"))
+    value = _first_raw(
+        perf_row.get(key), benchmark.get(key), perf_row.get("can_judge_alpha"), benchmark.get("can_judge_alpha")
+    )
     return _truthy(value)
 
 
@@ -2508,8 +2581,7 @@ def _alpha_maturity_notice(
         message = "Alpha 資料不足，僅能 observation only / data insufficient，不可作為打敗大盤結論。"
     elif excess_return > 0:
         message = (
-            f"{primary_window} 短期跑贏，短期觀察，不代表長期打敗大盤；"
-            f"正式長期打敗大盤：{formal_long_term_text}。"
+            f"{primary_window} 短期跑贏，短期觀察，不代表長期打敗大盤；正式長期打敗大盤：{formal_long_term_text}。"
         )
     else:
         message = (
@@ -2518,7 +2590,7 @@ def _alpha_maturity_notice(
         )
     return (
         '<p class="top-notice benchmark-warning"><strong>Alpha 結論</strong>'
-        f'<span>{escape(message)} conclusion_status={escape(conclusion_status)}</span></p>'
+        f"<span>{escape(message)} conclusion_status={escape(conclusion_status)}</span></p>"
     )
 
 
@@ -2526,7 +2598,11 @@ def _strategy_readiness_window_table(perf_row: dict[str, object], readiness: dic
     rows = []
     for window in ["5d", "20d", "60d", "120d", "252d"]:
         ready = _strategy_window_ready(perf_row, readiness, window)
-        raw_value = _first_raw(perf_row.get(f"can_judge_strategy_alpha_{window}"), readiness.get(f"can_judge_strategy_alpha_{window}"), False)
+        raw_value = _first_raw(
+            perf_row.get(f"can_judge_strategy_alpha_{window}"),
+            readiness.get(f"can_judge_strategy_alpha_{window}"),
+            False,
+        )
         rows.append(
             "<tr>"
             f"<td>{escape(window)}</td>"
@@ -2541,7 +2617,9 @@ def _strategy_readiness_window_table(perf_row: dict[str, object], readiness: dic
     )
 
 
-def _summary_or_decision_count(summary: dict[str, object], decisions: pd.DataFrame, summary_key: str, decision_value: str) -> int:
+def _summary_or_decision_count(
+    summary: dict[str, object], decisions: pd.DataFrame, summary_key: str, decision_value: str
+) -> int:
     summary_value = _to_float(summary.get(summary_key))
     if summary_value is not None:
         return int(summary_value)
@@ -2549,10 +2627,7 @@ def _summary_or_decision_count(summary: dict[str, object], decisions: pd.DataFra
 
 
 def _kpi_card(title: str, primary_html: str, metrics: list[tuple[str, str]], tone: str = "neutral") -> str:
-    metric_items = "".join(
-        f'<span><b>{escape(label)}</b><em>{escape(value)}</em></span>'
-        for label, value in metrics
-    )
+    metric_items = "".join(f"<span><b>{escape(label)}</b><em>{escape(value)}</em></span>" for label, value in metrics)
     return (
         f'<article class="kpi-card {escape(tone)}">'
         f"<h3>{escape(title)}</h3>"
@@ -2577,7 +2652,16 @@ def _badge_class(normalized: str) -> str:
         return "badge-ok"
     if normalized in {"RECENT", "PENDING_REVIEW", "WATCH_ONLY", "INFO", "WATCH"}:
         return "badge-info"
-    if normalized in {"OK_WITH_FALLBACK", "OK_WITH_WARNING", "CACHE", "NEEDS_MANUAL_CHECK", "REDUCE", "MEDIUM", "ATTENTION", "WARNING"}:
+    if normalized in {
+        "OK_WITH_FALLBACK",
+        "OK_WITH_WARNING",
+        "CACHE",
+        "NEEDS_MANUAL_CHECK",
+        "REDUCE",
+        "MEDIUM",
+        "ATTENTION",
+        "WARNING",
+    }:
         return "badge-warning"
     if normalized in {"STALE", "BLOCKED", "FAILED", "MISSING", "NO_TRADE", "EXIT", "HIGH", "HIGH_RISK"}:
         return "badge-danger"
@@ -2599,7 +2683,9 @@ def _pnl_overview(
     invested_value = _first_number(summary, "invested_value")
     if invested_value is None:
         invested_value = _sum_column(open_positions, "position_value")
-    total_equity_after_cost = _first_number(summary, "total_equity_after_cost") or _first_number(summary, "total_equity")
+    total_equity_after_cost = _first_number(summary, "total_equity_after_cost") or _first_number(
+        summary, "total_equity"
+    )
     total_capital = _first_number(summary, "total_capital")
     unrealized = _first_number(summary, "unrealized_pnl")
     realized = _first_number(summary, "realized_pnl")
@@ -2634,7 +2720,9 @@ def _pnl_overview(
                 ("持倉綠燈數", f"{(lights == '綠燈').sum():,.0f}", None),
             ]
         )
-    primary_cards = "".join(_overview_metric(label, value, raw, class_name) for label, value, raw, class_name in primary)
+    primary_cards = "".join(
+        _overview_metric(label, value, raw, class_name) for label, value, raw, class_name in primary
+    )
     secondary_cards = "".join(_overview_metric(label, value, raw, "") for label, value, raw in secondary)
     donut_card = _asset_pnl_donut_card(
         total_equity=total_equity_after_cost,
@@ -2714,18 +2802,18 @@ def _asset_pnl_donut_card(
         '<div class="asset-visual-stack">'
         f'<div class="asset-donut" style="--holding-pct:{holding_pct:.2f}%;" role="img" aria-label="持倉現值占總資產 {holding_pct:.1f}%">'
         '<div class="asset-donut-core">'
-        '<span>總資產</span>'
-        f'<strong>{escape(_format_number_or_dash(total_equity))}</strong>'
+        "<span>總資產</span>"
+        f"<strong>{escape(_format_number_or_dash(total_equity))}</strong>"
         f'<em class="{_profit_class(total_pnl)}">總報酬率 {_percent_or_dash(return_pct)}</em>'
         "</div></div>"
         f'<div class="asset-pnl-bottom">{bottom_html}</div>'
         "</div>"
         '<div class="asset-allocation">'
         '<div class="allocation-row"><span><i class="asset-dot holding-dot"></i>持倉現值</span>'
-        f'<strong>{holding_pct:.1f}%</strong></div>'
+        f"<strong>{holding_pct:.1f}%</strong></div>"
         '<div class="allocation-row"><span><i class="asset-dot cash-dot"></i>現金 / 未投入</span>'
-        f'<strong>{cash_pct:.1f}%</strong></div>'
-        '<h4>前幾大持倉</h4>'
+        f"<strong>{cash_pct:.1f}%</strong></div>"
+        "<h4>前幾大持倉</h4>"
         f"{allocation_items}"
         "</div></div>"
         "</div>"
@@ -2749,10 +2837,7 @@ def _asset_allocation_items(open_positions: pd.DataFrame, total_equity: float) -
         stock_id = _format_cell("stock_id", row.get("stock_id"))
         pct = float(row["_allocation_value"]) / total_equity * 100.0
         items.append(
-            "<li>"
-            f"<span><b>{escape(stock_name)}</b><em>{escape(stock_id)}</em></span>"
-            f"<strong>{pct:.1f}%</strong>"
-            "</li>"
+            f"<li><span><b>{escape(stock_name)}</b><em>{escape(stock_id)}</em></span><strong>{pct:.1f}%</strong></li>"
         )
     return f'<ol class="allocation-list">{"".join(items)}</ol>'
 
@@ -2788,7 +2873,9 @@ def _pnl_chart_section(
     previous_equity = None
     if len(source) >= 2:
         previous_equity = _first_number(source.iloc[-2].to_dict(), "total_equity_after_cost")
-    equity_change = (total_equity - previous_equity) if total_equity is not None and previous_equity is not None else None
+    equity_change = (
+        (total_equity - previous_equity) if total_equity is not None and previous_equity is not None else None
+    )
     bars = [
         ("今日未實現損益", unrealized),
         ("今日已實現損益", realized_today),
@@ -2811,7 +2898,7 @@ def _pnl_bar(label: str, value: float | None, max_abs: float) -> str:
     width = min(100.0, abs(raw) / max_abs * 100.0)
     return (
         '<div class="pnl-bar-row">'
-        f'<span>{escape(label)}</span>'
+        f"<span>{escape(label)}</span>"
         f'<div class="pnl-bar-track"><i class="{_profit_class(raw)}" style="width:{width:.1f}%"></i></div>'
         f'<strong class="{_profit_class(raw)}">{escape(_signed_or_dash(raw))}</strong>'
         "</div>"
@@ -2858,7 +2945,7 @@ def _pnl_line_chart(frame: pd.DataFrame) -> str:
     )
     return (
         f'<svg class="pnl-line-chart" viewBox="0 0 {width} {height}" role="img" aria-label="近期資產與損益趨勢">'
-        f'<line x1="{pad}" y1="{height-pad}" x2="{width-pad}" y2="{height-pad}" stroke="#334155" />'
+        f'<line x1="{pad}" y1="{height - pad}" x2="{width - pad}" y2="{height - pad}" stroke="#334155" />'
         + "".join(polylines)
         + "</svg>"
         + f'<div class="chart-legend">{legend}</div>'
@@ -2879,18 +2966,26 @@ def _decision_dashboard(
         ("REDUCE", "降低風險檢查", _decision_count(decisions, "decision", "REDUCE"), "reduce"),
         ("EXIT_REVIEW", "出場檢查", _decision_count(decisions, "decision", "EXIT"), "exit"),
     ]
-    stats = [
-        (label, value)
-        for label, _, value, _ in decision_stats
-    ] + [
-        ("A 級候選", _decision_count(decisions, "candidate_grade", "A") or int(_to_float(summary.get("grade_a_count")) or 0)),
-        ("B 級候選", _decision_count(decisions, "candidate_grade", "B") or int(_to_float(summary.get("grade_b_count")) or 0)),
-        ("C 級候選", _decision_count(decisions, "candidate_grade", "C") or int(_to_float(summary.get("grade_c_count")) or 0)),
-        ("D 級候選", _decision_count(decisions, "candidate_grade", "D") or int(_to_float(summary.get("grade_d_count")) or 0)),
+    stats = [(label, value) for label, _, value, _ in decision_stats] + [
+        (
+            "A 級候選",
+            _decision_count(decisions, "candidate_grade", "A") or int(_to_float(summary.get("grade_a_count")) or 0),
+        ),
+        (
+            "B 級候選",
+            _decision_count(decisions, "candidate_grade", "B") or int(_to_float(summary.get("grade_b_count")) or 0),
+        ),
+        (
+            "C 級候選",
+            _decision_count(decisions, "candidate_grade", "C") or int(_to_float(summary.get("grade_c_count")) or 0),
+        ),
+        (
+            "D 級候選",
+            _decision_count(decisions, "candidate_grade", "D") or int(_to_float(summary.get("grade_d_count")) or 0),
+        ),
     ]
     lanes = "".join(
-        '<div class="decision-lane decision-{}">'
-        '<span>{}</span><strong>{:,.0f}</strong><em>{}</em></div>'.format(
+        '<div class="decision-lane decision-{}"><span>{}</span><strong>{:,.0f}</strong><em>{}</em></div>'.format(
             escape(tone),
             escape(label),
             value,
@@ -2898,15 +2993,32 @@ def _decision_dashboard(
         )
         for label, caption, value, tone in decision_stats
     )
-    stat_cards = '<div class="cards decision-stat-cards">' + "".join(_card(label, f"{value:,.0f}") for label, value in stats) + "</div>"
+    stat_cards = (
+        '<div class="cards decision-stat-cards">'
+        + "".join(_card(label, f"{value:,.0f}") for label, value in stats)
+        + "</div>"
+    )
     top = decisions.copy()
     if not top.empty:
-        score = top["final_market_score"] if "final_market_score" in top.columns else top.get("multi_factor_score", pd.Series([0] * len(top)))
+        score = (
+            top["final_market_score"]
+            if "final_market_score" in top.columns
+            else top.get("multi_factor_score", pd.Series([0] * len(top)))
+        )
         top["_dashboard_score"] = pd.to_numeric(score, errors="coerce").fillna(0)
         top = top.sort_values("_dashboard_score", ascending=False).head(5)
     top_table = _responsive_compact_records(
         top,
-        ["stock_id", "stock_name", "decision", "candidate_grade", "total_score", "multi_factor_score", "final_market_score", "confidence_score"],
+        [
+            "stock_id",
+            "stock_name",
+            "decision",
+            "candidate_grade",
+            "total_score",
+            "multi_factor_score",
+            "final_market_score",
+            "confidence_score",
+        ],
         ["reason", "risk_flags", "final_comment", "ai_summary", "manual_review_focus"],
         "目前尚無決策重點股票",
         5,
@@ -2914,12 +3026,19 @@ def _decision_dashboard(
     risks = _risk_alert_list(summary, candidates, decisions, open_positions)
     catalysts = _catalyst_list(candidates, decisions)
     content = (
-        '<div class="decision-lanes">' + lanes + "</div>"
+        '<div class="decision-lanes">'
+        + lanes
+        + "</div>"
         + stat_cards
         + _details_block("分析結果摘要", top_table, open_by_default=True)
         + '<div class="dashboard-split">'
-        + _section("風險警報", '<ul class="risk-list">' + "".join(f"<li>{escape(item)}</li>" for item in risks) + "</ul>")
-        + _section("利好催化", '<ul class="catalyst-list">' + "".join(f"<li>{escape(item)}</li>" for item in catalysts) + "</ul>")
+        + _section(
+            "風險警報", '<ul class="risk-list">' + "".join(f"<li>{escape(item)}</li>" for item in risks) + "</ul>"
+        )
+        + _section(
+            "利好催化",
+            '<ul class="catalyst-list">' + "".join(f"<li>{escape(item)}</li>" for item in catalysts) + "</ul>",
+        )
         + "</div>"
         + '<p class="note">買進候選需人工確認；出場訊號檢查需人工確認；本系統未自動下單。</p>'
     )
@@ -2947,7 +3066,9 @@ def _risk_alert_list(
         for _, row in frame.head(20).iterrows():
             flags = _safe_text(row.get("risk_flags"))
             if any(keyword in flags for keyword in ["處置股", "注意股", "PE 偏高", "融資", "流動性", "產業資料不足"]):
-                items.append(f"{_format_cell('stock_id', row.get('stock_id'))} {_format_cell('stock_name', row.get('stock_name'))}：{flags}")
+                items.append(
+                    f"{_format_cell('stock_id', row.get('stock_id'))} {_format_cell('stock_name', row.get('stock_name'))}：{flags}"
+                )
             if _to_float(row.get("liquidity_score")) is not None and (_to_float(row.get("liquidity_score")) or 0) < 50:
                 items.append(f"{_format_cell('stock_id', row.get('stock_id'))} 流動性分數偏低，短線滑價風險較高。")
             if str(row.get("event_risk_level", "")).upper() == "HIGH":
@@ -2959,7 +3080,11 @@ def _risk_alert_list(
 
 def _catalyst_list(candidates: pd.DataFrame, decisions: pd.DataFrame) -> list[str]:
     items: list[str] = []
-    combined = pd.concat([frame for frame in [candidates, decisions] if not frame.empty], ignore_index=True) if (not candidates.empty or not decisions.empty) else pd.DataFrame()
+    combined = (
+        pd.concat([frame for frame in [candidates, decisions] if not frame.empty], ignore_index=True)
+        if (not candidates.empty or not decisions.empty)
+        else pd.DataFrame()
+    )
     if combined.empty:
         return ["目前尚無利好催化資料。"]
     for _, row in combined.head(30).iterrows():
@@ -2980,7 +3105,12 @@ def _catalyst_list(candidates: pd.DataFrame, decisions: pd.DataFrame) -> list[st
 def _position_review_section(position_review: pd.DataFrame, open_positions: pd.DataFrame) -> str:
     total = len(position_review) if not position_review.empty else len(open_positions)
     if position_review.empty:
-        content = '<div class="cards">' + _card("目前持倉", f"{total:,.0f}") + "</div>" + _empty("目前尚無 position_review_summary")
+        content = (
+            '<div class="cards">'
+            + _card("目前持倉", f"{total:,.0f}")
+            + "</div>"
+            + _empty("目前尚無 position_review_summary")
+        )
         return _section("持倉狀態整理", content)
 
     cards = [
@@ -3017,7 +3147,9 @@ def _position_review_section(position_review: pd.DataFrame, open_positions: pd.D
     note = f'<p class="note">目前 {total:,.0f} 檔持倉中各類數量如下；僅供人工檢查，不會自動賣出。</p>'
     return _section(
         "持倉狀態整理",
-        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        '<div class="cards">'
+        + "".join(_card(label, value) for label, value in cards)
+        + "</div>"
         + note
         + _details_block("position_review_summary 明細", table),
     )
@@ -3028,7 +3160,11 @@ def _candidate_coverage_section(candidate_coverage: pd.DataFrame) -> str:
         return _section("候選股資料覆蓋率", _empty("目前尚無 candidate_coverage_report"))
 
     total = len(candidate_coverage)
-    missing = candidate_coverage["missing_fields"].fillna("").astype(str).str.strip() if "missing_fields" in candidate_coverage.columns else pd.Series([""] * total)
+    missing = (
+        candidate_coverage["missing_fields"].fillna("").astype(str).str.strip()
+        if "missing_fields" in candidate_coverage.columns
+        else pd.Series([""] * total)
+    )
     etf_missing = int(missing.str.contains("ETF_METADATA_MISSING", na=False).sum())
     financial_missing = int(missing.str.contains("FINANCIAL_MISSING", na=False).sum())
     cards = [
@@ -3064,7 +3200,9 @@ def _candidate_coverage_section(candidate_coverage: pd.DataFrame) -> str:
     note = '<p class="note">ETF 不以 EPS / ROE 缺失列為一般個股財報缺失；ETF metadata 未接來源時標示 ETF_METADATA_MISSING。</p>'
     return _section(
         "候選股資料覆蓋率",
-        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        '<div class="cards">'
+        + "".join(_card(label, value) for label, value in cards)
+        + "</div>"
         + note
         + _details_block("candidate_coverage_report 明細", table),
     )
@@ -3087,7 +3225,9 @@ def _missing_industry_priority_section(priority: pd.DataFrame) -> str:
         ]
         return _section(
             title,
-            '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+            '<div class="cards">'
+            + "".join(_card(label, value) for label, value in cards)
+            + "</div>"
             + '<p class="note">高優先缺口已清空。</p>'
             + _empty("目前尚無 missing_industry_priority.csv"),
             section_id="missing-industry-section",
@@ -3102,7 +3242,9 @@ def _missing_industry_priority_section(priority: pd.DataFrame) -> str:
         ascending=[False, False, True],
     )
     high = frame[frame.get("priority_level", pd.Series([""] * len(frame))).fillna("").astype(str).str.upper() == "HIGH"]
-    medium = frame[frame.get("priority_level", pd.Series([""] * len(frame))).fillna("").astype(str).str.upper() == "MEDIUM"]
+    medium = frame[
+        frame.get("priority_level", pd.Series([""] * len(frame))).fillna("").astype(str).str.upper() == "MEDIUM"
+    ]
     low = frame[frame.get("priority_level", pd.Series([""] * len(frame))).fillna("").astype(str).str.upper() == "LOW"]
     urgent = pd.concat([high, medium], ignore_index=False)
     top = high if not high.empty else medium
@@ -3139,24 +3281,34 @@ def _missing_industry_priority_section(priority: pd.DataFrame) -> str:
         "目前尚無缺產業分類優先補資料明細",
         20,
     )
-    medium_table = _table(medium.drop(columns=["_priority_score", "_recent_appearance_count"], errors="ignore"), [
-        "stock_id",
-        "stock_name",
-        "market_type",
-        "latest_relative_mode",
-        "priority_score",
-        "priority_level",
-        "suggested_action",
-    ], "目前尚無 MEDIUM priority 缺口", 20)
-    low_table = _table(low.drop(columns=["_priority_score", "_recent_appearance_count"], errors="ignore"), [
-        "stock_id",
-        "stock_name",
-        "market_type",
-        "latest_relative_mode",
-        "priority_score",
-        "priority_level",
-        "suggested_action",
-    ], "目前尚無 LOW priority 缺口", 20)
+    medium_table = _table(
+        medium.drop(columns=["_priority_score", "_recent_appearance_count"], errors="ignore"),
+        [
+            "stock_id",
+            "stock_name",
+            "market_type",
+            "latest_relative_mode",
+            "priority_score",
+            "priority_level",
+            "suggested_action",
+        ],
+        "目前尚無 MEDIUM priority 缺口",
+        20,
+    )
+    low_table = _table(
+        low.drop(columns=["_priority_score", "_recent_appearance_count"], errors="ignore"),
+        [
+            "stock_id",
+            "stock_name",
+            "market_type",
+            "latest_relative_mode",
+            "priority_score",
+            "priority_level",
+            "suggested_action",
+        ],
+        "目前尚無 LOW priority 缺口",
+        20,
+    )
     if high.empty and medium.empty:
         high_note = "高優先缺口已清空；MEDIUM 缺口也已清空。LOW priority 已移至下方收合區作為背景資訊。"
     elif high.empty:
@@ -3169,7 +3321,9 @@ def _missing_industry_priority_section(priority: pd.DataFrame) -> str:
     )
     return _section(
         title,
-        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        '<div class="cards">'
+        + "".join(_card(label, value) for label, value in cards)
+        + "</div>"
         + note
         + _details_block("HIGH / MEDIUM 優先補資料標的", table, open_by_default=urgent_count > 0)
         + _details_block("MEDIUM priority 缺口", medium_table)
@@ -3206,7 +3360,9 @@ def _anysearch_industry_candidates_section(candidates: pd.DataFrame) -> str:
     if candidates.empty:
         return _section(
             title,
-            '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+            '<div class="cards">'
+            + "".join(_card(label, value) for label, value in cards)
+            + "</div>"
             + status_badges
             + note
             + _empty("目前尚無 anysearch_industry_candidates.csv 候選資料"),
@@ -3216,7 +3372,9 @@ def _anysearch_industry_candidates_section(candidates: pd.DataFrame) -> str:
 
     frame = candidates.copy()
     frame["_confidence"] = pd.to_numeric(frame.get("confidence"), errors="coerce").fillna(0)
-    frame = frame.sort_values(["_confidence", "stock_id"], ascending=[False, True]).drop(columns=["_confidence"], errors="ignore")
+    frame = frame.sort_values(["_confidence", "stock_id"], ascending=[False, True]).drop(
+        columns=["_confidence"], errors="ignore"
+    )
     table = _table(
         frame,
         [
@@ -3238,7 +3396,9 @@ def _anysearch_industry_candidates_section(candidates: pd.DataFrame) -> str:
     )
     return _section(
         title,
-        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        '<div class="cards">'
+        + "".join(_card(label, value) for label, value in cards)
+        + "</div>"
         + status_badges
         + note
         + _details_block("前 10 筆候選資料", table, open_by_default=True),
@@ -3282,7 +3442,9 @@ def _market_recap_section(market_recap: pd.DataFrame, summary: dict[str, object]
     ]
     table = _table(market_recap, MARKET_RECAP_COLUMNS_FOR_TABLE, "目前尚無大盤復盤資料", 5)
     content = (
-        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        '<div class="cards">'
+        + "".join(_card(label, value) for label, value in cards)
+        + "</div>"
         + f'<p class="recap-summary">{escape(_format_cell("recap_summary", row.get("recap_summary")))}</p>'
         + f'<p class="note">{escape(_format_cell("data_quality_note", row.get("data_quality_note")))}</p>'
         + _details_block("大盤復盤原始資料", table)
@@ -3303,8 +3465,12 @@ def _benchmark_alpha_section(
     risk_alpha = risk_adjusted_alpha_snapshot(report_dir, selected_date, readiness=strategy_readiness)
     risk_primary_window = str(risk_alpha.get("primary_alpha_window") or "").strip()
     headline_window = risk_primary_window or _best_alpha_window(system_returns, benchmark, strategy_readiness)
-    system_headline = _first_float(risk_alpha.get(f"strategy_return_{headline_window}"), system_returns.get(headline_window))
-    benchmark_headline = _first_float(risk_alpha.get(f"benchmark_return_{headline_window}"), benchmark["returns"].get(headline_window))
+    system_headline = _first_float(
+        risk_alpha.get(f"strategy_return_{headline_window}"), system_returns.get(headline_window)
+    )
+    benchmark_headline = _first_float(
+        risk_alpha.get(f"benchmark_return_{headline_window}"), benchmark["returns"].get(headline_window)
+    )
     alpha = _first_float(risk_alpha.get("excess_return"), risk_alpha.get(f"excess_return_{headline_window}"))
     if alpha is None:
         alpha = _alpha_return(system_headline, benchmark_headline)
@@ -3314,23 +3480,67 @@ def _benchmark_alpha_section(
     history_days = int(benchmark.get("benchmark_history_days", 0) or 0)
     strategy_history_days = int(strategy_readiness.get("strategy_history_days", 0) or 0)
     valid_trade_count = int(strategy_readiness.get("valid_trade_count", 0) or 0)
-    conclusion_status = str(risk_alpha.get("conclusion_status") or _alpha_conclusion_status(benchmark, strategy_readiness, headline_window))
+    conclusion_status = str(
+        risk_alpha.get("conclusion_status") or _alpha_conclusion_status(benchmark, strategy_readiness, headline_window)
+    )
     if alpha is not None and alpha < 0 and conclusion_status in {"OUTPERFORMING_SHORT_TERM", "OUTPERFORMING_CONFIRMED"}:
         conclusion_status = "UNDERPERFORMING"
     warning = ""
     if benchmark["warning"]:
         warning = (
             '<p class="top-notice benchmark-warning"><strong>Benchmark warning</strong>'
-            f'<span>{escape(str(benchmark["warning"]))}</span></p>'
+            f"<span>{escape(str(benchmark['warning']))}</span></p>"
         )
     detail_rows = [
-        ("今日", "1d", system_returns.get("1d"), benchmark["returns"].get("1d"), _can_judge_alpha(benchmark, strategy_readiness, "1d")),
-        ("近 5 日", "5d", _first_float(risk_alpha.get("strategy_return_5d"), system_returns.get("5d")), _first_float(risk_alpha.get("benchmark_return_5d"), benchmark["returns"].get("5d")), _can_judge_alpha(benchmark, strategy_readiness, "5d")),
-        ("近 20 日", "20d", _first_float(risk_alpha.get("strategy_return_20d"), system_returns.get("20d")), _first_float(risk_alpha.get("benchmark_return_20d"), benchmark["returns"].get("20d")), _can_judge_alpha(benchmark, strategy_readiness, "20d")),
-        ("近 60 日", "60d", _first_float(risk_alpha.get("strategy_return_60d"), system_returns.get("60d")), _first_float(risk_alpha.get("benchmark_return_60d"), benchmark["returns"].get("60d")), _can_judge_alpha(benchmark, strategy_readiness, "60d")),
-        ("近 120 日", "120d", _first_float(risk_alpha.get("strategy_return_120d"), system_returns.get("120d")), _first_float(risk_alpha.get("benchmark_return_120d"), benchmark["returns"].get("120d")), _can_judge_alpha(benchmark, strategy_readiness, "120d")),
-        ("近 252 日", "252d", _first_float(risk_alpha.get("strategy_return_252d"), system_returns.get("252d")), _first_float(risk_alpha.get("benchmark_return_252d"), benchmark["returns"].get("252d")), _can_judge_alpha(benchmark, strategy_readiness, "252d")),
-        ("累計", "total", system_returns.get("total"), benchmark["returns"].get("total"), _can_judge_alpha(benchmark, strategy_readiness, "total")),
+        (
+            "今日",
+            "1d",
+            system_returns.get("1d"),
+            benchmark["returns"].get("1d"),
+            _can_judge_alpha(benchmark, strategy_readiness, "1d"),
+        ),
+        (
+            "近 5 日",
+            "5d",
+            _first_float(risk_alpha.get("strategy_return_5d"), system_returns.get("5d")),
+            _first_float(risk_alpha.get("benchmark_return_5d"), benchmark["returns"].get("5d")),
+            _can_judge_alpha(benchmark, strategy_readiness, "5d"),
+        ),
+        (
+            "近 20 日",
+            "20d",
+            _first_float(risk_alpha.get("strategy_return_20d"), system_returns.get("20d")),
+            _first_float(risk_alpha.get("benchmark_return_20d"), benchmark["returns"].get("20d")),
+            _can_judge_alpha(benchmark, strategy_readiness, "20d"),
+        ),
+        (
+            "近 60 日",
+            "60d",
+            _first_float(risk_alpha.get("strategy_return_60d"), system_returns.get("60d")),
+            _first_float(risk_alpha.get("benchmark_return_60d"), benchmark["returns"].get("60d")),
+            _can_judge_alpha(benchmark, strategy_readiness, "60d"),
+        ),
+        (
+            "近 120 日",
+            "120d",
+            _first_float(risk_alpha.get("strategy_return_120d"), system_returns.get("120d")),
+            _first_float(risk_alpha.get("benchmark_return_120d"), benchmark["returns"].get("120d")),
+            _can_judge_alpha(benchmark, strategy_readiness, "120d"),
+        ),
+        (
+            "近 252 日",
+            "252d",
+            _first_float(risk_alpha.get("strategy_return_252d"), system_returns.get("252d")),
+            _first_float(risk_alpha.get("benchmark_return_252d"), benchmark["returns"].get("252d")),
+            _can_judge_alpha(benchmark, strategy_readiness, "252d"),
+        ),
+        (
+            "累計",
+            "total",
+            system_returns.get("total"),
+            benchmark["returns"].get("total"),
+            _can_judge_alpha(benchmark, strategy_readiness, "total"),
+        ),
     ]
     detail_table = _benchmark_detail_table(detail_rows)
     benchmark_meta = (
@@ -3359,7 +3569,9 @@ def _benchmark_alpha_section(
         '<div class="benchmark-summary-grid">'
         + _benchmark_card("打敗大盤", beat_text, headline_window)
         + _benchmark_card("超額報酬 alpha", alpha_text, _benchmark_window_label(headline_window), alpha)
-        + _benchmark_card("Primary 策略報酬", _return_text(system_headline), _benchmark_window_label(headline_window), system_headline)
+        + _benchmark_card(
+            "Primary 策略報酬", _return_text(system_headline), _benchmark_window_label(headline_window), system_headline
+        )
         + _benchmark_card("Benchmark 報酬率", _return_text(benchmark_headline), str(benchmark["source_label"]))
         + _benchmark_card("官方 benchmark 覆蓋", f"{history_days} 日", "official trading-day history")
         + _benchmark_card("策略樣本成熟度", f"{strategy_history_days} 日", f"valid trades {valid_trade_count}")
@@ -3379,7 +3591,11 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
     sharpe = _to_float(row.get("sharpe_like_ratio"))
     alpha = _to_float(row.get("alpha"))
     can_judge_alpha = _truthy(row.get("can_judge_alpha")) if row else False
-    warning = _format_cell("data_quality_warning", row.get("data_quality_warning")) if row else "目前尚無 performance diagnostics"
+    warning = (
+        _format_cell("data_quality_warning", row.get("data_quality_warning"))
+        if row
+        else "目前尚無 performance diagnostics"
+    )
     benchmark_warning = _format_cell("benchmark_warning", row.get("benchmark_warning")) if row else "-"
     status = _format_cell("status", row.get("status")) if row else "資料不足"
     conclusion_status = _format_cell("conclusion_status", row.get("conclusion_status")) if row else "DATA_INSUFFICIENT"
@@ -3419,15 +3635,36 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
             [
                 ("口徑", "primary total equity window"),
                 ("Benchmark", _format_cell("benchmark_source", row.get("benchmark_source")) if row else "-"),
-                ("benchmark_is_official", _format_cell("benchmark_is_official", row.get("benchmark_is_official")) if row else "false"),
+                (
+                    "benchmark_is_official",
+                    _format_cell("benchmark_is_official", row.get("benchmark_is_official")) if row else "false",
+                ),
                 ("can_judge_alpha", _format_cell("can_judge_alpha", row.get("can_judge_alpha")) if row else "false"),
-                ("benchmark_history_days", _format_cell("benchmark_history_days", row.get("benchmark_history_days")) if row else "0"),
-                ("strategy_history_days", _format_cell("strategy_history_days", row.get("strategy_history_days")) if row else "0"),
+                (
+                    "benchmark_history_days",
+                    _format_cell("benchmark_history_days", row.get("benchmark_history_days")) if row else "0",
+                ),
+                (
+                    "strategy_history_days",
+                    _format_cell("strategy_history_days", row.get("strategy_history_days")) if row else "0",
+                ),
                 ("valid_trade_count", _format_cell("valid_trade_count", row.get("valid_trade_count")) if row else "0"),
-                ("holding_record_count", _format_cell("holding_record_count", row.get("holding_record_count")) if row else "0"),
-                ("can_judge_strategy_alpha", _format_cell("can_judge_strategy_alpha", row.get("can_judge_strategy_alpha")) if row else "false"),
-                ("can_judge_alpha_20d", _format_cell("can_judge_alpha_20d", row.get("can_judge_alpha_20d")) if row else "false"),
-                ("can_judge_alpha_60d", _format_cell("can_judge_alpha_60d", row.get("can_judge_alpha_60d")) if row else "false"),
+                (
+                    "holding_record_count",
+                    _format_cell("holding_record_count", row.get("holding_record_count")) if row else "0",
+                ),
+                (
+                    "can_judge_strategy_alpha",
+                    _format_cell("can_judge_strategy_alpha", row.get("can_judge_strategy_alpha")) if row else "false",
+                ),
+                (
+                    "can_judge_alpha_20d",
+                    _format_cell("can_judge_alpha_20d", row.get("can_judge_alpha_20d")) if row else "false",
+                ),
+                (
+                    "can_judge_alpha_60d",
+                    _format_cell("can_judge_alpha_60d", row.get("can_judge_alpha_60d")) if row else "false",
+                ),
                 ("conclusion_status", conclusion_status),
                 ("視窗", _format_cell("benchmark_window", row.get("benchmark_window")) if row else "-"),
                 ("Benchmark 報酬", _format_cell("benchmark_return", row.get("benchmark_return")) if row else "-"),
@@ -3503,17 +3740,27 @@ def _performance_diagnostics_section(performance_diagnostics: pd.DataFrame) -> s
         + '<p class="note">此區 Alpha 採 primary total equity window；累積報酬、Sharpe-like 與日勝率只做績效風險觀察，不作為主要 Alpha 結論。此區不會修改正式買賣策略、出場規則或建立真實訂單。</p>'
         + _details_block("績效風險診斷明細", detail_table)
     )
-    return _section("績效風險分析", content, section_id="performance-diagnostics", class_name="performance-diagnostics-section")
+    return _section(
+        "績效風險分析", content, section_id="performance-diagnostics", class_name="performance-diagnostics-section"
+    )
 
 
 def _risk_adjusted_alpha_section(performance_diagnostics: pd.DataFrame) -> str:
     row = performance_diagnostics.iloc[0].to_dict() if not performance_diagnostics.empty else {}
     conclusion_status = _format_cell("conclusion_status", row.get("conclusion_status")) if row else "DATA_INSUFFICIENT"
-    risk_status = _format_cell("risk_adjusted_alpha_status", row.get("risk_adjusted_alpha_status")) if row else "DATA_INSUFFICIENT"
+    risk_status = (
+        _format_cell("risk_adjusted_alpha_status", row.get("risk_adjusted_alpha_status"))
+        if row
+        else "DATA_INSUFFICIENT"
+    )
     primary_window = _format_cell("primary_alpha_window", row.get("primary_alpha_window")) if row else "-"
     excess_return = _to_float(row.get("excess_return"))
-    strategy_return = _to_float(row.get(f"strategy_return_{primary_window}")) if primary_window and primary_window != "-" else None
-    benchmark_return = _to_float(row.get(f"benchmark_return_{primary_window}")) if primary_window and primary_window != "-" else None
+    strategy_return = (
+        _to_float(row.get(f"strategy_return_{primary_window}")) if primary_window and primary_window != "-" else None
+    )
+    benchmark_return = (
+        _to_float(row.get(f"benchmark_return_{primary_window}")) if primary_window and primary_window != "-" else None
+    )
     conclusion_reason = _format_cell("conclusion_reason", row.get("conclusion_reason")) if row else "資料不足"
     long_term_notice = ""
     if conclusion_status != "OUTPERFORMING_CONFIRMED":
@@ -3537,19 +3784,32 @@ def _risk_adjusted_alpha_section(performance_diagnostics: pd.DataFrame) -> str:
             "回撤風險",
             escape(_format_cell("drawdown_ratio", row.get("drawdown_ratio")) if row else "-"),
             [
-                ("策略最大回撤", _format_cell("strategy_max_drawdown", row.get("strategy_max_drawdown")) if row else "-"),
-                ("Benchmark 最大回撤", _format_cell("benchmark_max_drawdown", row.get("benchmark_max_drawdown")) if row else "-"),
+                (
+                    "策略最大回撤",
+                    _format_cell("strategy_max_drawdown", row.get("strategy_max_drawdown")) if row else "-",
+                ),
+                (
+                    "Benchmark 最大回撤",
+                    _format_cell("benchmark_max_drawdown", row.get("benchmark_max_drawdown")) if row else "-",
+                ),
             ],
-            tone="warning" if _to_float(row.get("drawdown_ratio")) and _to_float(row.get("drawdown_ratio")) > 1.2 else "info",
+            tone="warning"
+            if _to_float(row.get("drawdown_ratio")) and _to_float(row.get("drawdown_ratio")) > 1.2
+            else "info",
         ),
         _kpi_card(
             "波動風險",
             escape(_format_cell("volatility_ratio", row.get("volatility_ratio")) if row else "-"),
             [
                 ("策略波動", _format_cell("strategy_volatility", row.get("strategy_volatility")) if row else "-"),
-                ("Benchmark 波動", _format_cell("benchmark_volatility", row.get("benchmark_volatility")) if row else "-"),
+                (
+                    "Benchmark 波動",
+                    _format_cell("benchmark_volatility", row.get("benchmark_volatility")) if row else "-",
+                ),
             ],
-            tone="warning" if _to_float(row.get("volatility_ratio")) and _to_float(row.get("volatility_ratio")) > 1.2 else "info",
+            tone="warning"
+            if _to_float(row.get("volatility_ratio")) and _to_float(row.get("volatility_ratio")) > 1.2
+            else "info",
         ),
         _kpi_card(
             "風險調整後結論",
@@ -3575,7 +3835,9 @@ def _risk_adjusted_alpha_section(performance_diagnostics: pd.DataFrame) -> str:
         + '<p class="note">此區為主要 Alpha 結論來源，採 total equity 的 primary window 與正式 benchmark 報酬；只有在長期樣本、交易筆數、excess return、回撤與波動都合格時，才可顯示 OUTPERFORMING_CONFIRMED。此區不修改正式買賣策略、出場規則或任何訂單。</p>'
         + _details_block("風險調整後 Alpha 明細", detail_table)
     )
-    return _section("風險調整後 Alpha", content, section_id="risk-adjusted-alpha", class_name="risk-adjusted-alpha-section")
+    return _section(
+        "風險調整後 Alpha", content, section_id="risk-adjusted-alpha", class_name="risk-adjusted-alpha-section"
+    )
 
 
 def _strategy_diagnostics_section(
@@ -3592,9 +3854,19 @@ def _strategy_diagnostics_section(
     guardrail_stance = _guardrail_stance(guardrail_impact)
     best_factors = _factor_rank_text(factor_summary, best=True)
     worst_factors = _factor_rank_text(factor_summary, best=False)
-    benchmark_source = _format_cell("benchmark_source", benchmark_row.get("benchmark_source")) if benchmark_row else "資料不足"
-    warning = _format_cell("benchmark_warning", benchmark_row.get("benchmark_warning")) if benchmark_row else "缺少 benchmark diagnostics"
-    conclusion_status = _format_cell("conclusion_status", benchmark_row.get("conclusion_status")) if benchmark_row else "DATA_INSUFFICIENT"
+    benchmark_source = (
+        _format_cell("benchmark_source", benchmark_row.get("benchmark_source")) if benchmark_row else "資料不足"
+    )
+    warning = (
+        _format_cell("benchmark_warning", benchmark_row.get("benchmark_warning"))
+        if benchmark_row
+        else "缺少 benchmark diagnostics"
+    )
+    conclusion_status = (
+        _format_cell("conclusion_status", benchmark_row.get("conclusion_status"))
+        if benchmark_row
+        else "DATA_INSUFFICIENT"
+    )
 
     cards = [
         _kpi_card(
@@ -3605,13 +3877,46 @@ def _strategy_diagnostics_section(
                 ("口徑", "primary total equity window"),
                 ("Benchmark 來源", benchmark_source),
                 ("can_judge_alpha", str(can_judge_alpha).lower()),
-                ("benchmark_history_days", _format_cell("benchmark_history_days", benchmark_row.get("benchmark_history_days")) if benchmark_row else "0"),
-                ("strategy_history_days", _format_cell("strategy_history_days", benchmark_row.get("strategy_history_days")) if benchmark_row else "0"),
-                ("valid_trade_count", _format_cell("valid_trade_count", benchmark_row.get("valid_trade_count")) if benchmark_row else "0"),
-                ("holding_record_count", _format_cell("holding_record_count", benchmark_row.get("holding_record_count")) if benchmark_row else "0"),
-                ("can_judge_strategy_alpha", _format_cell("can_judge_strategy_alpha", benchmark_row.get("can_judge_strategy_alpha")) if benchmark_row else "false"),
-                ("can_judge_alpha_20d", _format_cell("can_judge_alpha_20d", benchmark_row.get("can_judge_alpha_20d")) if benchmark_row else "false"),
-                ("can_judge_alpha_60d", _format_cell("can_judge_alpha_60d", benchmark_row.get("can_judge_alpha_60d")) if benchmark_row else "false"),
+                (
+                    "benchmark_history_days",
+                    _format_cell("benchmark_history_days", benchmark_row.get("benchmark_history_days"))
+                    if benchmark_row
+                    else "0",
+                ),
+                (
+                    "strategy_history_days",
+                    _format_cell("strategy_history_days", benchmark_row.get("strategy_history_days"))
+                    if benchmark_row
+                    else "0",
+                ),
+                (
+                    "valid_trade_count",
+                    _format_cell("valid_trade_count", benchmark_row.get("valid_trade_count")) if benchmark_row else "0",
+                ),
+                (
+                    "holding_record_count",
+                    _format_cell("holding_record_count", benchmark_row.get("holding_record_count"))
+                    if benchmark_row
+                    else "0",
+                ),
+                (
+                    "can_judge_strategy_alpha",
+                    _format_cell("can_judge_strategy_alpha", benchmark_row.get("can_judge_strategy_alpha"))
+                    if benchmark_row
+                    else "false",
+                ),
+                (
+                    "can_judge_alpha_20d",
+                    _format_cell("can_judge_alpha_20d", benchmark_row.get("can_judge_alpha_20d"))
+                    if benchmark_row
+                    else "false",
+                ),
+                (
+                    "can_judge_alpha_60d",
+                    _format_cell("can_judge_alpha_60d", benchmark_row.get("can_judge_alpha_60d"))
+                    if benchmark_row
+                    else "false",
+                ),
                 ("conclusion_status", conclusion_status),
             ],
             tone="ok" if can_judge_alpha and headline_alpha is not None and headline_alpha >= 0 else "warning",
@@ -3748,7 +4053,9 @@ def _strategy_diagnostics_section(
         + _details_block("Benchmark diagnostics 明細", benchmark_table)
         + _details_block("Guardrail impact 明細", guardrail_table)
     )
-    return _section("策略績效診斷", content, section_id="strategy-diagnostics", class_name="strategy-diagnostics-section")
+    return _section(
+        "策略績效診斷", content, section_id="strategy-diagnostics", class_name="strategy-diagnostics-section"
+    )
 
 
 def _first_numeric_from_row(row: dict[str, object], columns: list[str]) -> float | None:
@@ -3798,7 +4105,12 @@ def _underperformance_attribution_section(
             _empty("目前尚無 underperformance attribution 診斷")
             + '<p class="note">此區只做診斷，不修改策略、不修改出場規則，也不代表實盤買賣建議。</p>'
         )
-        return _section("輸大盤歸因", content, section_id="underperformance-attribution", class_name="underperformance-attribution-section")
+        return _section(
+            "輸大盤歸因",
+            content,
+            section_id="underperformance-attribution",
+            class_name="underperformance-attribution-section",
+        )
 
     frame = underperformance_attribution.copy()
     conclusion_status = _format_cell("conclusion_status", _frame_first(performance_diagnostics, "conclusion_status"))
@@ -3811,7 +4123,9 @@ def _underperformance_attribution_section(
     ]
     concentration_row = concentration.iloc[0].to_dict() if not concentration.empty else {}
     exit_rows = frame[frame.get("attribution_type", pd.Series(dtype=str)).astype(str) == "exit_timing_diagnostic"]
-    sector_rows = frame[frame.get("attribution_type", pd.Series(dtype=str)).astype(str) == "sector_allocation_alpha"].copy()
+    sector_rows = frame[
+        frame.get("attribution_type", pd.Series(dtype=str)).astype(str) == "sector_allocation_alpha"
+    ].copy()
     if not sector_rows.empty:
         sector_rows["_alpha_sort"] = pd.to_numeric(sector_rows.get("alpha"), errors="coerce")
         sector_rows = sector_rows.sort_values("_alpha_sort", ascending=True)
@@ -3846,7 +4160,9 @@ def _underperformance_attribution_section(
                 ("Benchmark 20d", _format_cell("benchmark_value", cash_drag.get("benchmark_value"))),
                 ("結論", _truncate_text(_format_cell("conclusion", cash_drag.get("conclusion")), 60)),
             ],
-            tone="warning" if _to_float(cash_drag.get("alpha")) is not None and (_to_float(cash_drag.get("alpha")) or 0) < 0 else "neutral",
+            tone="warning"
+            if _to_float(cash_drag.get("alpha")) is not None and (_to_float(cash_drag.get("alpha")) or 0) < 0
+            else "neutral",
         ),
         _kpi_card(
             "回撤集中度",
@@ -3871,7 +4187,9 @@ def _underperformance_attribution_section(
                 ("持倉占比", _format_cell("position_weight", worst_sector.get("position_weight"))),
                 ("結論", _truncate_text(_format_cell("conclusion", worst_sector.get("conclusion")), 60)),
             ],
-            tone="warning" if _to_float(worst_sector.get("alpha")) is not None and (_to_float(worst_sector.get("alpha")) or 0) < 0 else "neutral",
+            tone="warning"
+            if _to_float(worst_sector.get("alpha")) is not None and (_to_float(worst_sector.get("alpha")) or 0) < 0
+            else "neutral",
         ),
     ]
 
@@ -3916,7 +4234,12 @@ def _underperformance_attribution_section(
         + '<p class="note">此區 cash drag、sector allocation、entry timing 等 alpha 都是歸因 proxy，非主要 Alpha 口徑；主要結論仍以 primary total equity window 為準。此區只做輸大盤原因診斷，不修改策略、不修改出場規則、不建立訂單，也不代表實盤買賣建議。</p>'
         + _details_block("輸大盤歸因明細", detail_table)
     )
-    return _section("輸大盤歸因", content, section_id="underperformance-attribution", class_name="underperformance-attribution-section")
+    return _section(
+        "輸大盤歸因",
+        content,
+        section_id="underperformance-attribution",
+        class_name="underperformance-attribution-section",
+    )
 
 
 def _first_attribution_row(frame: pd.DataFrame, attribution_type: str) -> dict[str, object]:
@@ -4031,14 +4354,17 @@ def _market_regime_score_explainer(
     content = (
         '<div class="regime-explainer">'
         '<div class="regime-definition">'
-        f'<span>目前 market_regime_score</span><strong>{escape(_format_cell("market_regime_score", score))}</strong>'
+        f"<span>目前 market_regime_score</span><strong>{escape(_format_cell('market_regime_score', score))}</strong>"
         "<p>這是新增持倉風控分數，不是選股分數，也不是獲利保證；分數偏低時只代表新增紙上持倉要更保守。</p>"
         "</div>"
-        '<div class="regime-factor-grid">'
-        + "".join(_card(label, value) for label, value in factors)
-        + "</div></div>"
+        '<div class="regime-factor-grid">' + "".join(_card(label, value) for label, value in factors) + "</div></div>"
     )
-    return _section("market_regime_score 說明", content, section_id="market-regime-explainer", class_name="market-regime-explainer-section")
+    return _section(
+        "market_regime_score 說明",
+        content,
+        section_id="market-regime-explainer",
+        class_name="market-regime-explainer-section",
+    )
 
 
 def _market_regime_threshold_optimization_section(
@@ -4048,7 +4374,9 @@ def _market_regime_threshold_optimization_section(
     config: dict[str, object],
 ) -> str:
     formal_threshold = _formal_market_regime_threshold(config)
-    current_score = _first_raw(summary.get("market_regime_score"), _frame_first(optimization, "current_market_regime_score"))
+    current_score = _first_raw(
+        summary.get("market_regime_score"), _frame_first(optimization, "current_market_regime_score")
+    )
     label_summary = _candidate_forward_label_summary(candidate_forward_returns)
     if optimization.empty:
         content = (
@@ -4065,11 +4393,16 @@ def _market_regime_threshold_optimization_section(
 
     threshold_row = _threshold_optimization_row(optimization, formal_threshold)
     dynamic_row = _threshold_optimization_row(optimization, "DYNAMIC_EXPOSURE")
-    recommendation = _first_raw(threshold_row.get("recommendation"), _frame_first(optimization, "recommendation"), "DATA_INSUFFICIENT")
+    recommendation = _first_raw(
+        threshold_row.get("recommendation"), _frame_first(optimization, "recommendation"), "DATA_INSUFFICIENT"
+    )
     cards = [
         _card("目前正式門檻", str(formal_threshold)),
         _card("目前 market_regime_score", _format_cell("market_regime_score", current_score)),
-        _card("正式門檻是否允許新增持倉", _format_cell("would_allow_new_entries", threshold_row.get("would_allow_new_entries"))),
+        _card(
+            "正式門檻是否允許新增持倉",
+            _format_cell("would_allow_new_entries", threshold_row.get("would_allow_new_entries")),
+        ),
         _card("正式門檻 recommendation", _format_cell("recommendation", recommendation)),
         _card("Hard 60 excess proxy", _return_text(_to_float(threshold_row.get("estimated_excess_return")))),
         _card("Dynamic excess proxy", _return_text(_to_float(dynamic_row.get("estimated_excess_return")))),
@@ -4110,7 +4443,7 @@ def _market_regime_threshold_optimization_section(
         + "</div>"
         + label_cards
         + blocked_summary
-        + "<p class=\"note\">Dynamic exposure proxy：score &lt; 45 = 0%；45-55 = 20%；55-65 = 40%；65-75 = 60%；score &gt;= 75 = 80%。"
+        + '<p class="note">Dynamic exposure proxy：score &lt; 45 = 0%；45-55 = 20%；55-65 = 40%；65-75 = 60%；score &gt;= 75 = 80%。'
         "Walk-forward 採日期排序，前 70% train、後 30% validation；recommendation 不使用 validation 反推 train。</p>"
         + table
     )
@@ -4138,8 +4471,12 @@ def _candidate_forward_label_summary(frame: pd.DataFrame) -> dict[str, object]:
             "blocked_excess_20d_mean": None,
         }
     total = len(frame)
-    forward_5d = pd.to_numeric(frame.get("forward_return_5d", pd.Series(index=frame.index, dtype=float)), errors="coerce")
-    forward_20d = pd.to_numeric(frame.get("forward_return_20d", pd.Series(index=frame.index, dtype=float)), errors="coerce")
+    forward_5d = pd.to_numeric(
+        frame.get("forward_return_5d", pd.Series(index=frame.index, dtype=float)), errors="coerce"
+    )
+    forward_20d = pd.to_numeric(
+        frame.get("forward_return_20d", pd.Series(index=frame.index, dtype=float)), errors="coerce"
+    )
     blocked = frame.get("blocked_by_market_regime", pd.Series(False, index=frame.index)).apply(_truthy)
     blocked_frame = frame[blocked].copy()
     return {
@@ -4170,9 +4507,7 @@ def _candidate_forward_label_cards(summary: dict[str, object]) -> str:
         _card("被擋候選股 labels", str(int(summary.get("blocked_count") or 0))),
     ]
     return (
-        '<div class="cards">'
-        + "".join(cards)
-        + "</div>"
+        '<div class="cards">' + "".join(cards) + "</div>"
         '<p class="note">Forward return labels 只用於 observation-only 門檻診斷；coverage 不足時不得視為正式策略變更依據。</p>'
     )
 
@@ -4285,7 +4620,9 @@ def _system_return_snapshot(
 def _equity_return_over_recent_window(recent_summaries: pd.DataFrame, window: int) -> float | None:
     if recent_summaries.empty:
         return None
-    equity_column = "total_equity_after_cost" if "total_equity_after_cost" in recent_summaries.columns else "total_equity"
+    equity_column = (
+        "total_equity_after_cost" if "total_equity_after_cost" in recent_summaries.columns else "total_equity"
+    )
     if equity_column not in recent_summaries.columns:
         return None
     frame = recent_summaries.copy()
@@ -4452,7 +4789,13 @@ def _position_cards(frame: pd.DataFrame) -> str:
         metrics = [
             ("持倉風險燈號", _format_cell("risk_light", row.get("risk_light"))),
             ("持倉提示", _format_cell("holding_action_hint", row.get("holding_action_hint"))),
-            ("剩餘股數", _format_cell("remaining_shares", row.get("remaining_shares") if not _is_blank(row.get("remaining_shares")) else row.get("shares"))),
+            (
+                "剩餘股數",
+                _format_cell(
+                    "remaining_shares",
+                    row.get("remaining_shares") if not _is_blank(row.get("remaining_shares")) else row.get("shares"),
+                ),
+            ),
             ("成交均價", _format_cell("entry_price", row.get("entry_price"))),
             ("最新價格", _format_cell("current_price", row.get("current_price"))),
             ("持倉市值", _format_cell("market_value", row.get("market_value"))),
@@ -4466,18 +4809,18 @@ def _position_cards(frame: pd.DataFrame) -> str:
         metric_html = "".join(f"<div><span>{label}</span><strong>{value}</strong></div>" for label, value in metrics)
         pnl_html = (
             f'<div class="position-pnl pnl-highlight {_profit_class(pnl)}">'
-            f'<span>未實現損益</span><strong>{escape(_format_cell("unrealized_pnl", row.get("unrealized_pnl")))}</strong>'
-            f'<em>{escape(_format_cell("unrealized_pnl_pct", row.get("unrealized_pnl_pct")))}</em></div>'
+            f"<span>未實現損益</span><strong>{escape(_format_cell('unrealized_pnl', row.get('unrealized_pnl')))}</strong>"
+            f"<em>{escape(_format_cell('unrealized_pnl_pct', row.get('unrealized_pnl_pct')))}</em></div>"
         )
         cards.append(
             '<article class="mobile-card position-card">'
             '<div class="holding-head">'
-            f'<div><h3>{escape(stock_id)} {escape(stock_name)}</h3><span>{escape(_format_cell("status", row.get("status")))}</span></div>'
-            '<b>現股</b>'
-            '</div>'
+            f"<div><h3>{escape(stock_id)} {escape(stock_name)}</h3><span>{escape(_format_cell('status', row.get('status')))}</span></div>"
+            "<b>現股</b>"
+            "</div>"
             f'<div class="holding-main">{pnl_html}<div class="holding-metrics">{metric_html}</div></div>'
             f'<details class="card-details"><summary>更多持倉資訊</summary>{details}</details>'
-            '</article>'
+            "</article>"
         )
     table = _table(
         frame,
@@ -4502,7 +4845,9 @@ def _position_cards(frame: pd.DataFrame) -> str:
         max_rows=50,
     )
     return (
-        '<div class="broker-cards">' + "".join(cards) + "</div>"
+        '<div class="broker-cards">'
+        + "".join(cards)
+        + "</div>"
         + _details_block("原始持倉資料表格", table, class_name="raw-table-details")
     )
 
@@ -4610,7 +4955,13 @@ def _holding_risk_light(row: pd.Series, near_stop_loss_pct: float) -> tuple[str,
         yellow_reasons.append("產業 / 相對強弱偏弱")
     if _truthy(row.get("is_attention_stock")):
         yellow_reasons.append("注意股")
-    for column in ["market_intel_warning", "financial_warning", "valuation_warning", "liquidity_warning", "sector_strength_warning"]:
+    for column in [
+        "market_intel_warning",
+        "financial_warning",
+        "valuation_warning",
+        "liquidity_warning",
+        "sector_strength_warning",
+    ]:
         text = str(row.get(column, "") or "").strip()
         if text and text != "nan":
             yellow_reasons.append(text)
@@ -4631,7 +4982,9 @@ def _today_action_summary(
     items: list[str] = []
     if _uses_recent_data(summary):
         items.append("目前使用最近有效交易日資料，非即時交易日。")
-    if str(summary.get("guardrail_status", "")).upper() == "BLOCKED" or _format_cell("new_entries_allowed", summary.get("new_entries_allowed")) in {"否", "False"}:
+    if str(summary.get("guardrail_status", "")).upper() == "BLOCKED" or _format_cell(
+        "new_entries_allowed", summary.get("new_entries_allowed")
+    ) in {"否", "False"}:
         reason = _format_cell("pause_new_entries_reason", summary.get("pause_new_entries_reason"))
         items.append(f"Paper guardrails 暫停新增持倉：{reason if reason != '-' else '需人工確認風控狀態'}。")
     regime_score = _to_float(summary.get("market_regime_score"))
@@ -4657,7 +5010,10 @@ def _today_action_summary(
             items.append(f"有 {red_count} 檔紅燈、{yellow_count} 檔黃燈持倉，需人工檢查。")
     if not data_fetch_status.empty and "source_name" in data_fetch_status.columns:
         local_status = data_fetch_status[data_fetch_status["source_name"].isin(["liquidity", "sector_strength"])]
-        if not local_status.empty and local_status["status"].fillna("").astype(str).str.upper().isin(["OK", "OK_WITH_FALLBACK"]).all():
+        if (
+            not local_status.empty
+            and local_status["status"].fillna("").astype(str).str.upper().isin(["OK", "OK_WITH_FALLBACK"]).all()
+        ):
             items.append("流動性與相對強弱已由本地價量資料衍生，不依賴外部 API。")
         elif not local_status.empty:
             items.append("流動性或相對強弱資料不足，請以技術面與風控結果交叉確認。")
@@ -4671,10 +5027,7 @@ def _today_action_summary(
             items.append(f"決策引擎列出 {high_count} 檔高風險或出場檢查標的，需人工確認。")
     if not items:
         items.append("今日流程無重大異常，仍需人工檢查候選股理由與風控狀態。")
-    safe_items = [
-        item.replace("建議買進", "等待人工確認").replace("建議賣出", "等待人工確認")
-        for item in items[:5]
-    ]
+    safe_items = [item.replace("建議買進", "等待人工確認").replace("建議賣出", "等待人工確認") for item in items[:5]]
     return '<ul class="action-list">' + "".join(f"<li>{escape(item)}</li>" for item in safe_items) + "</ul>"
 
 
@@ -4699,7 +5052,9 @@ def _decision_overview(summary: dict[str, object], decisions: pd.DataFrame) -> s
             ("不交易名單數", str(counts.get("NO_TRADE", 0))),
         ]
     note = '<p class="note">決策引擎僅供人工確認，未自動下單。</p>'
-    return _section("決策引擎摘要", '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + note)
+    return _section(
+        "決策引擎摘要", '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + note
+    )
 
 
 def _guardrail_overview(
@@ -4720,12 +5075,24 @@ def _guardrail_overview(
         ("Guardrail 狀態", _format_cell("guardrail_status", summary.get("guardrail_status"))),
         ("暫停新倉原因", reason),
         ("Active pending", _format_cell("pending_orders_active_count", summary.get("pending_orders_active_count"))),
-        ("Executed pending", _format_cell("pending_orders_executed_count", summary.get("pending_orders_executed_count"))),
+        (
+            "Executed pending",
+            _format_cell("pending_orders_executed_count", summary.get("pending_orders_executed_count")),
+        ),
         ("Expired pending", _format_cell("pending_orders_expired_count", summary.get("pending_orders_expired_count"))),
-        ("Cancelled pending", _format_cell("pending_orders_cancelled_count", summary.get("pending_orders_cancelled_count"))),
+        (
+            "Cancelled pending",
+            _format_cell("pending_orders_cancelled_count", summary.get("pending_orders_cancelled_count")),
+        ),
         ("訊號建立被擋", _format_cell("rejected_orders_signal_count", summary.get("rejected_orders_signal_count"))),
         ("執行前被擋", _format_cell("rejected_orders_execution_count", summary.get("rejected_orders_execution_count"))),
-        ("被擋總數", _format_cell("rejected_orders_total_count", summary.get("rejected_orders_total_count") or summary.get("rejected_orders"))),
+        (
+            "被擋總數",
+            _format_cell(
+                "rejected_orders_total_count",
+                summary.get("rejected_orders_total_count") or summary.get("rejected_orders"),
+            ),
+        ),
     ]
     rejected_table = _table(
         rejected_orders,
@@ -4753,7 +5120,9 @@ def _guardrail_overview(
     )
     return _section(
         "Paper trading guardrails",
-        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        '<div class="cards">'
+        + "".join(_card(label, value) for label, value in cards)
+        + "</div>"
         + note
         + _details_block("被擋下交易明細", rejected_table),
     )
@@ -4776,13 +5145,36 @@ def _enrichment_overview(summary: dict[str, object], enrichment: pd.DataFrame) -
     ]
     detail = _responsive_compact_records(
         enrichment,
-        ["stock_id", "stock_name", "ai_summary", "manual_review_focus", "enrichment_status", "ai_used", "source_evidence_count"],
-        ["risk_explanation", "opportunity_explanation", "data_quality_explanation", "valuation_context", "margin_credit_context", "sector_context", "source_evidence_json"],
+        [
+            "stock_id",
+            "stock_name",
+            "ai_summary",
+            "manual_review_focus",
+            "enrichment_status",
+            "ai_used",
+            "source_evidence_count",
+        ],
+        [
+            "risk_explanation",
+            "opportunity_explanation",
+            "data_quality_explanation",
+            "valuation_context",
+            "margin_credit_context",
+            "sector_context",
+            "source_evidence_json",
+        ],
         "目前尚無 AI / enrichment 資料",
         20,
     )
     note = '<p class="note">AI / enrichment 預設使用 rule-based，僅解釋既有資料；不會下單，也不承諾獲利。</p>'
-    return _section("AI / Enrichment 摘要", '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>" + note + _details_block("AI / Enrichment 明細", detail))
+    return _section(
+        "AI / Enrichment 摘要",
+        '<div class="cards">'
+        + "".join(_card(label, value) for label, value in cards)
+        + "</div>"
+        + note
+        + _details_block("AI / Enrichment 明細", detail),
+    )
 
 
 def _evidence_table(evidence: pd.DataFrame) -> str:
@@ -4827,7 +5219,10 @@ def _loss_attribution_overview(loss_attribution: pd.DataFrame) -> str:
             top_reason = reasons.value_counts().index[0]
     cards = [
         ("虧損交易數", f"{len(loss_frame):,.0f}"),
-        ("最大不利波動最低值", _format_number_or_dash(pd.to_numeric(loss_attribution.get("max_adverse_excursion"), errors="coerce").min())),
+        (
+            "最大不利波動最低值",
+            _format_number_or_dash(pd.to_numeric(loss_attribution.get("max_adverse_excursion"), errors="coerce").min()),
+        ),
         ("主要虧損原因", top_reason),
     ]
     table = _table(
@@ -4852,7 +5247,9 @@ def _loss_attribution_overview(loss_attribution: pd.DataFrame) -> str:
     )
     return _section(
         "Loss attribution 摘要",
-        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        '<div class="cards">'
+        + "".join(_card(label, value) for label, value in cards)
+        + "</div>"
         + _details_block("Loss attribution 明細", table),
     )
 
@@ -4861,21 +5258,25 @@ def _decision_engine_content(decisions: pd.DataFrame, validation: pd.DataFrame) 
     if decisions.empty:
         decision_summary = _empty("目前尚無交易決策資料")
     else:
-        decision_summary = '<div class="cards">' + "".join(
-            _card(label, value)
-            for label, value in [
-                ("A 級", f"{_decision_count(decisions, 'candidate_grade', 'A'):,.0f}"),
-                ("B 級", f"{_decision_count(decisions, 'candidate_grade', 'B'):,.0f}"),
-                ("C 級", f"{_decision_count(decisions, 'candidate_grade', 'C'):,.0f}"),
-                ("D 級", f"{_decision_count(decisions, 'candidate_grade', 'D'):,.0f}"),
-                ("BUY_CANDIDATE", f"{_decision_count(decisions, 'decision', 'BUY_CANDIDATE'):,.0f}"),
-                ("WATCH_ONLY", f"{_decision_count(decisions, 'decision', 'WATCH_ONLY'):,.0f}"),
-                ("NO_TRADE", f"{_decision_count(decisions, 'decision', 'NO_TRADE'):,.0f}"),
-                ("HOLD", f"{_decision_count(decisions, 'decision', 'HOLD'):,.0f}"),
-                ("REDUCE", f"{_decision_count(decisions, 'decision', 'REDUCE'):,.0f}"),
-                ("EXIT review", f"{_decision_count(decisions, 'decision', 'EXIT'):,.0f}"),
-            ]
-        ) + "</div>"
+        decision_summary = (
+            '<div class="cards">'
+            + "".join(
+                _card(label, value)
+                for label, value in [
+                    ("A 級", f"{_decision_count(decisions, 'candidate_grade', 'A'):,.0f}"),
+                    ("B 級", f"{_decision_count(decisions, 'candidate_grade', 'B'):,.0f}"),
+                    ("C 級", f"{_decision_count(decisions, 'candidate_grade', 'C'):,.0f}"),
+                    ("D 級", f"{_decision_count(decisions, 'candidate_grade', 'D'):,.0f}"),
+                    ("BUY_CANDIDATE", f"{_decision_count(decisions, 'decision', 'BUY_CANDIDATE'):,.0f}"),
+                    ("WATCH_ONLY", f"{_decision_count(decisions, 'decision', 'WATCH_ONLY'):,.0f}"),
+                    ("NO_TRADE", f"{_decision_count(decisions, 'decision', 'NO_TRADE'):,.0f}"),
+                    ("HOLD", f"{_decision_count(decisions, 'decision', 'HOLD'):,.0f}"),
+                    ("REDUCE", f"{_decision_count(decisions, 'decision', 'REDUCE'):,.0f}"),
+                    ("EXIT review", f"{_decision_count(decisions, 'decision', 'EXIT'):,.0f}"),
+                ]
+            )
+            + "</div>"
+        )
     summary_columns = [
         "stock_id",
         "stock_name",
@@ -4930,14 +5331,58 @@ def _decision_engine_content(decisions: pd.DataFrame, validation: pd.DataFrame) 
         "source_evidence_json",
     ]
     sections = [
-        _section("今日決策摘要", decision_summary + '<p class="note">所有決策皆為 advisory / paper-only，不會建立真實委託；can_auto_trade=false。</p>'),
+        _section(
+            "今日決策摘要",
+            decision_summary
+            + '<p class="note">所有決策皆為 advisory / paper-only，不會建立真實委託；can_auto_trade=false。</p>',
+        ),
         _section("A/B/C/D 分級統計", decision_summary),
-        _section("BUY_CANDIDATE 清單", _responsive_compact_records(_decision_filter(decisions, "BUY_CANDIDATE"), summary_columns, detail_columns, "目前無買進候選", 10)),
-        _section("WATCH_ONLY 清單", _responsive_compact_records(_decision_filter(decisions, "WATCH_ONLY"), summary_columns, detail_columns, "目前無觀察名單", 10)),
-        _section("NO_TRADE 清單", _responsive_compact_records(_decision_filter(decisions, "NO_TRADE"), summary_columns, detail_columns, "目前無不交易名單", 10)),
-        _section("持倉 HOLD / REDUCE / EXIT review 清單", _responsive_compact_records(_decision_filter_any(decisions, ["HOLD", "REDUCE", "EXIT"]), summary_columns, detail_columns, "目前無持倉決策", 20)),
-        _details_block("完整 trading_decisions 原始表格", _table(decisions, [column for column in decisions.columns if column in COLUMN_LABELS], "目前無交易決策原始資料", 100)),
-        _details_block("策略驗證報表", _table(validation, [column for column in validation.columns if column in COLUMN_LABELS], "目前尚無策略驗證資料", 20)),
+        _section(
+            "BUY_CANDIDATE 清單",
+            _responsive_compact_records(
+                _decision_filter(decisions, "BUY_CANDIDATE"), summary_columns, detail_columns, "目前無買進候選", 10
+            ),
+        ),
+        _section(
+            "WATCH_ONLY 清單",
+            _responsive_compact_records(
+                _decision_filter(decisions, "WATCH_ONLY"), summary_columns, detail_columns, "目前無觀察名單", 10
+            ),
+        ),
+        _section(
+            "NO_TRADE 清單",
+            _responsive_compact_records(
+                _decision_filter(decisions, "NO_TRADE"), summary_columns, detail_columns, "目前無不交易名單", 10
+            ),
+        ),
+        _section(
+            "持倉 HOLD / REDUCE / EXIT review 清單",
+            _responsive_compact_records(
+                _decision_filter_any(decisions, ["HOLD", "REDUCE", "EXIT"]),
+                summary_columns,
+                detail_columns,
+                "目前無持倉決策",
+                20,
+            ),
+        ),
+        _details_block(
+            "完整 trading_decisions 原始表格",
+            _table(
+                decisions,
+                [column for column in decisions.columns if column in COLUMN_LABELS],
+                "目前無交易決策原始資料",
+                100,
+            ),
+        ),
+        _details_block(
+            "策略驗證報表",
+            _table(
+                validation,
+                [column for column in validation.columns if column in COLUMN_LABELS],
+                "目前尚無策略驗證資料",
+                20,
+            ),
+        ),
     ]
     return "".join(sections)
 
@@ -4981,7 +5426,11 @@ def _count_in_set(frame: pd.DataFrame, column: str, values: set[str]) -> int:
 def _pending_cards(frame: pd.DataFrame) -> str:
     if frame.empty:
         return _empty("目前尚無待進場資料")
-    statuses = frame["status"].fillna("").astype(str).str.upper() if "status" in frame.columns else pd.Series(["PENDING"] * len(frame))
+    statuses = (
+        frame["status"].fillna("").astype(str).str.upper()
+        if "status" in frame.columns
+        else pd.Series(["PENDING"] * len(frame))
+    )
     waiting = frame[statuses == "PENDING"].copy()
     expired = frame[statuses == "EXPIRED"].copy()
     cancelled = frame[statuses.str.startswith("CANCELLED_")].copy()
@@ -5003,7 +5452,23 @@ def _pending_cards(frame: pd.DataFrame) -> str:
     skipped_cards = _pending_card_list(skipped, "目前尚無已略過進場資料")
     table = _table(
         frame,
-        ["signal_date", "planned_entry_date", "actual_entry_date", "attempted_execution_date", "stock_id", "stock_name", "signal_close", "entry_price", "status", "order_age_trading_days", "expires_after_trading_days", "fundamental_score", "fundamental_reason", "skipped_reason", "rejection_reason"],
+        [
+            "signal_date",
+            "planned_entry_date",
+            "actual_entry_date",
+            "attempted_execution_date",
+            "stock_id",
+            "stock_name",
+            "signal_close",
+            "entry_price",
+            "status",
+            "order_age_trading_days",
+            "expires_after_trading_days",
+            "fundamental_score",
+            "fundamental_reason",
+            "skipped_reason",
+            "rejection_reason",
+        ],
         "目前尚無待進場資料",
         max_rows=50,
     )
@@ -5065,8 +5530,8 @@ def _pending_card_list(frame: pd.DataFrame, empty_message: str) -> str:
         cards.append(
             '<article class="mobile-card pending-card">'
             f'<div class="card-title-row"><h3>{escape(stock_id)} {escape(stock_name)}</h3>'
-            f'<span>{escape(_format_cell("status", row.get("status")))}</span></div>'
-            f"{summary_fields}<details class=\"card-details\"><summary>資料來源依據與完整資料</summary>{detail_fields}</details></article>"
+            f"<span>{escape(_format_cell('status', row.get('status')))}</span></div>"
+            f'{summary_fields}<details class="card-details"><summary>資料來源依據與完整資料</summary>{detail_fields}</details></article>'
         )
     return '<div class="broker-cards">' + "".join(cards) + "</div>"
 
@@ -5098,21 +5563,34 @@ def _closed_cards(frame: pd.DataFrame) -> str:
         cards.append(
             '<article class="mobile-card closed-card">'
             f'<div class="card-title-row"><h3>{escape(stock_id)} {escape(stock_name)}</h3>'
-            f'<span>{escape(_format_cell("exit_reason", row.get("exit_reason")))}</span></div>'
+            f"<span>{escape(_format_cell('exit_reason', row.get('exit_reason')))}</span></div>"
             f'<div class="closed-pnl pnl-highlight {_profit_class(after_cost)}"><span>扣成本後已實現損益</span>'
-            f'<strong>{escape(_format_cell("realized_pnl_after_cost", row.get("realized_pnl_after_cost")))}</strong></div>'
+            f"<strong>{escape(_format_cell('realized_pnl_after_cost', row.get('realized_pnl_after_cost')))}</strong></div>"
             f'<div class="holding-metrics closed-metrics">{metric_html}</div>'
             f'<details class="card-details"><summary>更多出場資訊</summary>{fields}</details>'
             "</article>"
         )
     table = _table(
         frame,
-        ["stock_id", "stock_name", "exit_date", "exit_reason", "exit_price", "realized_pnl", "realized_pnl_after_cost", "realized_pnl_pct_after_cost", "total_cost", "status"],
+        [
+            "stock_id",
+            "stock_name",
+            "exit_date",
+            "exit_reason",
+            "exit_price",
+            "realized_pnl",
+            "realized_pnl_after_cost",
+            "realized_pnl_pct_after_cost",
+            "total_cost",
+            "status",
+        ],
         "目前尚無已出場交易",
         max_rows=50,
     )
     return (
-        '<div class="broker-cards">' + "".join(cards) + "</div>"
+        '<div class="broker-cards">'
+        + "".join(cards)
+        + "</div>"
         + _details_block("原始已出場資料表格", table, class_name="raw-table-details")
     )
 
@@ -5540,7 +6018,12 @@ def _refresh_data_quality_health(
 
 def _data_quality_health_section(data_quality_health: pd.DataFrame, section_id: str = "") -> str:
     if data_quality_health.empty:
-        return _section("資料健康檢查", _empty("目前尚無 data_quality_health.csv"), section_id=section_id, class_name="data-quality-health")
+        return _section(
+            "資料健康檢查",
+            _empty("目前尚無 data_quality_health.csv"),
+            section_id=section_id,
+            class_name="data-quality-health",
+        )
     data_issues = _count_true(data_quality_health, "data_issue")
     investment_risks = _count_true(data_quality_health, "investment_risk")
     warning_count = _status_count(data_quality_health, "health_status", "WARNING")
@@ -5635,7 +6118,9 @@ def _data_quality_issues(summary: dict[str, object], data_fetch_status: pd.DataF
         issues.append("市場情報資料不足，未影響流程")
     if _market_intel_is_stale(summary, pd.DataFrame()):
         issues.append("市場資料過期，不建議短線進場。")
-    elif str(summary.get("fallback_reason", "")).strip() == "no trading data" and _has_market_freshness_metadata(summary):
+    elif str(summary.get("fallback_reason", "")).strip() == "no trading data" and _has_market_freshness_metadata(
+        summary
+    ):
         issues.append("非交易日，使用最近交易日資料。")
     if str(summary.get("market_intel_status", "")).upper() == "CACHE":
         issues.append("市場情報使用快取資料")
@@ -5681,7 +6166,9 @@ def _data_source_quality_issue(row: pd.Series) -> str:
     if status == "OK_WITH_FALLBACK" or fallback_action == "kept_existing_csv":
         return _monthly_revenue_fallback_text(source) if source == "monthly_revenue" else "部分資料來源已保留既有資料"
     if status in {"FAILED", "MISSING"}:
-        return _monthly_revenue_fallback_text(source) if source == "monthly_revenue" else "部分資料來源失敗，已 fallback"
+        return (
+            _monthly_revenue_fallback_text(source) if source == "monthly_revenue" else "部分資料來源失敗，已 fallback"
+        )
     if status == "EMPTY":
         return "部分資料來源為空，採中性或既有資料"
     if status == "CACHE":
@@ -5745,7 +6232,9 @@ def _health_checks(
         [
             (
                 "data update",
-                "警告" if summary and summary.get("status") == "FAILED" and summary.get("error_step") == "run_daily" else "正常",
+                "警告"
+                if summary and summary.get("status") == "FAILED" and summary.get("error_step") == "run_daily"
+                else "正常",
                 _format_cell("status", summary.get("status")) if summary else "缺少 daily summary",
             ),
             (
@@ -5756,7 +6245,9 @@ def _health_checks(
             (
                 "paper trade",
                 "正常" if list(report_dir.glob("pending_orders_*.csv")) or not pending_orders.empty else "注意",
-                "已檢查 pending order 檔案" if list(report_dir.glob("pending_orders_*.csv")) or not pending_orders.empty else "尚無 pending order 檔案",
+                "已檢查 pending order 檔案"
+                if list(report_dir.glob("pending_orders_*.csv")) or not pending_orders.empty
+                else "尚無 pending order 檔案",
             ),
             (
                 "position update",
@@ -5846,7 +6337,9 @@ def _data_source_summary_table(data_fetch_status: pd.DataFrame) -> str:
                 _data_source_impact(row),
             ]
         )
-    return _plain_table(["資料源", "狀態", "人話說明", "筆數", "影響程度"], rows, class_name="summary-table source-summary-table")
+    return _plain_table(
+        ["資料源", "狀態", "人話說明", "筆數", "影響程度"], rows, class_name="summary-table source-summary-table"
+    )
 
 
 def _data_source_technical_details(data_fetch_status: pd.DataFrame) -> str:
@@ -5950,7 +6443,11 @@ def _data_source_impact(row: pd.Series) -> str:
         return "阻擋短線買進候選"
     if status == "OK" and fallback_action != "kept_existing_csv":
         return "正常"
-    if source == "monthly_revenue" or fallback_action == "kept_existing_csv" or status in {"CACHE", "EMPTY", "OK_WITH_FALLBACK"}:
+    if (
+        source == "monthly_revenue"
+        or fallback_action == "kept_existing_csv"
+        or status in {"CACHE", "EMPTY", "OK_WITH_FALLBACK"}
+    ):
         return "不影響流程"
     if status in {"FAILED", "MISSING"}:
         return "需人工確認"
@@ -6151,7 +6648,10 @@ def _data_confidence_summary(
         ("市場情報快取 / 資料年齡", _market_intel_cache_age_text(summary, frame)),
         ("市場情報資料鮮度", _market_intel_freshness_level(summary, frame)),
         ("市場情報是否過期資料", "是" if _market_intel_is_stale(summary, frame) else "否"),
-        ("市場情報資料不足股票數", _format_cell("market_intel_warning_count", summary.get("market_intel_warning_count"))),
+        (
+            "市場情報資料不足股票數",
+            _format_cell("market_intel_warning_count", summary.get("market_intel_warning_count")),
+        ),
         ("基本面資料不足股票數", f"{_fundamental_missing_count(candidates):,.0f}"),
         ("估值資料不足股票數", f"{_reason_missing_count(candidates, 'valuation_score', 'valuation_reason'):,.0f}"),
         ("財報資料不足股票數", f"{_reason_missing_count(candidates, 'financial_score', 'financial_reason'):,.0f}"),
@@ -6182,7 +6682,9 @@ def _data_confidence_summary(
     )
     return _section(
         "資料可信度總覽",
-        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        '<div class="cards">'
+        + "".join(_card(label, value) for label, value in cards)
+        + "</div>"
         + "".join(f'<div class="note">{escape(note)}</div>' for note in notes),
         class_name="data-confidence-summary",
     )
@@ -6273,7 +6775,10 @@ def _market_intel_using_cache(
         return False
     if "status" in market_rows.columns and market_rows["status"].fillna("").astype(str).str.upper().eq("CACHE").any():
         return True
-    if "fallback_action" in market_rows.columns and market_rows["fallback_action"].fillna("").astype(str).eq("cache").any():
+    if (
+        "fallback_action" in market_rows.columns
+        and market_rows["fallback_action"].fillna("").astype(str).eq("cache").any()
+    ):
         return True
     return False
 
@@ -6283,11 +6788,15 @@ def _has_market_freshness_metadata(summary: dict[str, object]) -> bool:
 
 
 def _market_intel_requested_date(summary: dict[str, object], frame: pd.DataFrame) -> str:
-    return _first_non_blank(summary.get("requested_date"), _frame_first(frame, "requested_date"), summary.get("trade_date"))
+    return _first_non_blank(
+        summary.get("requested_date"), _frame_first(frame, "requested_date"), summary.get("trade_date")
+    )
 
 
 def _market_intel_reference_date(summary: dict[str, object], frame: pd.DataFrame) -> str:
-    return _first_non_blank(summary.get("trade_date"), summary.get("requested_date"), _frame_first(frame, "requested_date"))
+    return _first_non_blank(
+        summary.get("trade_date"), summary.get("requested_date"), _frame_first(frame, "requested_date")
+    )
 
 
 def _market_intel_actual_data_date(summary: dict[str, object], frame: pd.DataFrame) -> str:
@@ -6317,7 +6826,9 @@ def _market_intel_cache_age_days(summary: dict[str, object], frame: pd.DataFrame
     if not frame.empty and "cache_age_days" in frame.columns:
         frame_values = pd.to_numeric(frame["cache_age_days"], errors="coerce").dropna()
         values.extend(float(value) for value in frame_values.tolist())
-    gap_days = _date_gap_days(_market_intel_reference_date(summary, frame), _market_intel_actual_data_date(summary, frame))
+    gap_days = _date_gap_days(
+        _market_intel_reference_date(summary, frame), _market_intel_actual_data_date(summary, frame)
+    )
     if gap_days > 0:
         values.append(float(gap_days))
     if not values:
@@ -6436,7 +6947,9 @@ def _reason_missing_count(frame: pd.DataFrame, score_column: str, reason_column:
 
 
 def _fundamental_missing_is_majority(candidates: pd.DataFrame) -> bool:
-    return not candidates.empty and _fundamental_missing_count(candidates) >= max(1, len(candidates) // 2 + len(candidates) % 2)
+    return not candidates.empty and _fundamental_missing_count(candidates) >= max(
+        1, len(candidates) // 2 + len(candidates) % 2
+    )
 
 
 def _market_intel_summary(
@@ -6517,7 +7030,9 @@ def _market_intel_summary(
         note += f'<div class="note">{escape(stale_notice)}</div>'
     return _section(
         "市場判斷摘要",
-        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        '<div class="cards">'
+        + "".join(_card(label, value) for label, value in cards)
+        + "</div>"
         + note
         + _details_block("市場判斷候選股明細", detail),
         class_name="market-intel-summary",
@@ -6528,7 +7043,9 @@ def _market_intel_display_frame(summary: dict[str, object], frame: pd.DataFrame)
     if frame.empty:
         return frame
     output = frame.copy()
-    gap_days = _date_gap_days(_market_intel_reference_date(summary, output), _market_intel_actual_data_date(summary, output))
+    gap_days = _date_gap_days(
+        _market_intel_reference_date(summary, output), _market_intel_actual_data_date(summary, output)
+    )
     if gap_days <= 0:
         return output
     trading_lag = trading_day_gap(
@@ -6541,7 +7058,9 @@ def _market_intel_display_frame(summary: dict[str, object], frame: pd.DataFrame)
     output["is_stale_data"] = stale
     output["trading_day_lag"] = trading_lag if trading_lag is not None else ""
     output["market_closed"] = _market_closed(_market_intel_requested_date(summary, output))
-    existing_age = pd.to_numeric(output.get("cache_age_days", pd.Series([0] * len(output), index=output.index)), errors="coerce").fillna(0)
+    existing_age = pd.to_numeric(
+        output.get("cache_age_days", pd.Series([0] * len(output), index=output.index)), errors="coerce"
+    ).fillna(0)
     output["cache_age_days"] = existing_age.apply(lambda value: max(int(value), gap_days))
     return output
 
@@ -6561,7 +7080,9 @@ def _multi_factor_summary(candidates: pd.DataFrame, summary: dict[str, object]) 
         ("財報警告候選股數", f"{financial_warning:,.0f}"),
         ("籌碼加分候選股數", f"{institutional_positive:,.0f}"),
     ]
-    return '<h3>多因子分數摘要</h3><div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+    return (
+        '<h3>多因子分數摘要</h3><div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+    )
 
 
 def _fundamental_summary(candidates: pd.DataFrame) -> str:
@@ -6595,7 +7116,9 @@ def _fundamental_summary(candidates: pd.DataFrame) -> str:
         max_rows=20,
     )
     return (
-        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        '<div class="cards">'
+        + "".join(_card(label, value) for label, value in cards)
+        + "</div>"
         + (
             '<div class="note">目前基本面資料完整度不足，多數股票使用中性分數 50，請勿視為完整財報分析。</div>'
             if _fundamental_missing_is_majority(candidates)
@@ -6639,7 +7162,10 @@ def _exit_strategy_summary(
         (f"{prefix}趨勢出場筆數", _format_cell("trend_exit_exits", summary.get("trend_exit_exits"))),
         (f"{prefix}完整出場筆數", f"{complete_exit_count:,.0f}"),
         (f"{prefix}部分出場筆數", f"{partial_exit_count:,.0f}"),
-        (f"{prefix}扣成本後已實現損益", _format_cell("realized_pnl_after_cost_today", summary.get("realized_pnl_after_cost_today"))),
+        (
+            f"{prefix}扣成本後已實現損益",
+            _format_cell("realized_pnl_after_cost_today", summary.get("realized_pnl_after_cost_today")),
+        ),
     ]
     open_display = open_positions.copy()
     if not open_display.empty and "exit_reason" in open_display.columns:
@@ -6659,7 +7185,9 @@ def _exit_strategy_summary(
         max_rows=50,
     )
     return (
-        '<div class="cards">' + "".join(_card(label, value) for label, value in cards) + "</div>"
+        '<div class="cards">'
+        + "".join(_card(label, value) for label, value in cards)
+        + "</div>"
         + _details_block("出場策略持倉明細", open_table)
     )
 
@@ -6755,7 +7283,9 @@ def _today_exit_frame(
             open_positions = pd.DataFrame()
             trade_date = open_positions_or_trade_date
     else:
-        open_positions = open_positions_or_trade_date if isinstance(open_positions_or_trade_date, pd.DataFrame) else pd.DataFrame()
+        open_positions = (
+            open_positions_or_trade_date if isinstance(open_positions_or_trade_date, pd.DataFrame) else pd.DataFrame()
+        )
     target = _normalized_date_text(trade_date)
     if not target:
         return pd.DataFrame()
@@ -6823,34 +7353,102 @@ def _config_summary(config: dict[str, object]) -> str:
 
     rows = [
         ["auto_trading.enabled", _raw_bool(pick("auto_trading", "enabled")), "真實下單總開關，預設關閉"],
-        ["auto_trading.can_place_real_orders", _raw_bool(pick("auto_trading", "can_place_real_orders")), "禁止真實券商委託"],
-        ["auto_trading.require_manual_approval", _raw_bool(pick("auto_trading", "require_manual_approval")), "任何未來實盤都需人工確認"],
-        ["paper_trading_guardrails.enabled", _raw_bool(pick("paper_trading_guardrails", "enabled")), "紙上交易新增/執行前風控"],
-        ["pending_order.expire_after_trading_days", _format_cell("expires_after_trading_days", pick("pending_order", "expire_after_trading_days")), "pending order 有效期限"],
-        ["paper_trading_guardrails.max_open_positions", _format_cell("open_positions", pick("paper_trading_guardrails", "max_open_positions")), "最大紙上持倉數"],
-        ["paper_trading_guardrails.max_daily_new_positions", _format_cell("new_positions", pick("paper_trading_guardrails", "max_daily_new_positions")), "每日最多新增紙上持倉"],
+        [
+            "auto_trading.can_place_real_orders",
+            _raw_bool(pick("auto_trading", "can_place_real_orders")),
+            "禁止真實券商委託",
+        ],
+        [
+            "auto_trading.require_manual_approval",
+            _raw_bool(pick("auto_trading", "require_manual_approval")),
+            "任何未來實盤都需人工確認",
+        ],
+        [
+            "paper_trading_guardrails.enabled",
+            _raw_bool(pick("paper_trading_guardrails", "enabled")),
+            "紙上交易新增/執行前風控",
+        ],
+        [
+            "pending_order.expire_after_trading_days",
+            _format_cell("expires_after_trading_days", pick("pending_order", "expire_after_trading_days")),
+            "pending order 有效期限",
+        ],
+        [
+            "paper_trading_guardrails.max_open_positions",
+            _format_cell("open_positions", pick("paper_trading_guardrails", "max_open_positions")),
+            "最大紙上持倉數",
+        ],
+        [
+            "paper_trading_guardrails.max_daily_new_positions",
+            _format_cell("new_positions", pick("paper_trading_guardrails", "max_daily_new_positions")),
+            "每日最多新增紙上持倉",
+        ],
         ["market_intel.enabled", _raw_bool(pick("market_intel", "enabled")), "市場情報是否啟用"],
-        ["market_intel.provider", _format_cell("market_intel_source", pick("market_intel", "provider")), "台股市場情報 provider"],
+        [
+            "market_intel.provider",
+            _format_cell("market_intel_source", pick("market_intel", "provider")),
+            "台股市場情報 provider",
+        ],
         ["market_intel.affect_trading", _raw_bool(pick("market_intel", "affect_trading")), "市場情報不直接下單"],
         ["market_intel.cache_enabled", _raw_bool(pick("market_intel", "cache_enabled")), "市場情報快取"],
         ["market_intel.allow_mock", _raw_bool(pick("market_intel", "allow_mock")), "完全無資料時才允許 mock fallback"],
         ["multi_factor.affect_ranking", _raw_bool(pick("multi_factor", "affect_ranking")), "多因子預設不改候選排序"],
-        ["multi_factor.affect_risk_pass", _raw_bool(pick("multi_factor", "affect_risk_pass")), "多因子預設不改 risk pass"],
+        [
+            "multi_factor.affect_risk_pass",
+            _raw_bool(pick("multi_factor", "affect_risk_pass")),
+            "多因子預設不改 risk pass",
+        ],
         ["event_risk.block_disposition_stock", _raw_bool(pick("event_risk", "block_disposition_stock")), "處置股風控"],
         ["event_risk.block_attention_stock", _raw_bool(pick("event_risk", "block_attention_stock")), "注意股風控"],
-        ["exit_strategy.take_profit_1_pct", _format_rate_percent(pick("exit_strategy", "take_profit_1_pct")), "第一段停利門檻"],
-        ["exit_strategy.take_profit_2_pct", _format_rate_percent(pick("exit_strategy", "take_profit_2_pct")), "第二段停利門檻"],
-        ["exit_strategy.trailing_stop_activate_pct", _format_rate_percent(pick("exit_strategy", "trailing_stop_activate_pct")), "移動停利啟動門檻"],
-        ["exit_strategy.trailing_stop_drawdown_pct", _format_rate_percent(pick("exit_strategy", "trailing_stop_drawdown_pct")), "移動停利回落幅度"],
-        ["exit_strategy.ma_exit_window", _format_cell("holding_days", pick("exit_strategy", "ma_exit_window")), "均線出場視窗"],
-        ["exit_strategy.max_holding_days", _format_cell("holding_days", pick("exit_strategy", "max_holding_days")), "最長持有天數"],
+        [
+            "exit_strategy.take_profit_1_pct",
+            _format_rate_percent(pick("exit_strategy", "take_profit_1_pct")),
+            "第一段停利門檻",
+        ],
+        [
+            "exit_strategy.take_profit_2_pct",
+            _format_rate_percent(pick("exit_strategy", "take_profit_2_pct")),
+            "第二段停利門檻",
+        ],
+        [
+            "exit_strategy.trailing_stop_activate_pct",
+            _format_rate_percent(pick("exit_strategy", "trailing_stop_activate_pct")),
+            "移動停利啟動門檻",
+        ],
+        [
+            "exit_strategy.trailing_stop_drawdown_pct",
+            _format_rate_percent(pick("exit_strategy", "trailing_stop_drawdown_pct")),
+            "移動停利回落幅度",
+        ],
+        [
+            "exit_strategy.ma_exit_window",
+            _format_cell("holding_days", pick("exit_strategy", "ma_exit_window")),
+            "均線出場視窗",
+        ],
+        [
+            "exit_strategy.max_holding_days",
+            _format_cell("holding_days", pick("exit_strategy", "max_holding_days")),
+            "最長持有天數",
+        ],
         ["trading_cost.commission_rate", _format_permille(pick("trading_cost", "commission_rate")), "手續費率"],
         ["trading_cost.min_commission", _format_amount_plain(pick("trading_cost", "min_commission")), "最低手續費"],
-        ["trading_cost.sell_tax_rate_stock", _format_rate_percent(pick("trading_cost", "sell_tax_rate_stock")), "股票交易稅"],
-        ["trading_cost.sell_tax_rate_etf", _format_rate_percent(pick("trading_cost", "sell_tax_rate_etf")), "ETF 交易稅"],
+        [
+            "trading_cost.sell_tax_rate_stock",
+            _format_rate_percent(pick("trading_cost", "sell_tax_rate_stock")),
+            "股票交易稅",
+        ],
+        [
+            "trading_cost.sell_tax_rate_etf",
+            _format_rate_percent(pick("trading_cost", "sell_tax_rate_etf")),
+            "ETF 交易稅",
+        ],
         ["trading_cost.slippage_rate", _format_rate_percent(pick("trading_cost", "slippage_rate")), "滑價假設"],
         ["ai_enrichment.enabled", _raw_bool(pick("ai_enrichment", "enabled")), "資料解釋層"],
-        ["ai_enrichment.provider", _format_cell("enrichment_provider", pick("ai_enrichment", "provider")), "預設 rule-based"],
+        [
+            "ai_enrichment.provider",
+            _format_cell("enrichment_provider", pick("ai_enrichment", "provider")),
+            "預設 rule-based",
+        ],
         ["ai_enrichment.allow_external_ai", _raw_bool(pick("ai_enrichment", "allow_external_ai")), "外部 AI 預設關閉"],
         ["ai_enrichment.advisory_only", _raw_bool(pick("ai_enrichment", "advisory_only")), "只做輔助解釋"],
     ]
@@ -6906,7 +7504,9 @@ def _brief_recent_summaries(frame: pd.DataFrame) -> pd.DataFrame:
     result["summary_open_positions"] = frame.get("open_positions", "")
     result["summary_closed_positions"] = frame.get("closed_positions", "")
     result["summary_total_equity_after_cost"] = frame.get("total_equity_after_cost", frame.get("total_equity", ""))
-    result["summary_data_status"] = frame.get("multi_factor_data_status", frame.get("market_intel_status", frame.get("status", "")))
+    result["summary_data_status"] = frame.get(
+        "multi_factor_data_status", frame.get("market_intel_status", frame.get("status", ""))
+    )
     return result
 
 
@@ -6945,11 +7545,15 @@ def _table(frame: pd.DataFrame, columns: list[str], empty_message: str, max_rows
     header = "".join(f"<th>{escape(COLUMN_LABELS.get(column, column))}</th>" for column in visible_columns)
     body_rows = []
     for _, row in rows.iterrows():
-        cells = "".join(
-            f"<td>{escape(_format_cell(column, row.get(column)))}</td>" for column in visible_columns
-        )
+        cells = "".join(f"<td>{escape(_format_cell(column, row.get(column)))}</td>" for column in visible_columns)
         body_rows.append(f"<tr>{cells}</tr>")
-    return '<div class="table-wrap"><table><thead><tr>' + header + "</tr></thead><tbody>" + "".join(body_rows) + "</tbody></table></div>"
+    return (
+        '<div class="table-wrap"><table><thead><tr>'
+        + header
+        + "</tr></thead><tbody>"
+        + "".join(body_rows)
+        + "</tbody></table></div>"
+    )
 
 
 def _responsive_records(frame: pd.DataFrame, columns: list[str], empty_message: str, max_rows: int) -> str:
@@ -6971,7 +7575,9 @@ def _responsive_records(frame: pd.DataFrame, columns: list[str], empty_message: 
             fields.append(
                 f"<dt>{escape(COLUMN_LABELS[column])}</dt><dd>{escape(_format_cell(column, row.get(column)))}</dd>"
             )
-        cards.append(f'<article class="mobile-card"><h3>{escape(title or "持倉")}</h3><dl>{"".join(fields)}</dl></article>')
+        cards.append(
+            f'<article class="mobile-card"><h3>{escape(title or "持倉")}</h3><dl>{"".join(fields)}</dl></article>'
+        )
     return '<div class="mobile-cards">' + "".join(cards) + "</div>" + table
 
 
@@ -7004,7 +7610,7 @@ def _responsive_compact_records(
         details = _detail_grid(row, detail_visible)
         cards.append(
             '<article class="mobile-card market-card">'
-            f'<h3>{escape(title or "候選股")}</h3>'
+            f"<h3>{escape(title or '候選股')}</h3>"
             f'<dl class="detail-grid compact-grid">{"".join(summary_fields)}</dl>'
             f'<details class="card-details"><summary>展開完整資料</summary>{details}</details>'
             "</article>"
@@ -7158,7 +7764,9 @@ def _latest_file(report_dir: Path, pattern: str) -> Path | None:
 
 def _sorted_report_files(report_dir: Path, pattern: str) -> list[Path]:
     files = list(report_dir.glob(pattern))
-    return sorted(files, key=lambda path: (_date_from_filename(path) or pd.Timestamp.min, path.stat().st_mtime), reverse=True)
+    return sorted(
+        files, key=lambda path: (_date_from_filename(path) or pd.Timestamp.min, path.stat().st_mtime), reverse=True
+    )
 
 
 def _date_from_filename(path: Path) -> pd.Timestamp | None:

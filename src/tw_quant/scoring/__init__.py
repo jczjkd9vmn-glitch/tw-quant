@@ -1,2 +1,1 @@
 """Multi-factor scoring helpers."""
-

@@ -46,8 +46,7 @@ MATERIAL_EVENT_COLUMNS = [
 
 MOPS_HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     ),
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.7,en;q=0.6",
@@ -164,7 +163,11 @@ class MOPSProvider:
                 frame["revenue_source_status"] = "OK" if year_month == requested_month else "OK_WITH_FALLBACK"
                 result = self._result_with_cache("monthly_revenue", date_label, frame, MONTHLY_REVENUE_COLUMNS)
                 status = "OK" if year_month == requested_month else "OK_WITH_FALLBACK"
-                warning = "" if status == "OK" else f"requested month {requested_month} unavailable; used latest available month {year_month}"
+                warning = (
+                    ""
+                    if status == "OK"
+                    else f"requested month {requested_month} unavailable; used latest available month {year_month}"
+                )
                 return ProviderResult(
                     "monthly_revenue",
                     result.data,
@@ -221,7 +224,11 @@ class MOPSProvider:
             )
         actual_month = str(frame["year_month"].dropna().astype(str).max())
         status = "OK" if actual_month == requested_month else "OK_WITH_FALLBACK"
-        warning = "" if status == "OK" else f"requested month {requested_month} unavailable; used latest available month {actual_month}"
+        warning = (
+            ""
+            if status == "OK"
+            else f"requested month {requested_month} unavailable; used latest available month {actual_month}"
+        )
         result = self._result_with_cache("monthly_revenue", date_label, frame, MONTHLY_REVENUE_COLUMNS)
         return ProviderResult(
             "monthly_revenue",
@@ -370,15 +377,15 @@ def normalize_monthly_revenue_html(html: str, year_month: str) -> pd.DataFrame:
             rows.append(
                 {
                     "stock_id": str(stock_id).strip(),
-                    "stock_name": str(_first_value(row, ["公司名稱", "公司簡稱", "股票名稱", "證券名稱"]) or "").strip(),
+                    "stock_name": str(
+                        _first_value(row, ["公司名稱", "公司簡稱", "股票名稱", "證券名稱"]) or ""
+                    ).strip(),
                     "year_month": year_month,
                     "revenue": _number(_first_value(row, ["當月營收", "本月營收", "營業收入"])),
                     "revenue_yoy": _number(_first_value(row, ["去年同月增減", "年增率", "YoY"])),
                     "revenue_mom": _number(_first_value(row, ["上月比較增減", "月增率", "MoM"])),
                     "accumulated_revenue": _number(_first_value(row, ["當月累計營收", "累計營收"])),
-                    "accumulated_revenue_yoy": _number(
-                        _first_value(row, ["前期比較增減", "累計營收年增", "累計增減"])
-                    ),
+                    "accumulated_revenue_yoy": _number(_first_value(row, ["前期比較增減", "累計營收年增", "累計增減"])),
                 }
             )
     return pd.DataFrame(rows, columns=MONTHLY_REVENUE_COLUMNS)
@@ -404,7 +411,9 @@ def normalize_monthly_revenue_openapi(payload: object, requested_month: str) -> 
                 "revenue_yoy": _number(_dict_value(item, ["營業收入-去年同月增減(%)", "revenue_yoy"])),
                 "revenue_mom": _number(_dict_value(item, ["營業收入-上月比較增減(%)", "revenue_mom"])),
                 "accumulated_revenue": _number(_dict_value(item, ["累計營業收入-當月累計營收", "accumulated_revenue"])),
-                "accumulated_revenue_yoy": _number(_dict_value(item, ["累計營業收入-前期比較增減(%)", "accumulated_revenue_yoy"])),
+                "accumulated_revenue_yoy": _number(
+                    _dict_value(item, ["累計營業收入-前期比較增減(%)", "accumulated_revenue_yoy"])
+                ),
                 "revenue_data_month": year_month,
                 "requested_revenue_month": requested_month,
                 "latest_available_month": year_month,
@@ -496,7 +505,9 @@ def is_mops_security_block(html: str) -> bool:
 
 def _flatten_column(column: object) -> str:
     if isinstance(column, tuple):
-        return " ".join(str(part).strip() for part in column if str(part).strip() and not str(part).startswith("Unnamed"))
+        return " ".join(
+            str(part).strip() for part in column if str(part).strip() and not str(part).startswith("Unnamed")
+        )
     return str(column).strip()
 
 

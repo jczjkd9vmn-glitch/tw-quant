@@ -36,15 +36,7 @@ jobs:
         run: python -m ruff check .
 
       - name: Run Ruff format check
-        run: >
-          python -m ruff format --check
-          src/tw_quant/backtest/engine.py
-          src/tw_quant/trading/costs.py
-          src/tw_quant/trading/pending.py
-          tests/test_backtest.py
-          tests/test_trading_costs.py
-          tests/test_github_actions.py
-          tests/test_pending_orders.py
+        run: python -m ruff format --check .
 
       - name: Run tests
         run: python -m pytest -q

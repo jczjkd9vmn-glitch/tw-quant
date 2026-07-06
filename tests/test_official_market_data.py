@@ -63,9 +63,7 @@ def test_institutional_consecutive_selling_lowers_score(tmp_path: Path) -> None:
 
 def test_margin_surge_without_price_gain_adds_risk_flag(tmp_path: Path) -> None:
     path = tmp_path / "margin_short.csv"
-    pd.DataFrame([_credit(margin_balance=10_000, margin_change=2_000)]).to_csv(
-        path, index=False, encoding="utf-8"
-    )
+    pd.DataFrame([_credit(margin_balance=10_000, margin_change=2_000)]).to_csv(path, index=False, encoding="utf-8")
     context = pd.DataFrame([{"stock_id": "2330", "return_5": 0.0, "total_institutional_net_buy": -100}])
 
     row = score_credit_for_symbols(["2330"], path, context).iloc[0]
@@ -131,7 +129,15 @@ def test_revenue_decline_lowers_fundamental_score(tmp_path: Path) -> None:
 def test_negative_event_lowers_event_risk_score(tmp_path: Path) -> None:
     path = tmp_path / "material_events.csv"
     pd.DataFrame(
-        [{"event_date": "2026-05-08", "stock_id": "2330", "stock_name": "台積電", "title": "檢調調查", "summary": "涉及訴訟"}]
+        [
+            {
+                "event_date": "2026-05-08",
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "title": "檢調調查",
+                "summary": "涉及訴訟",
+            }
+        ]
     ).to_csv(path, index=False, encoding="utf-8")
 
     row = score_material_events_for_symbols(["2330"], path).iloc[0]
@@ -142,9 +148,9 @@ def test_negative_event_lowers_event_risk_score(tmp_path: Path) -> None:
 
 def test_low_liquidity_lowers_liquidity_score(tmp_path: Path) -> None:
     path = tmp_path / "liquidity.csv"
-    pd.DataFrame([{"trade_date": "2026-05-08", "stock_id": "2330", "avg_volume_20d": 100, "avg_turnover_20d": 10_000_000}]).to_csv(
-        path, index=False, encoding="utf-8"
-    )
+    pd.DataFrame(
+        [{"trade_date": "2026-05-08", "stock_id": "2330", "avg_volume_20d": 100, "avg_turnover_20d": 10_000_000}]
+    ).to_csv(path, index=False, encoding="utf-8")
 
     row = score_liquidity_for_symbols(["2330"], path).iloc[0]
 

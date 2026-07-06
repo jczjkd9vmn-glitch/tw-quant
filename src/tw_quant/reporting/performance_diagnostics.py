@@ -232,7 +232,10 @@ def _performance_row(
     if conclusion_status in {"DATA_INSUFFICIENT", "OBSERVATION_ONLY"}:
         hard_insufficient = conclusion_status == "DATA_INSUFFICIENT"
         status = conclusion_status if hard_insufficient else "OK_WITH_WARNINGS"
-    elif conclusion_status in {"UNDERPERFORMING", "OUTPERFORMING_SHORT_TERM", "OUTPERFORMING_CONFIRMED"} and status == "OK":
+    elif (
+        conclusion_status in {"UNDERPERFORMING", "OUTPERFORMING_SHORT_TERM", "OUTPERFORMING_CONFIRMED"}
+        and status == "OK"
+    ):
         status = "OK_WITH_WARNINGS" if warnings else "OK"
 
     return {

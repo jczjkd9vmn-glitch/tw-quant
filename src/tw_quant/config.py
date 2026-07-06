@@ -261,9 +261,7 @@ def _parse_simple_yaml(text: str) -> dict[str, Any]:
 
 
 def _parse_scalar(value: str) -> Any:
-    if (value.startswith('"') and value.endswith('"')) or (
-        value.startswith("'") and value.endswith("'")
-    ):
+    if (value.startswith('"') and value.endswith('"')) or (value.startswith("'") and value.endswith("'")):
         return value[1:-1]
 
     lowered = value.lower()

@@ -452,13 +452,19 @@ def _benchmark_diagnostics(
     alpha_5d = _risk_excess_or_window_alpha(risk_alpha, system_returns, benchmark_returns, benchmark, readiness, "5d")
     alpha_20d = _risk_excess_or_window_alpha(risk_alpha, system_returns, benchmark_returns, benchmark, readiness, "20d")
     alpha_60d = _risk_excess_or_window_alpha(risk_alpha, system_returns, benchmark_returns, benchmark, readiness, "60d")
-    alpha_120d = _risk_excess_or_window_alpha(risk_alpha, system_returns, benchmark_returns, benchmark, readiness, "120d")
-    alpha_252d = _risk_excess_or_window_alpha(risk_alpha, system_returns, benchmark_returns, benchmark, readiness, "252d")
+    alpha_120d = _risk_excess_or_window_alpha(
+        risk_alpha, system_returns, benchmark_returns, benchmark, readiness, "120d"
+    )
+    alpha_252d = _risk_excess_or_window_alpha(
+        risk_alpha, system_returns, benchmark_returns, benchmark, readiness, "252d"
+    )
     primary_alpha = _num(risk_alpha.get("excess_return"))
     if primary_alpha is None:
         primary_window = str(risk_alpha.get("primary_alpha_window") or "")
         primary_alpha = _num(risk_alpha.get(f"excess_return_{primary_window}")) if primary_window else None
-    available_alpha = [value for value in [alpha_1d, alpha_5d, alpha_20d, alpha_60d, alpha_120d, alpha_252d] if value is not None]
+    available_alpha = [
+        value for value in [alpha_1d, alpha_5d, alpha_20d, alpha_60d, alpha_120d, alpha_252d] if value is not None
+    ]
     warning_parts = []
     if benchmark.get("warning"):
         warning_parts.append(str(benchmark.get("warning")))
@@ -471,7 +477,10 @@ def _benchmark_diagnostics(
             warning_parts.append(f"NOT_ENOUGH_STRATEGY_HISTORY: {strategy_insufficient_reason(readiness, window)}")
     if not available_alpha and primary_alpha is None:
         warning_parts.append("DATA_INSUFFICIENT: benchmark 或系統報酬資料不足")
-    conclusion_status = str(risk_alpha.get("conclusion_status") or _conclusion_status(benchmark_can_judge, readiness, available_alpha, primary_alpha))
+    conclusion_status = str(
+        risk_alpha.get("conclusion_status")
+        or _conclusion_status(benchmark_can_judge, readiness, available_alpha, primary_alpha)
+    )
     risk_reason = str(risk_alpha.get("conclusion_reason", "") or "").strip()
     if risk_reason:
         warning_parts.append(risk_reason)
@@ -480,12 +489,24 @@ def _benchmark_diagnostics(
         "system_cumulative_return": system_returns.get("total"),
         "benchmark_cumulative_return": benchmark_returns.get("total"),
         "alpha": primary_alpha,
-        "benchmark_return_1d": benchmark_returns.get("1d") if _can_judge_window(benchmark, "1d") and strategy_can_judge_window(readiness, "1d") else None,
-        "benchmark_return_5d": _risk_benchmark_or_snapshot_return(risk_alpha, benchmark_returns, benchmark, readiness, "5d"),
-        "benchmark_return_20d": _risk_benchmark_or_snapshot_return(risk_alpha, benchmark_returns, benchmark, readiness, "20d"),
-        "benchmark_return_60d": _risk_benchmark_or_snapshot_return(risk_alpha, benchmark_returns, benchmark, readiness, "60d"),
-        "benchmark_return_120d": _risk_benchmark_or_snapshot_return(risk_alpha, benchmark_returns, benchmark, readiness, "120d"),
-        "benchmark_return_252d": _risk_benchmark_or_snapshot_return(risk_alpha, benchmark_returns, benchmark, readiness, "252d"),
+        "benchmark_return_1d": benchmark_returns.get("1d")
+        if _can_judge_window(benchmark, "1d") and strategy_can_judge_window(readiness, "1d")
+        else None,
+        "benchmark_return_5d": _risk_benchmark_or_snapshot_return(
+            risk_alpha, benchmark_returns, benchmark, readiness, "5d"
+        ),
+        "benchmark_return_20d": _risk_benchmark_or_snapshot_return(
+            risk_alpha, benchmark_returns, benchmark, readiness, "20d"
+        ),
+        "benchmark_return_60d": _risk_benchmark_or_snapshot_return(
+            risk_alpha, benchmark_returns, benchmark, readiness, "60d"
+        ),
+        "benchmark_return_120d": _risk_benchmark_or_snapshot_return(
+            risk_alpha, benchmark_returns, benchmark, readiness, "120d"
+        ),
+        "benchmark_return_252d": _risk_benchmark_or_snapshot_return(
+            risk_alpha, benchmark_returns, benchmark, readiness, "252d"
+        ),
         "alpha_1d": alpha_1d,
         "alpha_5d": alpha_5d,
         "alpha_20d": alpha_20d,
@@ -535,7 +556,9 @@ def _guardrail_impact(rejected: pd.DataFrame, benchmark: dict[str, object]) -> p
             columns=GUARDRAIL_IMPACT_COLUMNS,
         )
     frame = rejected.copy()
-    reason_col = _first_existing_column(frame, ["rejected_reason", "rejection_reason", "skipped_reason", "warning", "reason"])
+    reason_col = _first_existing_column(
+        frame, ["rejected_reason", "rejection_reason", "skipped_reason", "warning", "reason"]
+    )
     if reason_col is None:
         frame["_reason"] = "UNKNOWN"
     else:
@@ -619,7 +642,11 @@ def _bucket_factor(series: pd.Series, factor_type: str) -> pd.Series:
         unique_count = numeric.dropna().nunique()
         if unique_count >= 3:
             try:
-                return pd.qcut(numeric, q=3, labels=["LOW", "MID", "HIGH"], duplicates="drop").astype(str).fillna("MISSING")
+                return (
+                    pd.qcut(numeric, q=3, labels=["LOW", "MID", "HIGH"], duplicates="drop")
+                    .astype(str)
+                    .fillna("MISSING")
+                )
             except ValueError:
                 pass
         return numeric.apply(lambda value: "MISSING" if pd.isna(value) else _numeric_bucket(float(value)))
@@ -684,7 +711,9 @@ def _forward_series(frame: pd.DataFrame, window: str) -> pd.Series:
 def _equity_return_over_recent_window(recent_summaries: pd.DataFrame, window: int) -> float | None:
     if recent_summaries.empty:
         return None
-    equity_column = "total_equity_after_cost" if "total_equity_after_cost" in recent_summaries.columns else "total_equity"
+    equity_column = (
+        "total_equity_after_cost" if "total_equity_after_cost" in recent_summaries.columns else "total_equity"
+    )
     if equity_column not in recent_summaries.columns:
         return None
     frame = recent_summaries.copy()
@@ -703,7 +732,9 @@ def _equity_return_over_recent_window(recent_summaries: pd.DataFrame, window: in
 def _max_drawdown(recent_summaries: pd.DataFrame) -> float | None:
     if recent_summaries.empty:
         return None
-    equity_column = "total_equity_after_cost" if "total_equity_after_cost" in recent_summaries.columns else "total_equity"
+    equity_column = (
+        "total_equity_after_cost" if "total_equity_after_cost" in recent_summaries.columns else "total_equity"
+    )
     if equity_column not in recent_summaries.columns:
         return None
     frame = recent_summaries.copy()
@@ -720,7 +751,9 @@ def _max_drawdown(recent_summaries: pd.DataFrame) -> float | None:
 
 def _read_recent_summaries(report_dir: Path) -> pd.DataFrame:
     frames: list[pd.DataFrame] = []
-    for path in sorted(report_dir.glob("daily_summary_*.csv"), key=lambda item: _date_from_path(item) or pd.Timestamp.min, reverse=True):
+    for path in sorted(
+        report_dir.glob("daily_summary_*.csv"), key=lambda item: _date_from_path(item) or pd.Timestamp.min, reverse=True
+    ):
         frame = _read_csv(path)
         if frame.empty:
             continue

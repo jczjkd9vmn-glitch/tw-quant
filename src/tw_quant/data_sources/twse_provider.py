@@ -68,8 +68,7 @@ VALUATION_OPENAPI_URL = "https://openapi.twse.com.tw/v1/exchangeReport/BWIBBU_AL
 
 TWSE_HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     ),
     "Accept": "application/json,text/plain,*/*",
     "Accept-Language": "zh-TW,zh;q=0.9,en-US;q=0.7,en;q=0.6",
@@ -114,8 +113,15 @@ class TWSEProvider:
                 {"date": date_label, "selectType": "ALLBUT0999", "response": "json"},
             )
             if _is_no_data_payload(payload):
-                return ProviderResult("institutional", pd.DataFrame(columns=INSTITUTIONAL_COLUMNS), "EMPTY", "official source returned no data")
-            table = normalize_table_payload(payload, [["證券代號", "股票代號", "代號"], ["證券名稱", "股票名稱", "名稱"]])
+                return ProviderResult(
+                    "institutional",
+                    pd.DataFrame(columns=INSTITUTIONAL_COLUMNS),
+                    "EMPTY",
+                    "official source returned no data",
+                )
+            table = normalize_table_payload(
+                payload, [["證券代號", "股票代號", "代號"], ["證券名稱", "股票名稱", "名稱"]]
+            )
             frame = normalize_institutional_table(table, date_label)
             return self._result_with_cache("institutional", date_label, frame, INSTITUTIONAL_COLUMNS)
         except Exception as exc:  # noqa: BLE001
@@ -133,7 +139,12 @@ class TWSEProvider:
                 {"date": date_label, "selectType": "ALL", "response": "json"},
             )
             if _is_no_data_payload(payload):
-                return ProviderResult("margin_short", pd.DataFrame(columns=MARGIN_SHORT_COLUMNS), "EMPTY", "official source returned no data")
+                return ProviderResult(
+                    "margin_short",
+                    pd.DataFrame(columns=MARGIN_SHORT_COLUMNS),
+                    "EMPTY",
+                    "official source returned no data",
+                )
             table = normalize_table_payload(
                 payload,
                 [
@@ -351,7 +362,9 @@ def normalize_margin_short_table(frame: pd.DataFrame, date_label: str) -> pd.Dat
                 "margin_change": margin_change,
                 "short_balance": short_balance,
                 "short_change": short_change,
-                "securities_lending_sell_volume": _number(_first_value(row, ["借券賣出", "借券賣出股數", "借券賣出成交量"])),
+                "securities_lending_sell_volume": _number(
+                    _first_value(row, ["借券賣出", "借券賣出股數", "借券賣出成交量"])
+                ),
                 "securities_lending_balance": _number(_first_value(row, ["借券餘額", "借券賣出餘額", "借券餘額股數"])),
             }
         )
@@ -372,7 +385,9 @@ def normalize_attention_disposition_payloads(
                 continue
             key = str(stock_id).strip()
             record = records.setdefault(key, _empty_attention_record(key, date_label))
-            record["stock_name"] = str(_first_value(row, ["證券名稱", "股票名稱", "名稱"]) or record["stock_name"]).strip()
+            record["stock_name"] = str(
+                _first_value(row, ["證券名稱", "股票名稱", "名稱"]) or record["stock_name"]
+            ).strip()
             record["trade_date"] = _date_text(_first_value(row, ["日期", "公告日期"]) or date_label)
             record["is_attention_stock"] = True
             record["attention_reason"] = str(_first_value(row, ["注意交易資訊", "注意原因", "原因"]) or "").strip()
@@ -385,7 +400,9 @@ def normalize_attention_disposition_payloads(
                 continue
             key = str(stock_id).strip()
             record = records.setdefault(key, _empty_attention_record(key, date_label))
-            record["stock_name"] = str(_first_value(row, ["證券名稱", "股票名稱", "名稱"]) or record["stock_name"]).strip()
+            record["stock_name"] = str(
+                _first_value(row, ["證券名稱", "股票名稱", "名稱"]) or record["stock_name"]
+            ).strip()
             record["trade_date"] = _date_text(_first_value(row, ["公布日期", "日期"]) or date_label)
             record["is_disposition_stock"] = True
             period = str(_first_value(row, ["處置起迄時間", "處置期間"]) or "")

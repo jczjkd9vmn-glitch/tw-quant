@@ -55,7 +55,9 @@ def generate_strategy_validation(
     report_dir = Path(reports_dir)
     candidates_path = _latest_file(report_dir, "candidates_*.csv", trade_date)
     if candidates_path is None:
-        return StrategyValidationResult(None, pd.DataFrame(columns=VALIDATION_COLUMNS), None, "no candidates report found")
+        return StrategyValidationResult(
+            None, pd.DataFrame(columns=VALIDATION_COLUMNS), None, "no candidates report found"
+        )
     candidates = _read_csv(candidates_path)
     paper_trades = _read_csv(report_dir / "paper_trades.csv")
     selected_date = _resolve_trade_date(candidates, candidates_path)
@@ -154,7 +156,9 @@ def _combined_model(candidates: pd.DataFrame) -> tuple[pd.DataFrame, str]:
     ]:
         if column in frame.columns:
             frame = frame[pd.to_numeric(frame[column], errors="coerce").fillna(50) >= threshold].copy()
-    score_columns = [column for column in ["multi_factor_score", "final_market_score", "total_score"] if column in frame.columns]
+    score_columns = [
+        column for column in ["multi_factor_score", "final_market_score", "total_score"] if column in frame.columns
+    ]
     return _sort_desc(frame, score_columns), ""
 
 
@@ -323,7 +327,7 @@ def _latest_file(report_dir: Path, pattern: str, trade_date: str | None = None) 
             target = report_dir / pattern.replace("*", parsed.strftime("%Y%m%d"))
             if target.exists():
                 return target
-    files = sorted(report_dir.glob(pattern), key=lambda path: (_date_from_path(path) or pd.Timestamp.min))
+    files = sorted(report_dir.glob(pattern), key=lambda path: _date_from_path(path) or pd.Timestamp.min)
     return files[-1] if files else None
 
 

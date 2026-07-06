@@ -84,6 +84,7 @@ def build_notification_message(
     ai_enrichment = _load_latest_report(report_dir, "ai_enrichment_*.csv")
     market_recap = _load_latest_report(report_dir, "market_recap_*.csv")
     public_report_status_line = _public_report_status_line(report_dir)
+    workflow_status_lines = _workflow_status_lines()
 
     lines = [
         "台股紙上交易每日摘要",
@@ -112,6 +113,7 @@ def build_notification_message(
         )
     if public_report_status_line:
         lines.append(public_report_status_line)
+    lines.extend(workflow_status_lines)
     lines.extend(
         [
             f"候選股數：{_format_int(summary.get('candidate_rows'))}",
@@ -196,6 +198,27 @@ def _public_report_status_line(report_dir: Path) -> str | None:
     return None
 
 
+def _workflow_status_lines() -> list[str]:
+    fields = [
+        ("daily", "TW_QUANT_DAILY_JOB_RESULT"),
+        ("deploy-pages", "TW_QUANT_DEPLOY_PAGES_JOB_RESULT"),
+        ("pages-smoke", "TW_QUANT_PAGES_SMOKE_TEST_RESULT"),
+        ("docs-written", "TW_QUANT_DOCS_WRITTEN"),
+        ("docs-publish", "TW_QUANT_DOCS_PUBLISH_STATUS"),
+    ]
+    parts: list[str] = []
+    for label, env_name in fields:
+        value = os.getenv(env_name, "").strip()
+        if value:
+            parts.append(f"{label}={value}")
+    reason = os.getenv("TW_QUANT_DOCS_PUBLISH_REASON", "").strip()
+    if reason:
+        parts.append(f"docs-reason={reason[:120]}")
+    if not parts:
+        return []
+    return ["GitHub Actions 狀態：" + "；".join(parts)]
+
+
 def _decision_digest(summary: dict[str, object], decisions: pd.DataFrame) -> list[str]:
     lines = [
         f"A 級候選股數：{_format_int(summary.get('grade_a_count'))}",
@@ -248,11 +271,15 @@ def _dashboard_risk_catalyst_digest(
         risks.append(f"市場環境分數 {regime:.0f} 偏低")
     if str(summary.get("guardrail_status", "")).upper() == "BLOCKED":
         risks.append("guardrail 暫停新增或執行 pending order")
-    combined = pd.concat(
-        [frame for frame in [candidates, decisions] if not frame.empty],
-        ignore_index=True,
-        sort=False,
-    ) if (not candidates.empty or not decisions.empty) else pd.DataFrame()
+    combined = (
+        pd.concat(
+            [frame for frame in [candidates, decisions] if not frame.empty],
+            ignore_index=True,
+            sort=False,
+        )
+        if (not candidates.empty or not decisions.empty)
+        else pd.DataFrame()
+    )
     for _, row in combined.head(30).iterrows():
         stock = f"{_format_text(row.get('stock_id'))} {_format_text(row.get('stock_name'))}".strip()
         flags = _format_text(row.get("risk_flags"))
@@ -323,7 +350,9 @@ def _decision_top(
     frame = decisions[decisions["decision"].fillna("").astype(str).isin(decision_values)].copy()
     if frame.empty:
         return ""
-    score_values = frame[score_column] if score_column in frame.columns else pd.Series([-1] * len(frame), index=frame.index)
+    score_values = (
+        frame[score_column] if score_column in frame.columns else pd.Series([-1] * len(frame), index=frame.index)
+    )
     frame["_score"] = pd.to_numeric(score_values, errors="coerce").fillna(-1)
     if ascending:
         frame["_score"] = frame["_score"].replace(-1, 10_000)
@@ -352,7 +381,9 @@ def _candidate_digest(candidates: pd.DataFrame) -> list[str]:
         return ["今日綜合分數最高前 5 名：無候選股資料"]
     frame = candidates.copy()
     score_column = "final_market_score" if "final_market_score" in frame.columns else "multi_factor_score"
-    score_values = frame[score_column] if score_column in frame.columns else pd.Series([-1] * len(frame), index=frame.index)
+    score_values = (
+        frame[score_column] if score_column in frame.columns else pd.Series([-1] * len(frame), index=frame.index)
+    )
     frame["_score"] = pd.to_numeric(score_values, errors="coerce").fillna(-1)
     top = frame.sort_values("_score", ascending=False).head(5)
     rows = [
@@ -414,7 +445,9 @@ def _position_digest(paper_trades: pd.DataFrame) -> list[str]:
         f"{_format_text(row.get('stock_id'))} {_format_text(row.get('stock_name'))} 未實現 {_format_signed(row.get('unrealized_pnl'))}"
         for _, row in open_frame.iterrows()
     ]
-    exit_dates = paper_trades["exit_date"] if "exit_date" in paper_trades.columns else pd.Series([""] * len(paper_trades))
+    exit_dates = (
+        paper_trades["exit_date"] if "exit_date" in paper_trades.columns else pd.Series([""] * len(paper_trades))
+    )
     exit_frame = paper_trades[exit_dates.fillna("").astype(str).str.strip() != ""].tail(5)
     exit_rows = [
         f"{_format_text(row.get('stock_id'))} {_format_text(row.get('exit_reason'))} {_format_signed(row.get('last_exit_realized_pnl_after_cost'))}"
@@ -431,7 +464,10 @@ def _health_text(summary: dict[str, object], candidates: pd.DataFrame) -> str:
         return f"警告：{_format_text(summary.get('error_step'))} {_format_text(summary.get('error_message'))}"
     if candidates.empty:
         return "注意：今日無候選股資料"
-    if _count_non_empty(candidates, "data_source_warning") > 0 or _count_non_empty(candidates, "market_intel_warning") > 0:
+    if (
+        _count_non_empty(candidates, "data_source_warning") > 0
+        or _count_non_empty(candidates, "market_intel_warning") > 0
+    ):
         return "注意：部分資料來源缺失或使用中性分數"
     return "正常"
 
@@ -475,7 +511,7 @@ def _latest_summary_file(reports_dir: Path) -> Path | None:
     files = list(reports_dir.glob("daily_summary_*.csv"))
     if not files:
         return None
-    return sorted(files, key=lambda path: (_date_from_filename(path) or pd.Timestamp.min), reverse=True)[0]
+    return sorted(files, key=lambda path: _date_from_filename(path) or pd.Timestamp.min, reverse=True)[0]
 
 
 def _date_from_filename(path: Path) -> pd.Timestamp | None:

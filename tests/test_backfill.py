@@ -223,9 +223,7 @@ def test_backfill_retry_failure_counts_failed_days() -> None:
 
 
 def _risk_manager() -> RiskManager:
-    return RiskManager(
-        RiskConfig(min_liquidity_value=1_000, max_volatility_20=0.20, max_position_pct=0.20)
-    )
+    return RiskManager(RiskConfig(min_liquidity_value=1_000, max_volatility_20=0.20, max_position_pct=0.20))
 
 
 def _price_frame(trade_date: str | date, close: float, symbol: str = "2330") -> pd.DataFrame:

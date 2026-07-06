@@ -198,12 +198,12 @@ class LocalDerivedProvider:
         industry_mask = data["sector_strength_mode"] == "industry_relative"
         fallback_mask = ~industry_mask
         if industry_mask.any():
-            data.loc[industry_mask, "sector_return_5d"] = data.loc[industry_mask].groupby("industry")[
-                "stock_return_5d"
-            ].transform("mean")
-            data.loc[industry_mask, "sector_return_20d"] = data.loc[industry_mask].groupby("industry")[
-                "stock_return_20d"
-            ].transform("mean")
+            data.loc[industry_mask, "sector_return_5d"] = (
+                data.loc[industry_mask].groupby("industry")["stock_return_5d"].transform("mean")
+            )
+            data.loc[industry_mask, "sector_return_20d"] = (
+                data.loc[industry_mask].groupby("industry")["stock_return_20d"].transform("mean")
+            )
         data["relative_strength_5d"] = data["stock_return_5d"] - data["sector_return_5d"]
         data["relative_strength_20d"] = data["stock_return_20d"] - data["sector_return_20d"]
         data["sector_strength_warning"] = ""

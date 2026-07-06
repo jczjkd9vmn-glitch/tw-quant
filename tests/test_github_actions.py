@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,7 +17,8 @@ def test_daily_github_actions_workflow_exists_and_contains_required_steps() -> N
     assert 'cron: "30 12 * * *"' in text
     assert 'python-version: "3.12"' in text
     assert "python -m pytest" in text
-    assert "python scripts/backfill.py --days 45 --timeout 30 --retries 3 --sleep 1" in text
+    assert "python scripts/backfill.py --days 90 --timeout 30 --retries 3 --sleep 1" in text
+    assert "strategy.min_history_days=40" in text
     assert "python scripts/run_all_daily.py --capital 1000000 --allow-fallback-latest" in text
     assert "python scripts/generate_html_report.py" in text
     assert "reports/public_report_publish_status.csv" in text
@@ -33,8 +35,21 @@ def test_daily_github_actions_workflow_exists_and_contains_required_steps() -> N
     assert "actions/upload-pages-artifact@v4" in text
     assert "path: docs" in text
     assert "actions/deploy-pages@v4" in text
+    assert "actions/upload-artifact@v4" in text
+    assert "actions/download-artifact@v4" in text
     assert "GitHub Pages deploy skipped because public docs were not updated." in text
     assert "github.ref == 'refs/heads/main'" in text
+
+
+def test_daily_github_actions_backfill_days_cover_strategy_history() -> None:
+    workflow = ROOT / ".github" / "workflows" / "daily.yml"
+
+    text = workflow.read_text(encoding="utf-8")
+    match = re.search(r"python scripts/backfill\.py --days (\d+) --timeout 30 --retries 3 --sleep 1", text)
+
+    assert match is not None
+    assert int(match.group(1)) >= 90
+    assert "strategy.min_history_days=40" in text
 
 
 def test_daily_github_actions_smoke_tests_deployed_pages_report() -> None:
@@ -78,16 +93,39 @@ def test_daily_github_actions_smoke_tests_deployed_pages_report() -> None:
     assert "落後有效交易日" in text
 
 
+def test_daily_github_actions_notification_waits_for_deploy_pages_result() -> None:
+    workflow = ROOT / ".github" / "workflows" / "daily.yml"
+
+    text = workflow.read_text(encoding="utf-8")
+    deploy_job_index = text.index("\n  deploy-pages:")
+    notify_job_index = text.index("\n  notify:")
+    send_step_index = text.index("name: Send daily notification")
+
+    assert deploy_job_index < notify_job_index < send_step_index
+    assert "needs: [daily, deploy-pages]" in text
+    assert "if: always()" in text
+    assert "TW_QUANT_DAILY_JOB_RESULT: ${{ needs.daily.result }}" in text
+    assert "TW_QUANT_DEPLOY_PAGES_JOB_RESULT: ${{ needs.deploy-pages.result }}" in text
+    assert "TW_QUANT_PAGES_SMOKE_TEST_RESULT:" in text
+    assert "python scripts/send_daily_notification.py --reports-dir reports" in text
+
+
 def test_ci_github_actions_workflow_runs_quality_gates() -> None:
     workflow = ROOT / ".github" / "workflows" / "ci.yml"
 
     assert workflow.exists()
     text = workflow.read_text(encoding="utf-8")
     assert "python -m ruff check ." in text
-    assert "python -m ruff format --check" in text
-    assert "src/tw_quant/backtest/engine.py" in text
-    assert "src/tw_quant/trading/pending.py" in text
+    assert "python -m ruff format --check ." in text
+    assert "src/tw_quant/backtest/engine.py" not in text
+    assert "tests/test_pending_orders.py" not in text
     assert "python -m pytest -q" in text
+
+
+def test_pyproject_excludes_generated_data_from_full_format_check() -> None:
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    assert 'extend-exclude = ["data", "reports", "docs"]' in pyproject
 
 
 def test_gitignore_excludes_runtime_sqlite_and_keeps_reports() -> None:

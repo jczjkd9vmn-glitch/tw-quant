@@ -130,11 +130,7 @@ def _revenue_lookup(revenue_scores: pd.DataFrame | None) -> dict[str, float]:
     frame = revenue_scores.copy()
     frame["stock_id"] = frame["stock_id"].astype(str).str.strip()
     values = pd.to_numeric(frame["revenue_yoy"], errors="coerce")
-    return {
-        stock_id: float(value)
-        for stock_id, value in zip(frame["stock_id"], values)
-        if not pd.isna(value)
-    }
+    return {stock_id: float(value) for stock_id, value in zip(frame["stock_id"], values) if not pd.isna(value)}
 
 
 def _to_float(value: object) -> float | None:

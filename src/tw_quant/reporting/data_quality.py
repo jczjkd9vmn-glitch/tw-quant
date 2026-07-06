@@ -54,7 +54,9 @@ def write_data_quality_health(
 ) -> Path:
     path = Path(report_dir) / "data_quality_health.csv"
     path.parent.mkdir(parents=True, exist_ok=True)
-    build_data_quality_health(candidates, data_fetch_status, report_dir=path.parent).to_csv(path, index=False, encoding="utf-8")
+    build_data_quality_health(candidates, data_fetch_status, report_dir=path.parent).to_csv(
+        path, index=False, encoding="utf-8"
+    )
     return path
 
 
@@ -413,7 +415,12 @@ def _benchmark_health_rows(report_dir: Path) -> list[dict[str, object]]:
             "benchmark",
             "WARNING" if missing else "ATTENTION" if fallback or warning else "OK",
             "DATA_REVIEW" if missing or fallback or warning else "OK",
-            warning or (f"benchmark 使用 {source}；can_judge_alpha={str(can_judge_alpha).lower()}" if source else "benchmark source 不足"),
+            warning
+            or (
+                f"benchmark 使用 {source}；can_judge_alpha={str(can_judge_alpha).lower()}"
+                if source
+                else "benchmark source 不足"
+            ),
             data_issue=missing or bool(fallback or warning),
             rows=len(frame),
             affected_rows=1 if missing or fallback or warning else 0,
@@ -428,7 +435,9 @@ def _official_index_health_row(report_dir: Path) -> dict[str, object]:
     has_official = False
     if not frame.empty and {"index_id", "is_official"}.issubset(frame.columns):
         ids = {"TAIEX_TR", "TAIEX", "TPEx", "TPEX"}
-        has_official = bool(frame[frame["index_id"].astype(str).str.strip().isin(ids)]["is_official"].apply(_truthy).any())
+        has_official = bool(
+            frame[frame["index_id"].astype(str).str.strip().isin(ids)]["is_official"].apply(_truthy).any()
+        )
     elif not frame.empty and {"index_id", "close"}.issubset(frame.columns):
         has_official = bool(frame["index_id"].astype(str).str.strip().isin({"TAIEX_TR", "TAIEX", "TPEx", "TPEX"}).any())
     return _row(
@@ -436,7 +445,9 @@ def _official_index_health_row(report_dir: Path) -> dict[str, object]:
         "benchmark",
         "OK" if has_official else "ATTENTION",
         "OK" if has_official else "DATA_REVIEW",
-        "已找到正式 market_indices 資料。" if has_official else "缺少正式加權 / 櫃買指數資料，market regime 與 benchmark 會使用 fallback。",
+        "已找到正式 market_indices 資料。"
+        if has_official
+        else "缺少正式加權 / 櫃買指數資料，market regime 與 benchmark 會使用 fallback。",
         data_issue=not has_official,
         rows=len(frame),
         affected_rows=0 if has_official else 1,
@@ -453,7 +464,11 @@ def _source_health_status(row: pd.Series, status: str, fallback_action: str, row
         return "OK"
     if status in {"FAILED", "MISSING"} and fallback_action != "kept_existing_csv":
         return "WARNING"
-    if status in {"EMPTY", "CACHE", "OK_WITH_FALLBACK", "OK_WITH_WARNING"} or fallback_action == "kept_existing_csv" or rows == 0:
+    if (
+        status in {"EMPTY", "CACHE", "OK_WITH_FALLBACK", "OK_WITH_WARNING"}
+        or fallback_action == "kept_existing_csv"
+        or rows == 0
+    ):
         return "ATTENTION"
     return "OK"
 
@@ -576,7 +591,11 @@ def _source_review_reason(row: pd.Series) -> str:
     if status == "CACHE":
         return f"{source} 使用快取資料，需確認資料時效"
     if status in {"FAILED", "MISSING", "EMPTY"}:
-        reason = f"{source} 尚未取得完整資料，採中性或既有資料；{warning}" if warning else f"{source} 尚未取得完整資料，採中性或既有資料"
+        reason = (
+            f"{source} 尚未取得完整資料，採中性或既有資料；{warning}"
+            if warning
+            else f"{source} 尚未取得完整資料，採中性或既有資料"
+        )
         return _truncate(reason)
     return _truncate(warning or "需人工確認資料來源狀態")
 
@@ -594,7 +613,9 @@ def _industry_fallback_count(frame: pd.DataFrame) -> int:
     if "sector_strength_mode" in frame.columns:
         mode_count = int(frame["sector_strength_mode"].fillna("").astype(str).eq("market_relative_fallback").sum())
     if "sector_strength_warning" in frame.columns:
-        warning_count = int(frame["sector_strength_warning"].fillna("").astype(str).str.contains("缺少產業分類", na=False).sum())
+        warning_count = int(
+            frame["sector_strength_warning"].fillna("").astype(str).str.contains("缺少產業分類", na=False).sum()
+        )
     return max(mode_count, warning_count)
 
 

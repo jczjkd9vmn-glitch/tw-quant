@@ -92,8 +92,12 @@ class RuleBasedEnricher(BaseEnricher):
                     "source_evidence_count": len(evidence),
                     "missing_data_flags": "；".join(missing),
                     "enriched_industry": self._industry(row),
-                    "enriched_industry_source": self._text(row.get("industry_source")) or self._text(row.get("source")) or "local_csv_or_report",
-                    "industry_main": self._text(row.get("industry_main")) or self._text(row.get("industry")) or "未知產業",
+                    "enriched_industry_source": self._text(row.get("industry_source"))
+                    or self._text(row.get("source"))
+                    or "local_csv_or_report",
+                    "industry_main": self._text(row.get("industry_main"))
+                    or self._text(row.get("industry"))
+                    or "未知產業",
                     "industry_sub": self._text(row.get("industry_sub")) or self._text(row.get("sub_industry")) or "",
                     "sector_strength_mode": self._text(row.get("sector_strength_mode")) or "",
                     "relative_strength_5d": row.get("relative_strength_5d", ""),
@@ -247,7 +251,9 @@ class RuleBasedEnricher(BaseEnricher):
             missing.append("產業分類資料不足")
         return missing
 
-    def _risk_explanation(self, row: pd.Series, valuation: ValuationContext, margin: MarginContext, missing: list[str]) -> str:
+    def _risk_explanation(
+        self, row: pd.Series, valuation: ValuationContext, margin: MarginContext, missing: list[str]
+    ) -> str:
         flags = self._text(row.get("investment_risk_flags")) or self._investment_only_flags(row.get("risk_flags"))
         data_flags = self._text(row.get("data_quality_flags"))
         risks = []
@@ -277,7 +283,9 @@ class RuleBasedEnricher(BaseEnricher):
             return f"候選分級 {grade}，僅供排序與人工檢查"
         return "目前只能依既有分數與風險標籤輔助觀察"
 
-    def _manual_focus(self, row: pd.Series, valuation: ValuationContext, margin: MarginContext, missing: list[str]) -> str:
+    def _manual_focus(
+        self, row: pd.Series, valuation: ValuationContext, margin: MarginContext, missing: list[str]
+    ) -> str:
         focuses = []
         if valuation.risk_level in {"MEDIUM", "HIGH", "UNKNOWN"}:
             focuses.append("確認估值是否合理")
@@ -291,13 +299,21 @@ class RuleBasedEnricher(BaseEnricher):
 
     def _sector_context(self, row: pd.Series) -> str:
         industry = self._industry(row)
-        mode = self._text(row.get("sector_strength_mode")) or ("industry_relative" if industry != "未知產業" else "unknown")
+        mode = self._text(row.get("sector_strength_mode")) or (
+            "industry_relative" if industry != "未知產業" else "unknown"
+        )
         score = self._float(row.get("sector_strength_score"))
         rs5 = self._float(row.get("relative_strength_5d"))
         rs20 = self._float(row.get("relative_strength_20d"))
         if score is None:
             return f"{industry}；產業相對強弱資料不足"
-        basis = "同產業" if mode == "industry_relative" else "全市場平均" if mode == "market_relative_fallback" else "未知基準"
+        basis = (
+            "同產業"
+            if mode == "industry_relative"
+            else "全市場平均"
+            if mode == "market_relative_fallback"
+            else "未知基準"
+        )
         if mode == "market_relative_fallback":
             fallback_note = "；目前缺少正式產業分類，因此只能視為全市場相對強弱，不能直接推論為同產業強勢"
         elif mode == "industry_relative":

@@ -54,7 +54,9 @@ def score_monthly_revenue(stock_id: str, revenue: pd.DataFrame) -> dict[str, obj
     accumulated_yoy = _to_float(latest.get("accumulated_revenue_yoy"))
     last3 = pd.to_numeric(frame["revenue_yoy"], errors="coerce").dropna().tail(3)
     trailing_revenue = pd.to_numeric(frame["monthly_revenue"], errors="coerce").dropna().tail(12)
-    is_12m_high = bool(revenue_value is not None and len(trailing_revenue) >= 2 and revenue_value >= trailing_revenue.max())
+    is_12m_high = bool(
+        revenue_value is not None and len(trailing_revenue) >= 2 and revenue_value >= trailing_revenue.max()
+    )
 
     score = 50.0
     reasons: list[str] = []

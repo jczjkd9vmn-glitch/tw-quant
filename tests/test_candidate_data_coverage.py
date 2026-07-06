@@ -33,7 +33,9 @@ def test_etf_is_not_marked_financial_missing_when_eps_roe_missing() -> None:
         ]
     )
 
-    result = apply_multi_factor_scores(candidates, config={"multi_factor": {"enabled": True}}, data_dir=Path("missing-data-dir"))
+    result = apply_multi_factor_scores(
+        candidates, config={"multi_factor": {"enabled": True}}, data_dir=Path("missing-data-dir")
+    )
     row = result.candidates.iloc[0]
 
     assert "財報資料不足" not in str(row["data_quality_flags"])
@@ -123,7 +125,9 @@ def test_relative_strength_is_positive_not_blocking_risk() -> None:
         ]
     )
 
-    result = apply_multi_factor_scores(candidates, config={"multi_factor": {"enabled": True}}, data_dir=Path("missing-data-dir"))
+    result = apply_multi_factor_scores(
+        candidates, config={"multi_factor": {"enabled": True}}, data_dir=Path("missing-data-dir")
+    )
     row = result.candidates.iloc[0]
 
     assert "相對強勢" in str(row["positive_signals"])
@@ -160,8 +164,22 @@ def test_attention_and_disposition_are_blocking_risks(tmp_path: Path) -> None:
     ).to_csv(attention_path, index=False, encoding="utf-8")
     candidates = pd.DataFrame(
         [
-            {"trade_date": "2026-05-27", "stock_id": "2330", "stock_name": "台積電", "total_score": 80, "risk_score": 70, "risk_pass": 1},
-            {"trade_date": "2026-05-27", "stock_id": "2317", "stock_name": "鴻海", "total_score": 80, "risk_score": 70, "risk_pass": 1},
+            {
+                "trade_date": "2026-05-27",
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "total_score": 80,
+                "risk_score": 70,
+                "risk_pass": 1,
+            },
+            {
+                "trade_date": "2026-05-27",
+                "stock_id": "2317",
+                "stock_name": "鴻海",
+                "total_score": 80,
+                "risk_score": 70,
+                "risk_pass": 1,
+            },
         ]
     )
 

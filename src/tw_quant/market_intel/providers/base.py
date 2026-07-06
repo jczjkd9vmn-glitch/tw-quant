@@ -48,5 +48,4 @@ class MarketIntelProvider(Protocol):
 
     source_name: str
 
-    def fetch(self, symbols: list[str], as_of: str | None = None) -> list[MarketContext]:
-        ...
+    def fetch(self, symbols: list[str], as_of: str | None = None) -> list[MarketContext]: ...

@@ -41,8 +41,7 @@ DEFAULT_HISTORY_DAYS = 253
 
 DEFAULT_HEADERS = {
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
     ),
     "Accept": "application/json,text/plain,*/*",
 }
@@ -307,7 +306,9 @@ def _twse_month_rows(payload: object) -> list[dict[str, object]]:
         return rows
     if not isinstance(payload, dict):
         return []
-    fields = [str(field).strip() for field in payload.get("fields", [])] if isinstance(payload.get("fields"), list) else []
+    fields = (
+        [str(field).strip() for field in payload.get("fields", [])] if isinstance(payload.get("fields"), list) else []
+    )
     data = payload.get("data")
     if not isinstance(data, list):
         return []

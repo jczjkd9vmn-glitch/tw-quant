@@ -106,7 +106,10 @@ class RealMarketIntelProvider:
             _number(attention_score.get("event_risk_score"), 50.0),
         )
         source = "mixed" if len(source_parts) > 1 else "best_effort"
-        if source_parts and all(path.exists() for path in [self.data_dir / "material_events.csv", self.data_dir / "attention_disposition.csv"]):
+        if source_parts and all(
+            path.exists()
+            for path in [self.data_dir / "material_events.csv", self.data_dir / "attention_disposition.csv"]
+        ):
             source = "mixed"
 
         return build_market_context(

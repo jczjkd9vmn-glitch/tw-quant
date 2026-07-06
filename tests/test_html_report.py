@@ -507,8 +507,12 @@ def test_html_report_uses_single_freshness_source_everywhere(tmp_path: Path) -> 
     output_path = generate_html_report(tmp_path)
     html = output_path.read_text(encoding="utf-8")
     header = html.split('<header class="account-header brokerage-header">', 1)[1].split("</header>", 1)[0]
-    overview = html.split('<section id="dashboard-overview"', 1)[1].split('<section id="freshness-readiness-dashboard"', 1)[0]
-    freshness = html.split('<section id="freshness-readiness-dashboard"', 1)[1].split('<section id="benchmark-alpha"', 1)[0]
+    overview = html.split('<section id="dashboard-overview"', 1)[1].split(
+        '<section id="freshness-readiness-dashboard"', 1
+    )[0]
+    freshness = html.split('<section id="freshness-readiness-dashboard"', 1)[1].split(
+        '<section id="benchmark-alpha"', 1
+    )[0]
 
     assert "<b>是否使用最近有效資料</b><strong>是</strong>" in header
     assert "<b>實際資料日</b><em>2026-06-09</em>" in overview
@@ -694,7 +698,7 @@ def test_generate_html_report_uses_broker_app_cards_and_profit_classes(tmp_path:
     assert 'data-tab-target="health"' in html
     assert 'data-tab-panel="overview"' in html
     assert 'data-tab-panel="positions"' in html
-    assert 'document.querySelectorAll' in html
+    assert "document.querySelectorAll" in html
     assert '<details class="collapse-block"' in html
     assert "<summary>今日候選股詳細表</summary>" in html
     assert "<summary>通過風控股票詳細表</summary>" in html
@@ -755,7 +759,10 @@ def test_generate_html_report_has_modern_dashboard_sections_and_badges(tmp_path:
     assert ".action-list li,.quality-list li,.risk-list li,.catalyst-list li{color:var(--text-main)" in html
     assert ".detail-grid dd,.mobile-card dl dd,.card-details dd,.collapse-content dd{color:var(--text-main)" in html
     assert ".card-details summary,.collapse-block summary{color:var(--text-strong)" in html
-    assert ".chart-legend,.recap-summary,.pnl-bar-row span,.holding-head span,.card-title-row span{color:var(--text-secondary)" in html
+    assert (
+        ".chart-legend,.recap-summary,.pnl-bar-row span,.holding-head span,.card-title-row span{color:var(--text-secondary)"
+        in html
+    )
     assert "大盤比較 / 超額報酬" in html
     assert 'id="benchmark-alpha"' in html
     assert "超額報酬 alpha" in html
@@ -1017,7 +1024,7 @@ def _write_reports(path: Path) -> None:
                 "status": "SKIPPED_EXISTING_POSITION",
                 "skipped_reason": "已有未平倉持倉，略過重複進場",
                 "warning": "",
-            }
+            },
         ]
     ).to_csv(path / "pending_orders_20260508.csv", index=False, encoding="utf-8")
 

@@ -156,8 +156,7 @@ def _decision_lookup(decisions: pd.DataFrame | None) -> dict[str, dict[str, obje
         if not candidate_rows.empty:
             frame = candidate_rows
     return {
-        stock_id: row.to_dict()
-        for stock_id, row in frame.drop_duplicates("stock_id").set_index("stock_id").iterrows()
+        stock_id: row.to_dict() for stock_id, row in frame.drop_duplicates("stock_id").set_index("stock_id").iterrows()
     }
 
 
@@ -317,7 +316,7 @@ def _latest_file(report_dir: Path, pattern: str, trade_date: str | pd.Timestamp 
             target = report_dir / pattern.replace("*", parsed.strftime("%Y%m%d"))
             if target.exists():
                 return target
-    files = sorted(report_dir.glob(pattern), key=lambda path: (_date_from_path(path) or pd.Timestamp.min))
+    files = sorted(report_dir.glob(pattern), key=lambda path: _date_from_path(path) or pd.Timestamp.min)
     return files[-1] if files else None
 
 

@@ -71,7 +71,10 @@ def _render_readiness_section(optimization: pd.DataFrame, candidate_forward_retu
         _card("Validation sample count", _validation_count(row)),
         _card("Readiness status", _status_label(readiness_status)),
         _card("Readiness reason", readiness_reason or "-"),
-        _card(_t("&#x662f;&#x5426;&#x5141;&#x8a31;&#x6b63;&#x5f0f;&#x8abf;&#x6574;&#x9580;&#x6abb;"), _yes_no(can_recommend_threshold_change)),
+        _card(
+            _t("&#x662f;&#x5426;&#x5141;&#x8a31;&#x6b63;&#x5f0f;&#x8abf;&#x6574;&#x9580;&#x6abb;"),
+            _yes_no(can_recommend_threshold_change),
+        ),
         _card("Dynamic exposure proxy", _dynamic_exposure_text(optimization)),
     ]
     return (
@@ -83,14 +86,16 @@ def _render_readiness_section(optimization: pd.DataFrame, candidate_forward_retu
         + "</div>"
         + _forward_label_cards(candidate_forward_returns)
         + _blocked_forward_summary(candidate_forward_returns)
-        + f"<p class=\"note\">{_t('observation-only &#x9580;&#x6abb;&#x8a3a;&#x65b7;')}</p>"
+        + f'<p class="note">{_t("observation-only &#x9580;&#x6abb;&#x8a3a;&#x65b7;")}</p>'
         + _readiness_table(optimization)
         + "</section>"
     )
 
 
 def _threshold_row(optimization: pd.DataFrame) -> dict[str, object]:
-    matches = optimization[optimization["threshold"].astype(str) == "60"] if "threshold" in optimization else pd.DataFrame()
+    matches = (
+        optimization[optimization["threshold"].astype(str) == "60"] if "threshold" in optimization else pd.DataFrame()
+    )
     if matches.empty:
         matches = optimization
     return matches.iloc[0].to_dict()
@@ -111,7 +116,7 @@ def _observation_notice(readiness_status: str, readiness_reason: str, can_recomm
             f"{_t('&#xff1b;&#x4e0d;&#x53ef;&#x4f5c;&#x70ba;&#x6b63;&#x5f0f;&#x964d;&#x4f4e;&#x9580;&#x6abb;&#x4f9d;&#x64da;&#x3002;')}</span></p>"
         )
     return (
-        f"<p class=\"top-notice benchmark-warning\"><strong>{_t('Observation only / proxy &#x8a3a;&#x65b7;')}</strong>"
+        f'<p class="top-notice benchmark-warning"><strong>{_t("Observation only / proxy &#x8a3a;&#x65b7;")}</strong>'
         f"<span>{_t('Validation &#x6a23;&#x672c;&#x4e0d;&#x8db3;&#xff0c;&#x76ee;&#x524d;&#x50c5;&#x4f9b; observation-only&#x3002;')}</span></p>"
     )
 
@@ -135,7 +140,11 @@ def _readiness_table(optimization: pd.DataFrame) -> str:
     head = "".join(f"<th>{escape(column)}</th>" for column in visible)
     rows = []
     for record in optimization[visible].head(20).to_dict("records"):
-        rows.append("<tr>" + "".join(f"<td>{escape(_format_cell(column, record.get(column)))}</td>" for column in visible) + "</tr>")
+        rows.append(
+            "<tr>"
+            + "".join(f"<td>{escape(_format_cell(column, record.get(column)))}</td>" for column in visible)
+            + "</tr>"
+        )
     return f'<div class="table-wrap"><table><thead><tr>{head}</tr></thead><tbody>{"".join(rows)}</tbody></table></div>'
 
 
@@ -147,8 +156,8 @@ def _status_label(status: str) -> str:
     labels = {
         "READY_FOR_5D_OBSERVATION": "READY_FOR_5D_OBSERVATION",
         "READY_FOR_20D_OBSERVATION": "READY_FOR_20D_OBSERVATION",
-        "DATA_INSUFFICIENT_20D": _t('20d &#x6a23;&#x672c;&#x4e0d;&#x8db3;'),
-        "DATA_INSUFFICIENT_VALIDATION": _t('Validation &#x6a23;&#x672c;&#x4e0d;&#x8db3;'),
+        "DATA_INSUFFICIENT_20D": _t("20d &#x6a23;&#x672c;&#x4e0d;&#x8db3;"),
+        "DATA_INSUFFICIENT_VALIDATION": _t("Validation &#x6a23;&#x672c;&#x4e0d;&#x8db3;"),
         "OBSERVATION_ONLY": "OBSERVATION_ONLY",
     }
     return labels.get(status, status)
@@ -178,7 +187,7 @@ def _blocked_forward_summary(frame: pd.DataFrame) -> str:
     blocked = frame[frame["blocked_by_market_regime"].apply(_truthy)]
     return (
         f"<h3>{_t('&#x88ab; market regime &#x64cb;&#x4e0b;&#x5019;&#x9078;&#x80a1; forward return &#x6458;&#x8981;')}</h3>"
-        f"<p class=\"note\">blocked samples: {len(blocked)}</p>"
+        f'<p class="note">blocked samples: {len(blocked)}</p>'
     )
 
 

@@ -17,7 +17,15 @@ def test_candidate_forward_returns_calculates_5d_and_20d_labels(tmp_path: Path) 
     closes.extend([111.0 + index for index in range(6, 20)])
     closes.append(130.0)
     save_daily_prices(engine, _price_rows(dates, "2330", closes))
-    _write_market_indices(tmp_path, dates, [1000.0] + [1001.0 + index for index in range(1, 5)] + [1050.0] + [1051.0 + index for index in range(6, 20)] + [1100.0])
+    _write_market_indices(
+        tmp_path,
+        dates,
+        [1000.0]
+        + [1001.0 + index for index in range(1, 5)]
+        + [1050.0]
+        + [1051.0 + index for index in range(6, 20)]
+        + [1100.0],
+    )
     _write_candidate(tmp_path, "2026-06-01", score=80, market_regime_score=65)
 
     result = generate_candidate_forward_returns(

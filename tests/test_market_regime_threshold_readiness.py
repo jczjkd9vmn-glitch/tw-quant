@@ -83,7 +83,9 @@ def test_html_report_shows_readiness_status_and_reason(tmp_path: Path) -> None:
     assert "Readiness reason" in html
     assert _t("20d &#x6a23;&#x672c;&#x4e0d;&#x8db3;") in html
     assert _t("&#x76ee;&#x524d;&#x50c5;&#x4f9b; observation-only") in html
-    assert _t("&#x4e0d;&#x53ef;&#x4f5c;&#x70ba;&#x6b63;&#x5f0f;&#x964d;&#x4f4e;&#x9580;&#x6abb;&#x4f9d;&#x64da;") in html
+    assert (
+        _t("&#x4e0d;&#x53ef;&#x4f5c;&#x70ba;&#x6b63;&#x5f0f;&#x964d;&#x4f4e;&#x9580;&#x6abb;&#x4f9d;&#x64da;") in html
+    )
     assert _t("&#x662f;&#x5426;&#x5141;&#x8a31;&#x6b63;&#x5f0f;&#x8abf;&#x6574;&#x9580;&#x6abb;") in html
     assert _t("&#x5426;") in html
 
@@ -121,17 +123,19 @@ def _write_optimizer_reports(
         pd.DataFrame(
             [{"trade_date": date_text, "market_regime_score": score, "market_return_5d": 0.0, "market_return_20d": 0.0}]
         ).to_csv(tmp_path / f"market_regime_{label}.csv", index=False, encoding="utf-8")
-        pd.DataFrame(_candidate_rows(date_text, forward_returns[index], include_forward_returns, candidates_per_day)).to_csv(
+        pd.DataFrame(
+            _candidate_rows(date_text, forward_returns[index], include_forward_returns, candidates_per_day)
+        ).to_csv(
             tmp_path / f"candidates_{label}.csv",
             index=False,
             encoding="utf-8",
         )
-        pd.DataFrame(
-            [{"trade_date": date_text, "benchmark_return_5d": 0.0, "benchmark_return_20d": 0.0}]
-        ).to_csv(tmp_path / f"benchmark_diagnostics_{label}.csv", index=False, encoding="utf-8")
-        pd.DataFrame(
-            [{"trade_date": date_text, "cash": 900_000, "total_equity_after_cost": 1_000_000}]
-        ).to_csv(tmp_path / f"paper_summary_{label}.csv", index=False, encoding="utf-8")
+        pd.DataFrame([{"trade_date": date_text, "benchmark_return_5d": 0.0, "benchmark_return_20d": 0.0}]).to_csv(
+            tmp_path / f"benchmark_diagnostics_{label}.csv", index=False, encoding="utf-8"
+        )
+        pd.DataFrame([{"trade_date": date_text, "cash": 900_000, "total_equity_after_cost": 1_000_000}]).to_csv(
+            tmp_path / f"paper_summary_{label}.csv", index=False, encoding="utf-8"
+        )
         if score < 60:
             pd.DataFrame(_rejected_rows(date_text, score, candidates_per_day)).to_csv(
                 tmp_path / f"rejected_paper_orders_{label}.csv",
@@ -140,7 +144,9 @@ def _write_optimizer_reports(
             )
 
 
-def _candidate_rows(date_text: str, forward_return: float, include_forward_returns: bool, count: int) -> list[dict[str, object]]:
+def _candidate_rows(
+    date_text: str, forward_return: float, include_forward_returns: bool, count: int
+) -> list[dict[str, object]]:
     rows = []
     for index in range(count):
         row: dict[str, object] = {

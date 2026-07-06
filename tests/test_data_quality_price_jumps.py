@@ -37,8 +37,24 @@ def test_detect_price_jumps_marks_0050_like_wrong_price_with_tighter_threshold()
 def test_validate_price_data_can_block_extreme_daily_jump() -> None:
     prices = pd.DataFrame(
         [
-            {"trade_date": "2026-06-01", "symbol": "2330", "open": 100, "high": 101, "low": 99, "close": 100, "volume": 1000},
-            {"trade_date": "2026-06-02", "symbol": "2330", "open": 40, "high": 41, "low": 39, "close": 40, "volume": 1000},
+            {
+                "trade_date": "2026-06-01",
+                "symbol": "2330",
+                "open": 100,
+                "high": 101,
+                "low": 99,
+                "close": 100,
+                "volume": 1000,
+            },
+            {
+                "trade_date": "2026-06-02",
+                "symbol": "2330",
+                "open": 40,
+                "high": 41,
+                "low": 39,
+                "close": 40,
+                "volume": 1000,
+            },
         ]
     )
 

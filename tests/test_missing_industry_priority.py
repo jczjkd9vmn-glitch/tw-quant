@@ -155,9 +155,30 @@ def _write_priority_inputs(base: Path) -> None:
     ).to_csv(data_dir / "sector_strength.csv", index=False, encoding="utf-8")
     pd.DataFrame(
         [
-            {"trade_date": "2026-05-29", "stock_id": "1001", "stock_name": "高優先", "liquidity_score": 92, "avg_volume_20d": 100000, "latest_turnover": 3000000},
-            {"trade_date": "2026-05-29", "stock_id": "3003", "stock_name": "中優先", "liquidity_score": 90, "avg_volume_20d": 90000, "latest_turnover": 2000000},
-            {"trade_date": "2026-05-29", "stock_id": "4004", "stock_name": "低優先", "liquidity_score": 20, "avg_volume_20d": 1000, "latest_turnover": 10000},
+            {
+                "trade_date": "2026-05-29",
+                "stock_id": "1001",
+                "stock_name": "高優先",
+                "liquidity_score": 92,
+                "avg_volume_20d": 100000,
+                "latest_turnover": 3000000,
+            },
+            {
+                "trade_date": "2026-05-29",
+                "stock_id": "3003",
+                "stock_name": "中優先",
+                "liquidity_score": 90,
+                "avg_volume_20d": 90000,
+                "latest_turnover": 2000000,
+            },
+            {
+                "trade_date": "2026-05-29",
+                "stock_id": "4004",
+                "stock_name": "低優先",
+                "liquidity_score": 20,
+                "avg_volume_20d": 1000,
+                "latest_turnover": 10000,
+            },
         ]
     ).to_csv(data_dir / "liquidity.csv", index=False, encoding="utf-8")
     pd.DataFrame([{"trade_date": "2026-05-29", "stock_id": "1001", "stock_name": "高優先"}]).to_csv(

@@ -77,12 +77,18 @@ def risk_adjusted_alpha_snapshot(
         }
     )
 
-    benchmark_returns = benchmark_snapshot.get("returns", {}) if isinstance(benchmark_snapshot.get("returns"), dict) else {}
+    benchmark_returns = (
+        benchmark_snapshot.get("returns", {}) if isinstance(benchmark_snapshot.get("returns"), dict) else {}
+    )
     for days in RISK_ALPHA_WINDOWS:
         window = f"{days}d"
         strategy_return = _period_return(strategy["equity"] if not strategy.empty else pd.Series(dtype=float), days)
-        benchmark_return = _num(benchmark_returns.get(window)) if _benchmark_can_judge(benchmark_snapshot, window) else None
-        can_judge = bool(strategy_can_judge_window(readiness, window) and _benchmark_can_judge(benchmark_snapshot, window))
+        benchmark_return = (
+            _num(benchmark_returns.get(window)) if _benchmark_can_judge(benchmark_snapshot, window) else None
+        )
+        can_judge = bool(
+            strategy_can_judge_window(readiness, window) and _benchmark_can_judge(benchmark_snapshot, window)
+        )
         excess_return = _sub_or_none(strategy_return, benchmark_return) if can_judge else None
         metrics[f"strategy_return_{window}"] = _round(strategy_return)
         metrics[f"benchmark_return_{window}"] = _round(benchmark_return)
@@ -163,11 +169,15 @@ def _status_from_metrics(
 
     valid_trade_count = int(readiness.get("valid_trade_count", 0) or 0)
     if primary_days >= 60 and valid_trade_count >= 50:
-        return "OUTPERFORMING_CONFIRMED", "OUTPERFORMING_CONFIRMED", (
-            f"{primary_days} 日樣本足夠，excess_return 為正，且回撤 / 波動未明顯劣於 benchmark。"
+        return (
+            "OUTPERFORMING_CONFIRMED",
+            "OUTPERFORMING_CONFIRMED",
+            (f"{primary_days} 日樣本足夠，excess_return 為正，且回撤 / 波動未明顯劣於 benchmark。"),
         )
-    return "OUTPERFORMING_SHORT_TERM", "OUTPERFORMING_SHORT_TERM", (
-        f"excess_return 為正，但目前僅有 {primary_days} 日或交易筆數偏短，仍屬短期觀察。"
+    return (
+        "OUTPERFORMING_SHORT_TERM",
+        "OUTPERFORMING_SHORT_TERM",
+        (f"excess_return 為正，但目前僅有 {primary_days} 日或交易筆數偏短，仍屬短期觀察。"),
     )
 
 

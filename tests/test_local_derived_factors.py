@@ -147,14 +147,70 @@ def test_multi_factor_uses_liquidity_and_sector_without_changing_trade_flags(tmp
     )
     pd.DataFrame(
         [
-            {"trade_date": "2026-05-15", "stock_id": "2330", "stock_name": "台積電", "avg_volume_20d": 1_000_000, "avg_turnover_20d": 100_000_000, "latest_volume": 1_000_000, "latest_turnover": 100_000_000, "turnover_ratio_20d": 1.0, "liquidity_score": 92, "slippage_risk_score": 90, "liquidity_warning": ""},
-            {"trade_date": "2026-05-15", "stock_id": "9999", "stock_name": "低量股", "avg_volume_20d": 50_000, "avg_turnover_20d": 2_000_000, "latest_volume": 50_000, "latest_turnover": 2_000_000, "turnover_ratio_20d": 1.0, "liquidity_score": 35, "slippage_risk_score": 30, "liquidity_warning": "流動性偏低，短線進出可能有滑價風險"},
+            {
+                "trade_date": "2026-05-15",
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "avg_volume_20d": 1_000_000,
+                "avg_turnover_20d": 100_000_000,
+                "latest_volume": 1_000_000,
+                "latest_turnover": 100_000_000,
+                "turnover_ratio_20d": 1.0,
+                "liquidity_score": 92,
+                "slippage_risk_score": 90,
+                "liquidity_warning": "",
+            },
+            {
+                "trade_date": "2026-05-15",
+                "stock_id": "9999",
+                "stock_name": "低量股",
+                "avg_volume_20d": 50_000,
+                "avg_turnover_20d": 2_000_000,
+                "latest_volume": 50_000,
+                "latest_turnover": 2_000_000,
+                "turnover_ratio_20d": 1.0,
+                "liquidity_score": 35,
+                "slippage_risk_score": 30,
+                "liquidity_warning": "流動性偏低，短線進出可能有滑價風險",
+            },
         ]
     ).to_csv(tmp_path / "liquidity.csv", index=False)
     pd.DataFrame(
         [
-            {"trade_date": "2026-05-15", "stock_id": "2330", "stock_name": "台積電", "industry": "全市場", "stock_return_5d": 0.05, "stock_return_20d": 0.2, "market_return_5d": 0.01, "market_return_20d": 0.05, "sector_return_5d": 0.01, "sector_return_20d": 0.05, "relative_strength_5d": 0.04, "relative_strength_20d": 0.15, "sector_strength_score": 86, "sector_strength_rank": 1, "sector_strength_warning": "缺少產業分類，使用全市場相對強弱"},
-            {"trade_date": "2026-05-15", "stock_id": "9999", "stock_name": "低量股", "industry": "全市場", "stock_return_5d": -0.01, "stock_return_20d": -0.1, "market_return_5d": 0.01, "market_return_20d": 0.05, "sector_return_5d": 0.01, "sector_return_20d": 0.05, "relative_strength_5d": -0.02, "relative_strength_20d": -0.15, "sector_strength_score": 35, "sector_strength_rank": 2, "sector_strength_warning": "缺少產業分類，使用全市場相對強弱"},
+            {
+                "trade_date": "2026-05-15",
+                "stock_id": "2330",
+                "stock_name": "台積電",
+                "industry": "全市場",
+                "stock_return_5d": 0.05,
+                "stock_return_20d": 0.2,
+                "market_return_5d": 0.01,
+                "market_return_20d": 0.05,
+                "sector_return_5d": 0.01,
+                "sector_return_20d": 0.05,
+                "relative_strength_5d": 0.04,
+                "relative_strength_20d": 0.15,
+                "sector_strength_score": 86,
+                "sector_strength_rank": 1,
+                "sector_strength_warning": "缺少產業分類，使用全市場相對強弱",
+            },
+            {
+                "trade_date": "2026-05-15",
+                "stock_id": "9999",
+                "stock_name": "低量股",
+                "industry": "全市場",
+                "stock_return_5d": -0.01,
+                "stock_return_20d": -0.1,
+                "market_return_5d": 0.01,
+                "market_return_20d": 0.05,
+                "sector_return_5d": 0.01,
+                "sector_return_20d": 0.05,
+                "relative_strength_5d": -0.02,
+                "relative_strength_20d": -0.15,
+                "sector_strength_score": 35,
+                "sector_strength_rank": 2,
+                "sector_strength_warning": "缺少產業分類，使用全市場相對強弱",
+            },
         ]
     ).to_csv(tmp_path / "sector_strength.csv", index=False)
 
@@ -211,14 +267,50 @@ def test_fetch_multi_factor_uses_local_derived_providers(tmp_path: Path, monkeyp
         def fetch_liquidity(self, trade_date: str) -> ProviderResult:
             return ProviderResult(
                 "liquidity",
-                pd.DataFrame([{"trade_date": "2026-05-15", "stock_id": "2330", "stock_name": "台積電", "avg_volume_20d": 1, "avg_turnover_20d": 100_000_000, "latest_volume": 1, "latest_turnover": 100_000_000, "turnover_ratio_20d": 1, "liquidity_score": 92, "slippage_risk_score": 90, "liquidity_warning": ""}]),
+                pd.DataFrame(
+                    [
+                        {
+                            "trade_date": "2026-05-15",
+                            "stock_id": "2330",
+                            "stock_name": "台積電",
+                            "avg_volume_20d": 1,
+                            "avg_turnover_20d": 100_000_000,
+                            "latest_volume": 1,
+                            "latest_turnover": 100_000_000,
+                            "turnover_ratio_20d": 1,
+                            "liquidity_score": 92,
+                            "slippage_risk_score": 90,
+                            "liquidity_warning": "",
+                        }
+                    ]
+                ),
                 "OK",
             )
 
         def fetch_sector_strength(self, trade_date: str) -> ProviderResult:
             return ProviderResult(
                 "sector_strength",
-                pd.DataFrame([{"trade_date": "2026-05-15", "stock_id": "2330", "stock_name": "台積電", "industry": "全市場", "stock_return_5d": 0.01, "stock_return_20d": 0.05, "market_return_5d": 0, "market_return_20d": 0, "sector_return_5d": 0, "sector_return_20d": 0, "relative_strength_5d": 0.01, "relative_strength_20d": 0.05, "sector_strength_score": 70, "sector_strength_rank": 1, "sector_strength_warning": ""}]),
+                pd.DataFrame(
+                    [
+                        {
+                            "trade_date": "2026-05-15",
+                            "stock_id": "2330",
+                            "stock_name": "台積電",
+                            "industry": "全市場",
+                            "stock_return_5d": 0.01,
+                            "stock_return_20d": 0.05,
+                            "market_return_5d": 0,
+                            "market_return_20d": 0,
+                            "sector_return_5d": 0,
+                            "sector_return_20d": 0,
+                            "relative_strength_5d": 0.01,
+                            "relative_strength_20d": 0.05,
+                            "sector_strength_score": 70,
+                            "sector_strength_rank": 1,
+                            "sector_strength_warning": "",
+                        }
+                    ]
+                ),
                 "OK",
             )
 

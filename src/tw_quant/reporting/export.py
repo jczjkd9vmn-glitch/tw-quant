@@ -240,7 +240,9 @@ def export_latest_candidates(
         fallback_reason=fallback_reason,
     )
     if not market_intel.empty:
-        candidates = candidates.drop(columns=[column for column in MARKET_INTEL_COLUMNS if column in candidates.columns])
+        candidates = candidates.drop(
+            columns=[column for column in MARKET_INTEL_COLUMNS if column in candidates.columns]
+        )
         candidates = candidates.merge(market_intel, on="stock_id", how="left")
     for column in EXPORT_COLUMNS:
         if column not in candidates.columns:
@@ -281,9 +283,7 @@ def _format_candidates(
     liquidity_path: str | Path | None = None,
     config: dict | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    frame = scores.sort_values(["total_score", "risk_score"], ascending=[False, False]).reset_index(
-        drop=True
-    )
+    frame = scores.sort_values(["total_score", "risk_score"], ascending=[False, False]).reset_index(drop=True)
     frame["rank"] = frame.index + 1
     frame["trade_date"] = pd.to_datetime(frame["trade_date"]).dt.strftime("%Y-%m-%d")
     frame["stock_id"] = frame["symbol"].astype(str)
@@ -330,7 +330,11 @@ def _apply_tradable_pass_compatibility(frame: pd.DataFrame) -> pd.DataFrame:
         return frame
     output = frame.copy()
     if "technical_risk_pass" not in output.columns:
-        fallback = output["risk_pass"] if "risk_pass" in output.columns else pd.Series([False] * len(output), index=output.index)
+        fallback = (
+            output["risk_pass"]
+            if "risk_pass" in output.columns
+            else pd.Series([False] * len(output), index=output.index)
+        )
         output["technical_risk_pass"] = fallback.apply(_to_bool)
     else:
         output["technical_risk_pass"] = output["technical_risk_pass"].apply(_to_bool)

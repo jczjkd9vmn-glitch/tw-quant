@@ -94,7 +94,9 @@ def generate_underperformance_attribution(
     output_path = report_dir / f"underperformance_attribution_{date_label}.csv"
     frame.to_csv(output_path, index=False, encoding="utf-8")
 
-    warnings = [str(value) for value in frame.get("data_quality_warning", pd.Series(dtype=str)).dropna().unique() if str(value)]
+    warnings = [
+        str(value) for value in frame.get("data_quality_warning", pd.Series(dtype=str)).dropna().unique() if str(value)
+    ]
     status = "OK"
     if not frame.empty and (frame["diagnostic_status"].astype(str) == "DATA_INSUFFICIENT").all():
         status = "DATA_INSUFFICIENT"
@@ -154,7 +156,11 @@ def _stock_selection_alpha(
 
     strategy_return = float((stock_returns[valid] * weights[valid]).sum())
     alpha = _sub_or_none(strategy_return, benchmark_20d)
-    conclusion = "持有股票近期平均報酬落後 benchmark。" if alpha is not None and alpha < 0 else "持有股票近期平均報酬未落後 benchmark。"
+    conclusion = (
+        "持有股票近期平均報酬落後 benchmark。"
+        if alpha is not None and alpha < 0
+        else "持有股票近期平均報酬未落後 benchmark。"
+    )
     return [
         _row(
             trade_date,
@@ -262,7 +268,9 @@ def _exit_timing_diagnostic(
             )
             continue
         mean_return = float(post_exit.mean())
-        conclusion = f"{label} proxy 為正，需進一步人工檢查。" if mean_return > 0 else f"{label} proxy 未顯示明顯正報酬。"
+        conclusion = (
+            f"{label} proxy 為正，需進一步人工檢查。" if mean_return > 0 else f"{label} proxy 未顯示明顯正報酬。"
+        )
         rows.append(
             _row(
                 trade_date,
@@ -300,7 +308,9 @@ def _drawdown_contribution(
     if "max_adverse_excursion" in frame.columns:
         frame["_drawdown"] = pd.to_numeric(frame["max_adverse_excursion"], errors="coerce")
     else:
-        frame["_drawdown"] = pd.to_numeric(frame.get("realized_pnl_pct_after_cost", frame.get("realized_pnl_pct")), errors="coerce")
+        frame["_drawdown"] = pd.to_numeric(
+            frame.get("realized_pnl_pct_after_cost", frame.get("realized_pnl_pct")), errors="coerce"
+        )
     frame = frame.dropna(subset=["_drawdown"]).sort_values("_drawdown", ascending=True)
     if frame.empty:
         return [
@@ -355,7 +365,9 @@ def _position_concentration(
                 notes="此區只做診斷，不修改策略。",
             )
         ]
-    frame["_pnl"] = frame.apply(lambda row: _first_number(row, ["realized_pnl_after_cost", "unrealized_pnl", "realized_pnl"]) or 0.0, axis=1)
+    frame["_pnl"] = frame.apply(
+        lambda row: _first_number(row, ["realized_pnl_after_cost", "unrealized_pnl", "realized_pnl"]) or 0.0, axis=1
+    )
     frame["_abs_pnl"] = frame["_pnl"].abs()
     total_abs = float(frame["_abs_pnl"].sum())
     if total_abs <= 0:
@@ -372,7 +384,9 @@ def _position_concentration(
         ]
     top3 = frame.sort_values("_abs_pnl", ascending=False).head(3).copy()
     top3_contribution = float(top3["_abs_pnl"].sum() / total_abs)
-    conclusion = "損益集中在少數股票，回撤可能受個股影響較大。" if top3_contribution >= 0.6 else "損益集中度未明顯過高。"
+    conclusion = (
+        "損益集中在少數股票，回撤可能受個股影響較大。" if top3_contribution >= 0.6 else "損益集中度未明顯過高。"
+    )
     rows = [
         _row(
             trade_date,
@@ -453,7 +467,9 @@ def _sector_allocation_alpha(
                 benchmark_value=benchmark_20d,
                 alpha=alpha,
                 diagnostic_status="OBSERVATION_ONLY",
-                conclusion="持倉產業近期落後 benchmark。" if alpha is not None and alpha < 0 else "持倉產業近期未落後 benchmark。",
+                conclusion="持倉產業近期落後 benchmark。"
+                if alpha is not None and alpha < 0
+                else "持倉產業近期未落後 benchmark。",
                 data_quality_warning="OBSERVATION_ONLY",
                 notes="使用最新 sector_return_20d 作產業配置 proxy；此區只做診斷。",
             )
@@ -496,7 +512,9 @@ def _missed_benchmark_rally(
             )
         ]
     missed = benchmark_20d > 0.03 and invested_ratio < 0.5
-    conclusion = "大盤上漲期間持倉比例偏低，可能錯過 benchmark rally。" if missed else "未看到明顯因持倉不足錯過大盤上漲的訊號。"
+    conclusion = (
+        "大盤上漲期間持倉比例偏低，可能錯過 benchmark rally。" if missed else "未看到明顯因持倉不足錯過大盤上漲的訊號。"
+    )
     if conclusion_status == "UNDERPERFORMING" and missed:
         conclusion += " 這可能是目前 UNDERPERFORMING 的一項原因。"
     return [
@@ -596,7 +614,12 @@ def _ensure_stock_id(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def _join_sector(frame: pd.DataFrame, sector_strength: pd.DataFrame) -> pd.DataFrame:
-    if frame.empty or sector_strength.empty or "stock_id" not in frame.columns or "stock_id" not in sector_strength.columns:
+    if (
+        frame.empty
+        or sector_strength.empty
+        or "stock_id" not in frame.columns
+        or "stock_id" not in sector_strength.columns
+    ):
         return frame.copy()
     sector = sector_strength.copy()
     sector["stock_id"] = sector["stock_id"].astype(str).str.strip()

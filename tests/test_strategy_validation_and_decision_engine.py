@@ -47,7 +47,12 @@ def test_strategy_validation_handles_missing_data_without_crashing(tmp_path: Pat
 
 
 def test_candidate_grading_rules() -> None:
-    assert grade_candidate(pd.Series(_candidate("2330", confidence_score=80, liquidity_score=80, sector_strength_score=65))).candidate_grade == "A"
+    assert (
+        grade_candidate(
+            pd.Series(_candidate("2330", confidence_score=80, liquidity_score=80, sector_strength_score=65))
+        ).candidate_grade
+        == "A"
+    )
     assert grade_candidate(pd.Series(_candidate("2331", confidence_score=55))).candidate_grade == "C"
     assert grade_candidate(pd.Series(_candidate("2332", is_attention_stock=True))).candidate_grade == "C"
     assert grade_candidate(pd.Series(_candidate("2333", is_disposition_stock=True))).candidate_grade == "D"
@@ -129,15 +134,27 @@ def _write_candidate_reports(path: Path) -> None:
     candidates = pd.DataFrame(
         [
             _candidate("2330", "台積電", confidence_score=80, liquidity_score=80, sector_strength_score=65),
-            _candidate("2317", "鴻海", confidence_score=55, liquidity_score=70, sector_strength_score=55, risk_flags="資料不足"),
+            _candidate(
+                "2317", "鴻海", confidence_score=55, liquidity_score=70, sector_strength_score=55, risk_flags="資料不足"
+            ),
             _candidate("3008", "大立光", confidence_score=68, liquidity_score=70, sector_strength_score=55),
-            _candidate("2603", "長榮", confidence_score=75, liquidity_score=80, sector_strength_score=70, event_risk_level="HIGH", event_blocked=True),
+            _candidate(
+                "2603",
+                "長榮",
+                confidence_score=75,
+                liquidity_score=80,
+                sector_strength_score=70,
+                event_risk_level="HIGH",
+                event_blocked=True,
+            ),
             _candidate("1101", "台泥", confidence_score=75, liquidity_score=45, sector_strength_score=70),
             _candidate("2303", "聯電", confidence_score=75, liquidity_score=70, sector_strength_score=40),
         ]
     )
     candidates.to_csv(path / "candidates_20260515.csv", index=False, encoding="utf-8")
-    candidates[candidates["risk_pass"] == 1].to_csv(path / "risk_pass_candidates_20260515.csv", index=False, encoding="utf-8")
+    candidates[candidates["risk_pass"] == 1].to_csv(
+        path / "risk_pass_candidates_20260515.csv", index=False, encoding="utf-8"
+    )
 
 
 def _candidate(symbol: str, name: str = "測試股", **overrides) -> dict:

@@ -371,7 +371,9 @@ def _safe_score(
     except Exception as exc:  # pragma: no cover - defensive guard for malformed local data
         return (
             neutral,
-            DataFetchStatus(source_name, "FAILED", 0, warning="using neutral scores", error_message=f"{type(exc).__name__}: {exc}"),
+            DataFetchStatus(
+                source_name, "FAILED", 0, warning="using neutral scores", error_message=f"{type(exc).__name__}: {exc}"
+            ),
         )
 
 
@@ -436,11 +438,15 @@ def _multi_factor_reason(row: pd.Series) -> str:
         ):
             flags.append("基本面資料不足")
         if ("資料不足" in str(row.get("valuation_reason", ""))) or (
-            _number(row.get("valuation_score"), 50.0) == 50.0 and _is_blank(row.get("pe_ratio")) and _is_blank(row.get("pb_ratio"))
+            _number(row.get("valuation_score"), 50.0) == 50.0
+            and _is_blank(row.get("pe_ratio"))
+            and _is_blank(row.get("pb_ratio"))
         ):
             flags.append("估值資料不足")
         if ("資料不足" in str(row.get("financial_reason", ""))) or (
-            _number(row.get("financial_score"), 50.0) == 50.0 and _is_blank(row.get("eps")) and _is_blank(row.get("roe"))
+            _number(row.get("financial_score"), 50.0) == 50.0
+            and _is_blank(row.get("eps"))
+            and _is_blank(row.get("roe"))
         ):
             flags.append("財報資料不足")
     if _to_bool(row.get("is_attention_stock")):
@@ -496,8 +502,7 @@ def _merge_factor_data(frame: pd.DataFrame, data: pd.DataFrame) -> pd.DataFrame:
             continue
         if column == "event_risk_level" and column in result.columns:
             result[column] = [
-                _higher_risk(existing, incoming)
-                for existing, incoming in zip(result[column].tolist(), mapped.tolist())
+                _higher_risk(existing, incoming) for existing, incoming in zip(result[column].tolist(), mapped.tolist())
             ]
             continue
         if column in result.columns:
@@ -744,9 +749,17 @@ def _data_quality_flags(row: pd.Series) -> str:
     else:
         if _number(row.get("revenue_score"), 50.0) == 50.0 and _is_blank(row.get("revenue_yoy")):
             flags.append("基本面資料不足")
-        if _number(row.get("valuation_score"), 50.0) == 50.0 and _is_blank(row.get("pe_ratio")) and _is_blank(row.get("pb_ratio")):
+        if (
+            _number(row.get("valuation_score"), 50.0) == 50.0
+            and _is_blank(row.get("pe_ratio"))
+            and _is_blank(row.get("pb_ratio"))
+        ):
             flags.append("估值資料不足")
-        if _number(row.get("financial_score"), 50.0) == 50.0 and _is_blank(row.get("eps")) and _is_blank(row.get("roe")):
+        if (
+            _number(row.get("financial_score"), 50.0) == 50.0
+            and _is_blank(row.get("eps"))
+            and _is_blank(row.get("roe"))
+        ):
             flags.append("財報資料不足")
     if _number(row.get("liquidity_score"), 50.0) == 50.0 and _is_blank(row.get("avg_turnover_20d")):
         flags.append("流動性資料不足")
@@ -786,7 +799,12 @@ def _investment_risk_flags(row: pd.Series) -> str:
         "revenue_warning",
     ]:
         for part in _flag_parts(row.get(column)):
-            if part and not _is_data_issue_text(part) and not _is_blocking_text(part) and not _is_positive_signal_text(part):
+            if (
+                part
+                and not _is_data_issue_text(part)
+                and not _is_blocking_text(part)
+                and not _is_positive_signal_text(part)
+            ):
                 flags.append(part)
     return _join_flags(flags)
 
@@ -821,7 +839,12 @@ def _warning_signals(row: pd.Series) -> str:
         "revenue_warning",
     ]:
         for part in _flag_parts(row.get(column)):
-            if part and not _is_data_issue_text(part) and not _is_blocking_text(part) and not _is_positive_signal_text(part):
+            if (
+                part
+                and not _is_data_issue_text(part)
+                and not _is_blocking_text(part)
+                and not _is_positive_signal_text(part)
+            ):
                 flags.append(part)
     return _join_flags(flags)
 
@@ -907,7 +930,9 @@ def _flag_parts(value: object) -> list[str]:
 
 def _is_data_issue_text(value: str) -> bool:
     text = str(value or "")
-    return any(keyword in text for keyword in ["資料不足", "缺少產業分類", "採中性", "無法產生", "ETF_METADATA_MISSING"])
+    return any(
+        keyword in text for keyword in ["資料不足", "缺少產業分類", "採中性", "無法產生", "ETF_METADATA_MISSING"]
+    )
 
 
 def _is_blocking_text(value: str) -> bool:

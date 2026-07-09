@@ -404,7 +404,9 @@ def test_market_intel_candidate_cards_use_collapsed_details(tmp_path: Path) -> N
 
     assert "market-card" in fundamental_tab
     assert "展開完整資料" in fundamental_tab
-    first_card = fundamental_tab.split('class="mobile-card market-card"', 1)[1].split("<summary>展開完整資料</summary>", 1)[0]
+    first_card = fundamental_tab.split('class="mobile-card market-card"', 1)[1].split(
+        "<summary>展開完整資料</summary>", 1
+    )[0]
     assert "多因子理由" not in first_card
 
 
@@ -464,7 +466,11 @@ def _write_reports(
             }
         ]
     ).to_csv(path / "paper_summary_20260508.csv", index=False, encoding="utf-8")
-    (data_fetch_status if data_fetch_status is not None else _status_frame([("institutional", "OK", 2, "best_effort", "wrote_new_data")])).to_csv(
+    (
+        data_fetch_status
+        if data_fetch_status is not None
+        else _status_frame([("institutional", "OK", 2, "best_effort", "wrote_new_data")])
+    ).to_csv(
         path / "data_fetch_status_20260508.csv",
         index=False,
         encoding="utf-8",
@@ -537,7 +543,13 @@ def _candidates() -> pd.DataFrame:
 def _pending_orders() -> pd.DataFrame:
     return pd.DataFrame(
         [
-            {"signal_date": "2026-05-08", "stock_id": "2330", "stock_name": "測試一", "status": "PENDING", "signal_close": 100.0},
+            {
+                "signal_date": "2026-05-08",
+                "stock_id": "2330",
+                "stock_name": "測試一",
+                "status": "PENDING",
+                "signal_close": 100.0,
+            },
             {
                 "signal_date": "2026-05-08",
                 "stock_id": "2317",

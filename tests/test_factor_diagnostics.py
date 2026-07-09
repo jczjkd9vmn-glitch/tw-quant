@@ -40,8 +40,7 @@ def test_factor_diagnostics_missing_factor_columns_do_not_crash(tmp_path: Path) 
     result = generate_factor_diagnostics(tmp_path, trade_date="2026-06-04")
 
     missing_total_score = result.factor_attribution[
-        (result.factor_attribution["factor_name"] == "total_score")
-        & (result.factor_attribution["bucket"] == "MISSING")
+        (result.factor_attribution["factor_name"] == "total_score") & (result.factor_attribution["bucket"] == "MISSING")
     ]
     assert not missing_total_score.empty
     assert missing_total_score.iloc[0]["conclusion"] == "DATA_INSUFFICIENT"

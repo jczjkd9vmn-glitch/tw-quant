@@ -164,6 +164,7 @@ def evaluate_candidate_entry(
         context.new_entries_allowed,
     )
 
+
 def _blocked(reason: str, context: GuardrailContext) -> GuardrailDecision:
     return GuardrailDecision(
         False,

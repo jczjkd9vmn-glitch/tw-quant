@@ -133,7 +133,11 @@ def _candidate_decisions(candidates: pd.DataFrame, config: dict, trade_date: pd.
         liquidity = _num(row.get("liquidity_score"), 50.0)
         event_level = str(row.get("event_risk_level", "") or "").upper()
         disposition = _to_bool(row.get("is_disposition_stock"))
-        blocked = _to_bool(row.get("event_blocked")) or (block_high_event and event_level == "HIGH") or (block_disposition and disposition)
+        blocked = (
+            _to_bool(row.get("event_blocked"))
+            or (block_high_event and event_level == "HIGH")
+            or (block_disposition and disposition)
+        )
         market_data_stale = block_stale_market_data and _market_data_is_stale(row)
         buy_candidate_ready = (
             _grade_value(grade) >= _grade_value(min_grade)
@@ -177,12 +181,16 @@ def _position_decisions(
         merged = _merge_position_context(position, candidate_lookup.get(stock_id))
         risk_light = str(merged.get("risk_light", "") or "").strip()
         near_stop = _near_stop_loss(merged, config)
-        high_event = str(merged.get("event_risk_level", "") or "").upper() == "HIGH" or _to_bool(merged.get("is_disposition_stock"))
+        high_event = str(merged.get("event_risk_level", "") or "").upper() == "HIGH" or _to_bool(
+            merged.get("is_disposition_stock")
+        )
         partial_exit = str(merged.get("exit_reason", "") or "").lower() in {"take_profit_1", "take_profit_2"}
         if near_stop or high_event or _to_bool(merged.get("stop_loss_hit")):
             decision, level, action = "EXIT", "HIGH_RISK", "exit_signal_review"
             reason = "出場訊號檢查，需人工確認；不會自動賣出"
-        elif risk_light == "紅燈" or risk_light == "黃燈" or partial_exit or _num(merged.get("liquidity_score"), 50) < 50:
+        elif (
+            risk_light == "紅燈" or risk_light == "黃燈" or partial_exit or _num(merged.get("liquidity_score"), 50) < 50
+        ):
             decision, level, action = "REDUCE", "CAUTION", "reduce_risk"
             reason = "持倉風險升高，需人工檢查部位風險"
         else:
@@ -277,7 +285,13 @@ def _near_stop_loss(row: pd.Series, config: dict) -> bool:
 def _data_quality_note(row: pd.Series | dict) -> str:
     text = "；".join(
         _text(row.get(column, ""))
-        for column in ["data_quality_flags", "market_intel_warning", "data_source_warning", "financial_warning", "valuation_warning"]
+        for column in [
+            "data_quality_flags",
+            "market_intel_warning",
+            "data_source_warning",
+            "financial_warning",
+            "valuation_warning",
+        ]
         if _text(row.get(column, ""))
     )
     return text or "資料品質已檢查；仍需人工確認"
@@ -312,7 +326,7 @@ def _latest_file(report_dir: Path, pattern: str, trade_date: str | None = None) 
             target = report_dir / pattern.replace("*", parsed.strftime("%Y%m%d"))
             if target.exists():
                 return target
-    files = sorted(report_dir.glob(pattern), key=lambda path: (_date_from_path(path) or pd.Timestamp.min))
+    files = sorted(report_dir.glob(pattern), key=lambda path: _date_from_path(path) or pd.Timestamp.min)
     return files[-1] if files else None
 
 

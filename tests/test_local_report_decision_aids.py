@@ -15,11 +15,43 @@ from scripts.generate_html_report import (
 def test_holding_risk_light_rules() -> None:
     frame = pd.DataFrame(
         [
-            {"stock_id": "A", "current_price": 100, "stop_loss_price": 98, "liquidity_score": 80, "confidence_score": 90},
-            {"stock_id": "B", "current_price": 100, "stop_loss_price": 80, "liquidity_score": 80, "confidence_score": 50},
-            {"stock_id": "C", "current_price": 100, "stop_loss_price": 80, "is_attention_stock": True, "liquidity_score": 80, "confidence_score": 90},
-            {"stock_id": "D", "current_price": 100, "stop_loss_price": 80, "is_disposition_stock": True, "liquidity_score": 80, "confidence_score": 90},
-            {"stock_id": "E", "current_price": 100, "stop_loss_price": 80, "liquidity_score": 80, "confidence_score": 90},
+            {
+                "stock_id": "A",
+                "current_price": 100,
+                "stop_loss_price": 98,
+                "liquidity_score": 80,
+                "confidence_score": 90,
+            },
+            {
+                "stock_id": "B",
+                "current_price": 100,
+                "stop_loss_price": 80,
+                "liquidity_score": 80,
+                "confidence_score": 50,
+            },
+            {
+                "stock_id": "C",
+                "current_price": 100,
+                "stop_loss_price": 80,
+                "is_attention_stock": True,
+                "liquidity_score": 80,
+                "confidence_score": 90,
+            },
+            {
+                "stock_id": "D",
+                "current_price": 100,
+                "stop_loss_price": 80,
+                "is_disposition_stock": True,
+                "liquidity_score": 80,
+                "confidence_score": 90,
+            },
+            {
+                "stock_id": "E",
+                "current_price": 100,
+                "stop_loss_price": 80,
+                "liquidity_score": 80,
+                "confidence_score": 90,
+            },
         ]
     )
 
@@ -196,8 +228,22 @@ def test_html_report_shows_local_factor_decision_aids(tmp_path: Path) -> None:
     ).to_csv(tmp_path / "loss_attribution_20260515.csv", index=False)
     pd.DataFrame(
         [
-            {"source_name": "liquidity", "provider_maturity": "local_derived", "status": "OK", "rows": 1, "warning": "", "fallback_action": "wrote_new_data"},
-            {"source_name": "sector_strength", "provider_maturity": "local_derived", "status": "OK_WITH_FALLBACK", "rows": 1, "warning": "缺少產業分類，使用全市場相對強弱", "fallback_action": "used_local_fallback"},
+            {
+                "source_name": "liquidity",
+                "provider_maturity": "local_derived",
+                "status": "OK",
+                "rows": 1,
+                "warning": "",
+                "fallback_action": "wrote_new_data",
+            },
+            {
+                "source_name": "sector_strength",
+                "provider_maturity": "local_derived",
+                "status": "OK_WITH_FALLBACK",
+                "rows": 1,
+                "warning": "缺少產業分類，使用全市場相對強弱",
+                "fallback_action": "used_local_fallback",
+            },
         ]
     ).to_csv(tmp_path / "data_fetch_status_20260515.csv", index=False)
 

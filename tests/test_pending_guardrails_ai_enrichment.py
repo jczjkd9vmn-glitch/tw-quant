@@ -111,7 +111,13 @@ def test_rule_based_enrichment_generates_context_and_evidence(tmp_path: Path) ->
                 "price_return_20d": -0.02,
                 "risk_flags": "PE 偏高；融資連增但股價不漲",
             },
-            {"trade_date": "2026-05-15", "stock_id": "2317", "stock_name": "鴻海", "pe_ratio": 20, "industry": "半導體"},
+            {
+                "trade_date": "2026-05-15",
+                "stock_id": "2317",
+                "stock_name": "鴻海",
+                "pe_ratio": 20,
+                "industry": "半導體",
+            },
         ]
     )
 
@@ -146,12 +152,14 @@ def test_generate_ai_enrichment_and_industry_map_use_rule_based_fallback(tmp_pat
             }
         ]
     ).to_csv(reports / "trading_decisions_20260515.csv", index=False, encoding="utf-8")
-    pd.DataFrame(
-        [{"stock_id": "2330", "stock_name": "台積電", "industry": "半導體"}]
-    ).to_csv(data / "valuation.csv", index=False, encoding="utf-8")
+    pd.DataFrame([{"stock_id": "2330", "stock_name": "台積電", "industry": "半導體"}]).to_csv(
+        data / "valuation.csv", index=False, encoding="utf-8"
+    )
 
     path, status, rows = update_industry_map(data_dir=data, config_path=tmp_path / "missing.yaml")
-    result = generate_ai_enrichment(reports_dir=reports, data_dir=data, config_path=tmp_path / "missing.yaml", trade_date="2026-05-15")
+    result = generate_ai_enrichment(
+        reports_dir=reports, data_dir=data, config_path=tmp_path / "missing.yaml", trade_date="2026-05-15"
+    )
 
     assert status == "OK"
     assert rows == 1

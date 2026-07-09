@@ -63,9 +63,7 @@ def make_prices(days: int = 80) -> pd.DataFrame:
 
 
 def test_scoring_ranks_stronger_stock_higher() -> None:
-    risk_manager = RiskManager(
-        RiskConfig(min_liquidity_value=1_000, max_volatility_20=0.20, max_position_pct=0.20)
-    )
+    risk_manager = RiskManager(RiskConfig(min_liquidity_value=1_000, max_volatility_20=0.20, max_position_pct=0.20))
     scorer = StockScorer(
         ScoringConfig(minimum_total_score=65, min_history_days=40, max_candidates=5),
         risk_manager=risk_manager,

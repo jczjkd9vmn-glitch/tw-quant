@@ -27,13 +27,9 @@ class RiskConfig:
         return cls(
             initial_equity=float(values.get("initial_equity", cls.initial_equity)),
             max_position_pct=float(values.get("max_position_pct", cls.max_position_pct)),
-            max_portfolio_exposure_pct=float(
-                values.get("max_portfolio_exposure_pct", cls.max_portfolio_exposure_pct)
-            ),
+            max_portfolio_exposure_pct=float(values.get("max_portfolio_exposure_pct", cls.max_portfolio_exposure_pct)),
             max_trade_risk_pct=float(values.get("max_trade_risk_pct", cls.max_trade_risk_pct)),
-            default_stop_loss_pct=float(
-                values.get("default_stop_loss_pct", cls.default_stop_loss_pct)
-            ),
+            default_stop_loss_pct=float(values.get("default_stop_loss_pct", cls.default_stop_loss_pct)),
             min_liquidity_value=float(values.get("min_liquidity_value", cls.min_liquidity_value)),
             max_volatility_20=float(values.get("max_volatility_20", cls.max_volatility_20)),
             max_abs_daily_return=float(values.get("max_abs_daily_return", cls.max_abs_daily_return)),
@@ -90,9 +86,7 @@ class RiskManager:
         return detect_price_jumps(
             prices,
             max_abs_daily_return=(
-                self.config.max_abs_daily_return
-                if max_abs_daily_return is None
-                else max_abs_daily_return
+                self.config.max_abs_daily_return if max_abs_daily_return is None else max_abs_daily_return
             ),
         )
 
@@ -130,9 +124,7 @@ class RiskManager:
         reasons: list[str] = []
         close = float(row.get("close", 0))
         stop_loss = float(row.get("stop_loss") or self.calculate_stop_loss(row))
-        suggested_position_pct = float(
-            row.get("suggested_position_pct") or self.suggest_position_pct(row, stop_loss)
-        )
+        suggested_position_pct = float(row.get("suggested_position_pct") or self.suggest_position_pct(row, stop_loss))
 
         if str(row.get("data_quality_status", "OK")) != "OK":
             reasons.append("資料品質不是 OK，禁止交易")

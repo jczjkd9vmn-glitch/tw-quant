@@ -78,7 +78,9 @@ def generate_ai_enrichment(
         cache_dir.mkdir(parents=True, exist_ok=True)
         cache_path = cache_dir / f"ai_enrichment_{_date_label(target_date)}.json"
         cache_path.write_text(enrichment.to_json(orient="records", force_ascii=False), encoding="utf-8")
-    return EnrichmentResult(target_date, output_path, cache_path, enrichment, warning=warning, evidence_path=evidence_path)
+    return EnrichmentResult(
+        target_date, output_path, cache_path, enrichment, warning=warning, evidence_path=evidence_path
+    )
 
 
 def _evidence_frame(enrichment: pd.DataFrame, trade_date: str) -> pd.DataFrame:
@@ -164,7 +166,14 @@ def _derive_context_columns(frame: pd.DataFrame) -> pd.DataFrame:
             return default.reindex(index)
         return pd.Series([default] * len(result), index=index)
 
-    for column in ["margin_change_5d", "margin_change_20d", "price_return_5d", "price_return_20d", "institutional_net_buy_5d", "volume_change_5d"]:
+    for column in [
+        "margin_change_5d",
+        "margin_change_20d",
+        "price_return_5d",
+        "price_return_20d",
+        "institutional_net_buy_5d",
+        "volume_change_5d",
+    ]:
         columns.setdefault(column, pd.Series([""] * len(result), index=index))
     if _series_is_blank(columns["margin_change_5d"]):
         columns["margin_change_5d"] = current("margin_change")

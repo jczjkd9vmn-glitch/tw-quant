@@ -7,7 +7,11 @@ import pandas as pd
 import scripts.fetch_multi_factor_data as module
 from tw_quant.data_sources.base import ProviderResult
 from tw_quant.data_sources.mops_provider import MATERIAL_EVENT_COLUMNS, MONTHLY_REVENUE_COLUMNS
-from tw_quant.data_sources.twse_provider import ATTENTION_DISPOSITION_COLUMNS, INSTITUTIONAL_COLUMNS, MARGIN_SHORT_COLUMNS
+from tw_quant.data_sources.twse_provider import (
+    ATTENTION_DISPOSITION_COLUMNS,
+    INSTITUTIONAL_COLUMNS,
+    MARGIN_SHORT_COLUMNS,
+)
 
 
 class EmptyMOPSProvider:
@@ -15,15 +19,21 @@ class EmptyMOPSProvider:
         self.cache_dir = cache_dir
 
     def fetch_monthly_revenue(self, trade_date: str) -> ProviderResult:
-        return ProviderResult("monthly_revenue", pd.DataFrame(columns=MONTHLY_REVENUE_COLUMNS), "EMPTY", "provider returned no rows")
+        return ProviderResult(
+            "monthly_revenue", pd.DataFrame(columns=MONTHLY_REVENUE_COLUMNS), "EMPTY", "provider returned no rows"
+        )
 
     def fetch_material_events(self, trade_date: str) -> ProviderResult:
-        return ProviderResult("material_events", pd.DataFrame(columns=MATERIAL_EVENT_COLUMNS), "EMPTY", "provider returned no rows")
+        return ProviderResult(
+            "material_events", pd.DataFrame(columns=MATERIAL_EVENT_COLUMNS), "EMPTY", "provider returned no rows"
+        )
 
 
 class FailedMOPSProvider(EmptyMOPSProvider):
     def fetch_monthly_revenue(self, trade_date: str) -> ProviderResult:
-        return ProviderResult("monthly_revenue", pd.DataFrame(columns=MONTHLY_REVENUE_COLUMNS), "FAILED", "provider failed", "boom")
+        return ProviderResult(
+            "monthly_revenue", pd.DataFrame(columns=MONTHLY_REVENUE_COLUMNS), "FAILED", "provider failed", "boom"
+        )
 
 
 class EmptyTWSEProvider:
@@ -31,10 +41,14 @@ class EmptyTWSEProvider:
         self.cache_dir = cache_dir
 
     def fetch_institutional(self, trade_date: str) -> ProviderResult:
-        return ProviderResult("institutional", pd.DataFrame(columns=INSTITUTIONAL_COLUMNS), "EMPTY", "provider returned no rows")
+        return ProviderResult(
+            "institutional", pd.DataFrame(columns=INSTITUTIONAL_COLUMNS), "EMPTY", "provider returned no rows"
+        )
 
     def fetch_margin_short(self, trade_date: str) -> ProviderResult:
-        return ProviderResult("margin_short", pd.DataFrame(columns=MARGIN_SHORT_COLUMNS), "EMPTY", "provider returned no rows")
+        return ProviderResult(
+            "margin_short", pd.DataFrame(columns=MARGIN_SHORT_COLUMNS), "EMPTY", "provider returned no rows"
+        )
 
     def fetch_attention_disposition(self, trade_date: str) -> ProviderResult:
         return ProviderResult(
@@ -72,17 +86,20 @@ def test_generate_required_csv_and_status_when_sources_missing(tmp_path: Path, m
         "liquidity",
     }
     assert "provider_maturity" in status.columns
-    assert all((data_dir / name).exists() for name in [
-        "monthly_revenue.csv",
-        "valuation.csv",
-        "financials.csv",
-        "material_events.csv",
-        "institutional.csv",
-        "margin_short.csv",
-        "attention_disposition.csv",
-        "sector_strength.csv",
-        "liquidity.csv",
-    ])
+    assert all(
+        (data_dir / name).exists()
+        for name in [
+            "monthly_revenue.csv",
+            "valuation.csv",
+            "financials.csv",
+            "material_events.csv",
+            "institutional.csv",
+            "margin_short.csv",
+            "attention_disposition.csv",
+            "sector_strength.csv",
+            "liquidity.csv",
+        ]
+    )
     report_files = list(reports_dir.glob("data_fetch_status_*.csv"))
     assert len(report_files) == 1
 

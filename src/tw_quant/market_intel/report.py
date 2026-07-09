@@ -93,7 +93,10 @@ def build_market_intel_report(
     if cache_enabled and cache_path.exists():
         frame = _read_cache(cache_path)
         provider_name = str(active_config.get("provider", "real")).strip().lower()
-        cache_is_mock = "market_intel_source" in frame.columns and frame["market_intel_source"].astype(str).str.lower().eq("mock").all()
+        cache_is_mock = (
+            "market_intel_source" in frame.columns
+            and frame["market_intel_source"].astype(str).str.lower().eq("mock").all()
+        )
         if (
             not frame.empty
             and _cache_has_freshness_schema(frame)
@@ -390,7 +393,11 @@ def _data_freshness_level(
         return "CACHE" if cache_used else "UNKNOWN"
     if age == 0:
         return "CURRENT"
-    if _is_non_trading_fallback(fallback_reason) and _same_date(actual_data_date, fallback_date) and age <= stale_days_threshold:
+    if (
+        _is_non_trading_fallback(fallback_reason)
+        and _same_date(actual_data_date, fallback_date)
+        and age <= stale_days_threshold
+    ):
         return "CURRENT"
     if age > stale_days_threshold:
         return "STALE"
@@ -507,7 +514,11 @@ def _status(
                 "coverage_ratio": None,
                 "affected_symbols_count": rows,
                 "fallback_reason": fallback_reason,
-                "fallback_action": "cache" if cache_used or status == "CACHE" else "non_trading_day_fallback" if fallback_reason else "",
+                "fallback_action": "cache"
+                if cache_used or status == "CACHE"
+                else "non_trading_day_fallback"
+                if fallback_reason
+                else "",
             }
         ]
     )

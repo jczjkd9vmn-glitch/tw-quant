@@ -89,10 +89,7 @@ def build_missing_industry_priority_report(
         stock_id = str(row.get("stock_id", "") or "").strip()
         if not stock_id:
             continue
-        appearance_counts = {
-            column: int(counts[column].get(stock_id, 0))
-            for column in REPORT_SPECS
-        }
+        appearance_counts = {column: int(counts[column].get(stock_id, 0)) for column in REPORT_SPECS}
         recent_appearance_count = sum(appearance_counts.values())
         liquidity_row = liquidity_lookup.get(stock_id, {})
         liquidity_score = _first_number(liquidity_row, ["liquidity_score"])
@@ -208,8 +205,7 @@ def _read_recent_report_frames(
         frame["_report_date"] = parsed.strftime("%Y-%m-%d")
         frames[count_column].append(frame)
     return {
-        column: pd.concat(items, ignore_index=True) if items else pd.DataFrame()
-        for column, items in frames.items()
+        column: pd.concat(items, ignore_index=True) if items else pd.DataFrame() for column, items in frames.items()
     }
 
 
@@ -221,8 +217,7 @@ def _latest_fallback_rows(sector_strength: pd.DataFrame) -> pd.DataFrame:
     mode = frame.get("sector_strength_mode", pd.Series([""] * len(frame))).fillna("").astype(str)
     warning = frame.get("sector_strength_warning", pd.Series([""] * len(frame))).fillna("").astype(str)
     frame = frame[
-        mode.str.lower().eq("market_relative_fallback")
-        | warning.str.contains("缺少產業分類", na=False)
+        mode.str.lower().eq("market_relative_fallback") | warning.str.contains("缺少產業分類", na=False)
     ].copy()
     if frame.empty:
         return frame

@@ -363,11 +363,7 @@ def test_run_all_daily_passes_exit_strategy_config_to_update(tmp_path) -> None:
     result = run_all_daily(
         config_path=_config(
             tmp_path,
-            extra=(
-                "exit_strategy:\n"
-                "  take_profit_1_pct: 0.08\n"
-                "  take_profit_2_pct: 0.15\n"
-            ),
+            extra=("exit_strategy:\n  take_profit_1_pct: 0.08\n  take_profit_2_pct: 0.15\n"),
         ),
         trade_date="20260508",
         capital=1_000_000,
@@ -452,7 +448,10 @@ def test_run_all_daily_generates_candidate_forward_returns_before_optimizer(tmp_
 
     assert calls == ["candidate_forward_returns", "optimizer"]
     assert result.candidate_forward_returns_result is not None
-    assert any("candidate_forward_returns OK rows=1 coverage_5d=100.00% coverage_20d=100.00%" in message for message in result.messages)
+    assert any(
+        "candidate_forward_returns OK rows=1 coverage_5d=100.00% coverage_20d=100.00%" in message
+        for message in result.messages
+    )
 
 
 def _config(tmp_path, database_url: str = "sqlite:///:memory:", extra: str = "") -> str:
@@ -512,7 +511,10 @@ def _fake_paper(*_args, **_kwargs):
         new_positions=pd.DataFrame({"stock_id": range(6)}),
         positions=pd.DataFrame({"stock_id": range(6)}),
         pending_orders=pd.DataFrame(
-            {"stock_id": range(6), "status": ["PENDING", "PENDING", "PENDING", "PENDING", "EXECUTED", "SKIPPED_EXISTING_POSITION"]}
+            {
+                "stock_id": range(6),
+                "status": ["PENDING", "PENDING", "PENDING", "PENDING", "EXECUTED", "SKIPPED_EXISTING_POSITION"],
+            }
         ),
         skipped_existing=[],
         warning="",
@@ -536,9 +538,7 @@ def _fake_execute(*_args, **_kwargs):
                 "entry_price_source": ["", "", "", "", "OPEN", "CLOSE_FALLBACK", ""],
             }
         ),
-        executed_orders=pd.DataFrame(
-            {"stock_id": [1, 2], "entry_price_source": ["OPEN", "CLOSE_FALLBACK"]}
-        ),
+        executed_orders=pd.DataFrame({"stock_id": [1, 2], "entry_price_source": ["OPEN", "CLOSE_FALLBACK"]}),
         skipped_orders=pd.DataFrame({"stock_id": [3]}),
         warnings=["2330: 開盤價缺失或無效，改用收盤價成交"],
     )

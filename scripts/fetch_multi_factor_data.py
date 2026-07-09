@@ -19,7 +19,12 @@ from tw_quant.data_sources.local_derived_provider import (
     SECTOR_STRENGTH_DERIVED_COLUMNS,
     LocalDerivedProvider,
 )
-from tw_quant.data_sources.mops_provider import FINANCIAL_COLUMNS, MATERIAL_EVENT_COLUMNS, MONTHLY_REVENUE_COLUMNS, MOPSProvider
+from tw_quant.data_sources.mops_provider import (
+    FINANCIAL_COLUMNS,
+    MATERIAL_EVENT_COLUMNS,
+    MONTHLY_REVENUE_COLUMNS,
+    MOPSProvider,
+)
 from tw_quant.data_sources.twse_provider import (
     ATTENTION_DISPOSITION_COLUMNS,
     INSTITUTIONAL_COLUMNS,
@@ -256,11 +261,16 @@ def run_fetch_multi_factor_data(as_of: str | None = None) -> pd.DataFrame:
                 fallback_action = "kept_existing_csv"
             elif existing_status == "EMPTY":
                 status = "EMPTY" if fetched.status.upper() != "FAILED" else "FAILED"
-                warning = _append_warning(warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, kept existing empty csv")
+                warning = _append_warning(
+                    warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, kept existing empty csv"
+                )
                 fallback_action = "kept_existing_csv"
             else:
                 status = "EMPTY" if status != "FAILED" else "FAILED"
-                warning = _append_warning(warning, f"{_provider_issue_label(fetched.status, len(fetched.data))}, no existing csv, wrote empty schema")
+                warning = _append_warning(
+                    warning,
+                    f"{_provider_issue_label(fetched.status, len(fetched.data))}, no existing csv, wrote empty schema",
+                )
                 output = _ensure_schema(output, spec.columns)
                 output.to_csv(spec.output_path, index=False, encoding="utf-8")
                 fallback_action = "wrote_empty_schema"

@@ -120,7 +120,16 @@ def test_mops_monthly_revenue_result_marks_recent_available_month() -> None:
 
 def test_valuation_openapi_calculates_real_fields() -> None:
     frame = normalize_valuation_openapi(
-        [{"Date": "1150515", "Code": "2330", "Name": "台積電", "PEratio": "18.5", "PBratio": "2.1", "DividendYield": "2.5"}]
+        [
+            {
+                "Date": "1150515",
+                "Code": "2330",
+                "Name": "台積電",
+                "PEratio": "18.5",
+                "PBratio": "2.1",
+                "DividendYield": "2.5",
+            }
+        ]
     )
 
     assert frame.iloc[0]["stock_id"] == "2330"

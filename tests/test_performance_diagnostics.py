@@ -255,12 +255,48 @@ def _write_market_regime(path: Path) -> None:
 def _write_market_indices(path: Path) -> None:
     pd.DataFrame(
         [
-            {"trade_date": "2026-05-29", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 100.0, "is_official": True},
-            {"trade_date": "2026-06-01", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 100.5, "is_official": True},
-            {"trade_date": "2026-06-02", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 101.0, "is_official": True},
-            {"trade_date": "2026-06-03", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 101.5, "is_official": True},
-            {"trade_date": "2026-06-04", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 101.8, "is_official": True},
-            {"trade_date": "2026-06-05", "index_id": "TAIEX_TR", "index_name": "發行量加權報酬指數", "close": 102.0, "is_official": True},
+            {
+                "trade_date": "2026-05-29",
+                "index_id": "TAIEX_TR",
+                "index_name": "發行量加權報酬指數",
+                "close": 100.0,
+                "is_official": True,
+            },
+            {
+                "trade_date": "2026-06-01",
+                "index_id": "TAIEX_TR",
+                "index_name": "發行量加權報酬指數",
+                "close": 100.5,
+                "is_official": True,
+            },
+            {
+                "trade_date": "2026-06-02",
+                "index_id": "TAIEX_TR",
+                "index_name": "發行量加權報酬指數",
+                "close": 101.0,
+                "is_official": True,
+            },
+            {
+                "trade_date": "2026-06-03",
+                "index_id": "TAIEX_TR",
+                "index_name": "發行量加權報酬指數",
+                "close": 101.5,
+                "is_official": True,
+            },
+            {
+                "trade_date": "2026-06-04",
+                "index_id": "TAIEX_TR",
+                "index_name": "發行量加權報酬指數",
+                "close": 101.8,
+                "is_official": True,
+            },
+            {
+                "trade_date": "2026-06-05",
+                "index_id": "TAIEX_TR",
+                "index_name": "發行量加權報酬指數",
+                "close": 102.0,
+                "is_official": True,
+            },
         ]
     ).to_csv(path / "market_indices.csv", index=False, encoding="utf-8")
 

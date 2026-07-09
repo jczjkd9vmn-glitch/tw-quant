@@ -19,7 +19,9 @@ from tw_quant.data_sources.official_market_indices import (  # noqa: E402
 
 
 def main(argv: Iterable[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Fetch official TWSE/TPEx market indices into data/market_indices.csv.")
+    parser = argparse.ArgumentParser(
+        description="Fetch official TWSE/TPEx market indices into data/market_indices.csv."
+    )
     parser.add_argument("--output", default=str(ROOT / "data" / "market_indices.csv"))
     parser.add_argument("--timeout", type=int, default=15)
     parser.add_argument("--source", choices=["all", "twse", "tpex"], default="all")
@@ -33,7 +35,9 @@ def main(argv: Iterable[str] | None = None) -> int:
     args = parser.parse_args(list(argv) if argv is not None else None)
 
     sources = ["twse", "tpex"] if args.source == "all" else [args.source]
-    fetched = fetch_official_market_indices(timeout_seconds=args.timeout, sources=sources, history_days=args.history_days)
+    fetched = fetch_official_market_indices(
+        timeout_seconds=args.timeout, sources=sources, history_days=args.history_days
+    )
     if args.dry_run:
         print(
             "market_indices DRY_RUN "

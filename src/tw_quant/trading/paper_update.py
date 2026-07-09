@@ -132,12 +132,8 @@ class ExitStrategyConfig:
             take_profit_1_sell_pct=float(data.get("take_profit_1_sell_pct", cls.take_profit_1_sell_pct)),
             take_profit_2_pct=float(data.get("take_profit_2_pct", cls.take_profit_2_pct)),
             take_profit_2_sell_pct=float(data.get("take_profit_2_sell_pct", cls.take_profit_2_sell_pct)),
-            trailing_stop_activate_pct=float(
-                data.get("trailing_stop_activate_pct", cls.trailing_stop_activate_pct)
-            ),
-            trailing_stop_drawdown_pct=float(
-                data.get("trailing_stop_drawdown_pct", cls.trailing_stop_drawdown_pct)
-            ),
+            trailing_stop_activate_pct=float(data.get("trailing_stop_activate_pct", cls.trailing_stop_activate_pct)),
+            trailing_stop_drawdown_pct=float(data.get("trailing_stop_drawdown_pct", cls.trailing_stop_drawdown_pct)),
             ma_exit_window=int(data.get("ma_exit_window", cls.ma_exit_window)),
             max_holding_days=int(data.get("max_holding_days", cls.max_holding_days)),
             min_profit_for_holding=float(data.get("min_profit_for_holding", cls.min_profit_for_holding)),
@@ -283,7 +279,9 @@ def _load_paper_trades(trades_path: Path) -> pd.DataFrame:
     sold_shares = (frame["original_shares"].fillna(frame["shares"]) - frame["remaining_shares"].fillna(0.0)).clip(
         lower=0.0
     )
-    frame["entry_price_raw"] = frame["entry_price_raw"].fillna(frame["entry_price"] - frame["entry_slippage"].fillna(0.0))
+    frame["entry_price_raw"] = frame["entry_price_raw"].fillna(
+        frame["entry_price"] - frame["entry_slippage"].fillna(0.0)
+    )
     frame["exit_price_raw"] = frame["exit_price_raw"].fillna(frame["exit_price"] + frame["exit_slippage"].fillna(0.0))
     frame["slippage_rate"] = frame["slippage_rate"].fillna(0.0)
     frame["buy_commission"] = frame["buy_commission"].fillna(frame["entry_commission"].fillna(0.0))
@@ -422,15 +420,9 @@ def _select_exit_action(
     if stop_exit_price is not None:
         return "stop_loss", remaining_shares, stop_exit_price
     # Take-profit remains close-based to preserve the existing daily paper-trading semantics.
-    if (
-        unrealized_pnl_pct >= exit_config.take_profit_1_pct
-        and not _bool_value(row.get("partial_exit_1_done"))
-    ):
+    if unrealized_pnl_pct >= exit_config.take_profit_1_pct and not _bool_value(row.get("partial_exit_1_done")):
         return "take_profit_1", max(1.0, remaining_shares * exit_config.take_profit_1_sell_pct), current_price
-    if (
-        unrealized_pnl_pct >= exit_config.take_profit_2_pct
-        and not _bool_value(row.get("partial_exit_2_done"))
-    ):
+    if unrealized_pnl_pct >= exit_config.take_profit_2_pct and not _bool_value(row.get("partial_exit_2_done")):
         return "take_profit_2", max(1.0, remaining_shares * exit_config.take_profit_2_sell_pct), current_price
     trailing_exit_price = _stop_exit_price(day_open, day_low, trailing_stop_price)
     if trailing_exit_price is not None:
@@ -473,7 +465,9 @@ def _apply_exit(
     previous_sell_slippage_cost = _safe_float(row.get("sell_slippage_cost"))
     previous_sell_commission = _safe_float(row.get("sell_commission"))
     previous_sell_tax = _safe_float(row.get("sell_tax"))
-    allocated_entry_commission = round(entry_commission * (sell_shares / original_shares), 2) if original_shares else 0.0
+    allocated_entry_commission = (
+        round(entry_commission * (sell_shares / original_shares), 2) if original_shares else 0.0
+    )
     realized_delta = round(
         exit_costs["exit_proceeds"]
         - (entry_price * sell_shares)
@@ -485,15 +479,10 @@ def _apply_exit(
     remaining_after = round(remaining_before - sell_shares, 6)
     cumulative_realized = round(previous_realized + realized_delta, 2)
     entry_slippage_cost = (
-        buy_slippage_cost
-        if previous_total_cost <= entry_commission + 0.0001 and buy_slippage_cost > 0
-        else 0.0
+        buy_slippage_cost if previous_total_cost <= entry_commission + 0.0001 and buy_slippage_cost > 0 else 0.0
     )
     incremental_cost = round(
-        entry_slippage_cost
-        + exit_costs["sell_slippage_cost"]
-        + exit_costs["sell_commission"]
-        + exit_costs["sell_tax"],
+        entry_slippage_cost + exit_costs["sell_slippage_cost"] + exit_costs["sell_commission"] + exit_costs["sell_tax"],
         2,
     )
     total_cost_value = round(previous_total_cost + incremental_cost, 2)

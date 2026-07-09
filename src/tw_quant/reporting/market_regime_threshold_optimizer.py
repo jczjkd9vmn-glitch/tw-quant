@@ -121,8 +121,14 @@ def generate_market_regime_threshold_optimization(
     train, validation, split_note = _walk_forward_split(observations)
 
     current_train = _threshold_metrics(train, current_threshold) if not train.empty else _empty_metrics()
-    dynamic_validation = _threshold_metrics(validation, None, exposure_func=_dynamic_exposure) if not validation.empty else _empty_metrics()
-    dynamic_train = _threshold_metrics(train, None, exposure_func=_dynamic_exposure) if not train.empty else _empty_metrics()
+    dynamic_validation = (
+        _threshold_metrics(validation, None, exposure_func=_dynamic_exposure)
+        if not validation.empty
+        else _empty_metrics()
+    )
+    dynamic_train = (
+        _threshold_metrics(train, None, exposure_func=_dynamic_exposure) if not train.empty else _empty_metrics()
+    )
 
     rows = [
         _threshold_row(
@@ -168,7 +174,11 @@ def generate_market_regime_threshold_optimization(
         for value in frame.get("readiness_status", pd.Series(dtype=str)).dropna().unique()
         if str(value).startswith("DATA_INSUFFICIENT")
     ]
-    status = "DATA_INSUFFICIENT" if data_warnings and frame["data_sufficiency_status"].astype(str).eq("DATA_INSUFFICIENT").all() else "OK"
+    status = (
+        "DATA_INSUFFICIENT"
+        if data_warnings and frame["data_sufficiency_status"].astype(str).eq("DATA_INSUFFICIENT").all()
+        else "OK"
+    )
     if (data_warnings or readiness_warnings) and status == "OK":
         status = "OK_WITH_WARNINGS"
     return MarketRegimeThresholdOptimizationResult(
@@ -380,10 +390,14 @@ def _threshold_metrics(
     data = frame.copy()
     scores = pd.to_numeric(data["market_regime_score"], errors="coerce")
     if exposure_func is None:
-        exposure = scores.apply(lambda value: 1.0 if pd.notna(value) and threshold is not None and value >= threshold else 0.0)
+        exposure = scores.apply(
+            lambda value: 1.0 if pd.notna(value) and threshold is not None and value >= threshold else 0.0
+        )
     else:
         exposure = scores.apply(lambda value: exposure_func(float(value)) if pd.notna(value) else 0.0)
-    candidate_count = pd.to_numeric(data.get("candidate_count", pd.Series(0, index=data.index)), errors="coerce").fillna(0)
+    candidate_count = pd.to_numeric(
+        data.get("candidate_count", pd.Series(0, index=data.index)), errors="coerce"
+    ).fillna(0)
     eligible_mask = exposure > 0
     eligible_count = int(candidate_count[eligible_mask].sum())
     blocked_count = int(candidate_count[~eligible_mask].sum())
@@ -421,7 +435,9 @@ def _threshold_metrics(
         "positive_forward_5d_rate": _weighted_mean(positive_5d[eligible_mask], candidate_count[eligible_mask]),
         "positive_forward_20d_rate": _weighted_mean(positive_20d[eligible_mask], candidate_count[eligible_mask]),
         "estimated_strategy_return_proxy": strategy_return,
-        "estimated_benchmark_return": benchmark_return if benchmark_return is not None else _mean_or_none(benchmark_5d.dropna()),
+        "estimated_benchmark_return": benchmark_return
+        if benchmark_return is not None
+        else _mean_or_none(benchmark_5d.dropna()),
         "estimated_excess_return": excess,
         "estimated_max_drawdown_proxy": drawdown,
         "forward_observation_count": int(strategy_basis[eligible_mask].dropna().count()),
@@ -476,7 +492,9 @@ def _observation_frame(report_dir: Path, selected_date: pd.Timestamp | None) -> 
         if frame.empty:
             continue
         output = output.merge(frame, on="trade_date", how="left")
-    output["market_regime_score"] = _coalesce_numeric(output, ["summary_market_regime_score", "regime_market_regime_score"])
+    output["market_regime_score"] = _coalesce_numeric(
+        output, ["summary_market_regime_score", "regime_market_regime_score"]
+    )
     output["candidate_count"] = _coalesce_numeric(
         output,
         ["candidate_forward_candidate_count", "candidate_count", "summary_candidate_rows"],
@@ -583,7 +601,10 @@ def _candidate_observations(report_dir: Path, selected_date: pd.Timestamp | None
             how="left",
         )
         output = output.merge(
-            forward.groupby("trade_date")["_forward_return"].mean().rename(f"forward_return_{window}_mean").reset_index(),
+            forward.groupby("trade_date")["_forward_return"]
+            .mean()
+            .rename(f"forward_return_{window}_mean")
+            .reset_index(),
             on="trade_date",
             how="left",
         )
@@ -719,7 +740,9 @@ def _matured_forward_observations(frame: pd.DataFrame) -> pd.DataFrame:
     if frame.empty:
         return pd.DataFrame()
     data = frame.sort_values("trade_date").reset_index(drop=True)
-    forward_columns = [column for column in ["forward_return_20d_mean", "forward_return_5d_mean"] if column in data.columns]
+    forward_columns = [
+        column for column in ["forward_return_20d_mean", "forward_return_5d_mean"] if column in data.columns
+    ]
     if not forward_columns:
         return pd.DataFrame()
     has_forward_label = pd.Series(False, index=data.index)
@@ -749,9 +772,15 @@ def _label_coverage(frame: pd.DataFrame) -> LabelCoverage:
             .sum()
         )
     else:
-        sample_count = int(pd.to_numeric(frame.get("label_sample_count", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
-        label_5d_count = int(pd.to_numeric(frame.get("label_5d_count", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
-        label_20d_count = int(pd.to_numeric(frame.get("label_20d_count", pd.Series(dtype=float)), errors="coerce").fillna(0).sum())
+        sample_count = int(
+            pd.to_numeric(frame.get("label_sample_count", pd.Series(dtype=float)), errors="coerce").fillna(0).sum()
+        )
+        label_5d_count = int(
+            pd.to_numeric(frame.get("label_5d_count", pd.Series(dtype=float)), errors="coerce").fillna(0).sum()
+        )
+        label_20d_count = int(
+            pd.to_numeric(frame.get("label_20d_count", pd.Series(dtype=float)), errors="coerce").fillna(0).sum()
+        )
     if sample_count <= 0:
         return LabelCoverage(0, label_5d_count, label_20d_count, 0.0, 0.0)
     return LabelCoverage(
@@ -800,8 +829,7 @@ def _sample_readiness(
     ready_5d = label_coverage.label_5d_coverage >= MIN_5D_LABEL_COVERAGE
     ready_20d = label_coverage.label_20d_coverage >= MIN_20D_LABEL_COVERAGE
     ready_validation = (
-        eligible_samples >= MIN_VALIDATION_ELIGIBLE_SAMPLES
-        and blocked_samples >= MIN_VALIDATION_BLOCKED_SAMPLES
+        eligible_samples >= MIN_VALIDATION_ELIGIBLE_SAMPLES and blocked_samples >= MIN_VALIDATION_BLOCKED_SAMPLES
     )
 
     status = "READY_FOR_20D_OBSERVATION"
@@ -908,7 +936,9 @@ def _max_drawdown_proxy(returns: pd.Series) -> float | None:
 
 
 def _weighted_mean(values: pd.Series, weights: pd.Series) -> float | None:
-    data = pd.DataFrame({"value": pd.to_numeric(values, errors="coerce"), "weight": pd.to_numeric(weights, errors="coerce")}).dropna()
+    data = pd.DataFrame(
+        {"value": pd.to_numeric(values, errors="coerce"), "weight": pd.to_numeric(weights, errors="coerce")}
+    ).dropna()
     if data.empty:
         return None
     total_weight = float(data["weight"].sum())

@@ -145,7 +145,14 @@ def test_ai_enrichment_writes_evidence_csv(tmp_path: Path) -> None:
 def test_discord_message_includes_pnl_decision_market_recap_and_enrichment(tmp_path: Path) -> None:
     _write_dashboard_reports(tmp_path)
     pd.DataFrame(
-        [{"trade_date": "2026-05-20", "market_regime_score": 45, "regime_label": "大盤偏空", "market_breadth_summary": "市場廣度偏空"}]
+        [
+            {
+                "trade_date": "2026-05-20",
+                "market_regime_score": 45,
+                "regime_label": "大盤偏空",
+                "market_breadth_summary": "市場廣度偏空",
+            }
+        ]
     ).to_csv(tmp_path / "market_recap_20260520.csv", index=False)
 
     summary = pd.read_csv(tmp_path / "daily_summary_20260520.csv").iloc[0].to_dict()
@@ -176,8 +183,12 @@ def test_run_all_daily_adds_dashboard_status_fields(tmp_path: Path) -> None:
         loss_attribution_func=lambda **kwargs: SimpleNamespace(attribution=pd.DataFrame(), warning=""),
         industry_map_func=lambda **kwargs: (tmp_path / "data" / "industry_map.csv", "EMPTY", 0),
         enrichment_func=lambda **kwargs: SimpleNamespace(enrichment=pd.DataFrame(), warning=""),
-        pnl_chart_func=lambda **kwargs: SimpleNamespace(status="OK", frame=pd.DataFrame([{"trade_date": "2026-05-20"}]), warning=""),
-        market_recap_func=lambda **kwargs: SimpleNamespace(status="OK", frame=pd.DataFrame([{"trade_date": "2026-05-20"}]), warning=""),
+        pnl_chart_func=lambda **kwargs: SimpleNamespace(
+            status="OK", frame=pd.DataFrame([{"trade_date": "2026-05-20"}]), warning=""
+        ),
+        market_recap_func=lambda **kwargs: SimpleNamespace(
+            status="OK", frame=pd.DataFrame([{"trade_date": "2026-05-20"}]), warning=""
+        ),
     )
 
     row = pd.read_csv(result.summary_path).iloc[0]
@@ -467,7 +478,15 @@ def _fake_execute(*_args, **_kwargs):
 def _fake_update(*_args, **_kwargs):
     return SimpleNamespace(
         summary=pd.DataFrame(
-            [{"open_positions": 1, "closed_positions": 0, "unrealized_pnl": 100, "realized_pnl": 0, "total_equity": 1_000_100}]
+            [
+                {
+                    "open_positions": 1,
+                    "closed_positions": 0,
+                    "unrealized_pnl": 100,
+                    "realized_pnl": 0,
+                    "total_equity": 1_000_100,
+                }
+            ]
         ),
         warning="",
     )

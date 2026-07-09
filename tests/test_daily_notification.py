@@ -157,6 +157,21 @@ def test_build_notification_message_reports_stale_public_docs_kept(tmp_path: Pat
     assert "kept previous docs/index.html" in message
 
 
+def test_build_notification_message_includes_github_actions_status(monkeypatch) -> None:
+    monkeypatch.setenv("TW_QUANT_DAILY_JOB_RESULT", "success")
+    monkeypatch.setenv("TW_QUANT_DEPLOY_PAGES_JOB_RESULT", "success")
+    monkeypatch.setenv("TW_QUANT_PAGES_SMOKE_TEST_RESULT", "success")
+    monkeypatch.setenv("TW_QUANT_DOCS_WRITTEN", "true")
+    monkeypatch.setenv("TW_QUANT_DOCS_PUBLISH_STATUS", "PUBLISHED")
+
+    message = build_notification_message(_summary_row(), pages_url="https://example.github.io/tw-quant/")
+
+    assert "GitHub Actions 狀態：" in message
+    assert "daily=success" in message
+    assert "deploy-pages=success" in message
+    assert "pages-smoke=success" in message
+
+
 def test_send_daily_notification_posts_to_discord(tmp_path: Path) -> None:
     _write_summary(tmp_path)
     calls = []

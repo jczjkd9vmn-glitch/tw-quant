@@ -133,7 +133,10 @@ def benchmark_return_for_window(
         "fallback_reason": snapshot.get("fallback_reason", ""),
         "can_judge_alpha": can_judge,
         "benchmark_history_days": int(snapshot.get("benchmark_history_days", 0) or 0),
-        **{_alpha_flag_name(f"{window_days}d"): bool(snapshot.get(_alpha_flag_name(f"{window_days}d"), False)) for window_days in ALPHA_WINDOWS},
+        **{
+            _alpha_flag_name(f"{window_days}d"): bool(snapshot.get(_alpha_flag_name(f"{window_days}d"), False))
+            for window_days in ALPHA_WINDOWS
+        },
         "warning": warning,
         "status": status,
     }
@@ -314,7 +317,9 @@ def _alpha_flags(
 ) -> dict[str, bool]:
     values = returns or {}
     return {
-        _alpha_flag_name(f"{days}d"): bool(official and history_days > days and _num(values.get(f"{days}d")) is not None)
+        _alpha_flag_name(f"{days}d"): bool(
+            official and history_days > days and _num(values.get(f"{days}d")) is not None
+        )
         for days in ALPHA_WINDOWS
     }
 

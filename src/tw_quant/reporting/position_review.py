@@ -75,7 +75,9 @@ def build_position_review_summary(
         near_stop = _near_stop_loss(position, config or {})
         near_take = _near_take_profit(position, config or {})
         stop_hit = _truthy(position.get("stop_loss_hit"))
-        high_event = str(decision_row.get("event_risk_level", position.get("event_risk_level", "")) or "").upper() == "HIGH"
+        high_event = (
+            str(decision_row.get("event_risk_level", position.get("event_risk_level", "")) or "").upper() == "HIGH"
+        )
         risk_light = str(position.get("risk_light", "") or decision_row.get("risk_light", "") or "")
 
         exit_review = decision == "EXIT" or stop_hit or high_event or near_stop or risk_light == "紅燈"
@@ -130,8 +132,7 @@ def _position_decision_lookup(decisions: pd.DataFrame | None) -> dict[str, dict[
         if not position_rows.empty:
             frame = position_rows
     return {
-        stock_id: row.to_dict()
-        for stock_id, row in frame.drop_duplicates("stock_id").set_index("stock_id").iterrows()
+        stock_id: row.to_dict() for stock_id, row in frame.drop_duplicates("stock_id").set_index("stock_id").iterrows()
     }
 
 
@@ -175,7 +176,11 @@ def _data_quality_warning(row: pd.Series | dict[str, object]) -> bool:
         "sector_strength_warning",
     ]:
         text = str(row.get(column, "") or "").strip()
-        if text and text.lower() != "nan" and any(keyword in text for keyword in ["資料不足", "警告", "WARNING", "CACHE"]):
+        if (
+            text
+            and text.lower() != "nan"
+            and any(keyword in text for keyword in ["資料不足", "警告", "WARNING", "CACHE"])
+        ):
             return True
     return False
 
@@ -202,7 +207,7 @@ def _latest_file(report_dir: Path, pattern: str, trade_date: str | pd.Timestamp 
             target = report_dir / pattern.replace("*", parsed.strftime("%Y%m%d"))
             if target.exists():
                 return target
-    files = sorted(report_dir.glob(pattern), key=lambda path: (_date_from_path(path) or pd.Timestamp.min))
+    files = sorted(report_dir.glob(pattern), key=lambda path: _date_from_path(path) or pd.Timestamp.min)
     return files[-1] if files else None
 
 

@@ -310,15 +310,9 @@ def run_all_daily(
             summary_values["trade_date"] = _date_text(export_result.trade_date)
             summary_values["candidate_rows"] = len(export_result.candidates)
             summary_values["risk_pass_rows"] = len(export_result.risk_pass_candidates)
-            summary_values["fundamental_positive_candidates"] = _count_fundamental_positive(
-                export_result.candidates
-            )
-            summary_values["fundamental_warning_candidates"] = _count_fundamental_warning(
-                export_result.candidates
-            )
-            summary_values["high_risk_event_candidates"] = _count_high_risk_events(
-                export_result.candidates
-            )
+            summary_values["fundamental_positive_candidates"] = _count_fundamental_positive(export_result.candidates)
+            summary_values["fundamental_warning_candidates"] = _count_fundamental_warning(export_result.candidates)
+            summary_values["high_risk_event_candidates"] = _count_high_risk_events(export_result.candidates)
             summary_values["valuation_warning_candidates"] = _count_non_empty(
                 export_result.candidates, "valuation_warning"
             )
@@ -328,12 +322,8 @@ def run_all_daily(
             summary_values["institutional_positive_candidates"] = _count_institutional_positive(
                 export_result.candidates
             )
-            summary_values["multi_factor_data_status"] = _data_status_text(
-                export_data_fetch_status
-            )
-            summary_values["market_intel_status"] = _market_intel_status(
-                export_data_fetch_status
-            )
+            summary_values["multi_factor_data_status"] = _data_status_text(export_data_fetch_status)
+            summary_values["market_intel_status"] = _market_intel_status(export_data_fetch_status)
             _apply_market_intel_freshness_summary(
                 summary_values,
                 export_result.candidates,
@@ -342,9 +332,7 @@ def run_all_daily(
                 stale_trading_days_threshold=_public_report_stale_days_threshold(config),
             )
             summary_values["market_intel_warning_count"] = _count_market_intel_warnings(export_result.candidates)
-            summary_values["market_intel_top_score"] = _max_numeric(
-                export_result.candidates, "final_market_score"
-            )
+            summary_values["market_intel_top_score"] = _max_numeric(export_result.candidates, "final_market_score")
             messages.append(
                 "export_candidates OK "
                 f"candidate_rows={len(export_result.candidates)} "
@@ -429,18 +417,21 @@ def run_all_daily(
             summary_values["pending_orders"] = pending_count
             summary_values["pending_orders_active_count"] = pending_count
             summary_values["executed_orders"] = len(execute_result.executed_orders)
-            summary_values["pending_orders_executed_count"] = pending_counts.get("EXECUTED", len(execute_result.executed_orders))
+            summary_values["pending_orders_executed_count"] = pending_counts.get(
+                "EXECUTED", len(execute_result.executed_orders)
+            )
             summary_values["pending_orders_expired_count"] = pending_counts.get("EXPIRED", 0)
             summary_values["expired_pending_orders_count"] = pending_counts.get("EXPIRED", 0)
             summary_values["pending_orders_cancelled_count"] = _cancelled_pending_count(execute_result.pending_orders)
             summary_values["skipped_orders"] = len(execute_result.skipped_orders)
             summary_values["entry_price_source_warnings"] = warning_count
             summary_values["new_positions"] = len(execute_result.executed_orders)
-            summary_values["rejected_orders_execution_count"] = len(getattr(execute_result, "rejected_orders", pd.DataFrame()))
-            summary_values["rejected_orders_total_count"] = (
-                int(summary_values.get("rejected_orders_signal_count", 0))
-                + int(summary_values["rejected_orders_execution_count"])
+            summary_values["rejected_orders_execution_count"] = len(
+                getattr(execute_result, "rejected_orders", pd.DataFrame())
             )
+            summary_values["rejected_orders_total_count"] = int(
+                summary_values.get("rejected_orders_signal_count", 0)
+            ) + int(summary_values["rejected_orders_execution_count"])
             summary_values["rejected_orders"] = summary_values["rejected_orders_total_count"]
             summary_values["guardrail_blocked_execution_count"] = rejected_counts.get("CANCELLED_BY_GUARDRAIL", 0)
             summary_values["cancelled_by_market_regime_count"] = rejected_counts.get("CANCELLED_BY_MARKET_REGIME", 0)
@@ -530,9 +521,7 @@ def run_all_daily(
         )
         _merge_loss_attribution_summary(summary_values, attribution)
         messages.append(
-            "loss_attribution OK "
-            f"rows={len(attribution)} "
-            f"loss_count={summary_values['loss_attribution_loss_count']}"
+            f"loss_attribution OK rows={len(attribution)} loss_count={summary_values['loss_attribution_loss_count']}"
         )
         if getattr(loss_attribution_result, "warning", ""):
             messages.append(f"loss_attribution warning {loss_attribution_result.warning}")
@@ -558,8 +547,7 @@ def run_all_daily(
                 "WARNING" if getattr(validation_result, "warning", "") else "OK"
             )
             messages.append(
-                "strategy_validation OK "
-                f"rows={len(getattr(validation_result, 'validation', pd.DataFrame()))}"
+                f"strategy_validation OK rows={len(getattr(validation_result, 'validation', pd.DataFrame()))}"
             )
             if getattr(validation_result, "warning", ""):
                 messages.append(f"strategy_validation warning {validation_result.warning}")
@@ -581,9 +569,7 @@ def run_all_daily(
                     reports_dir=report_dir,
                     trade_date=summary_values["trade_date"],
                 )
-            summary_values["trading_decisions_status"] = (
-                "WARNING" if getattr(decision_result, "warning", "") else "OK"
-            )
+            summary_values["trading_decisions_status"] = "WARNING" if getattr(decision_result, "warning", "") else "OK"
             for key, value in decision_counts(getattr(decision_result, "decisions", pd.DataFrame())).items():
                 summary_values[key] = value
             messages.append(
@@ -622,8 +608,7 @@ def run_all_daily(
         )
         if getattr(position_review_result, "output_path", None):
             messages.append(
-                "position_review_summary OK "
-                f"rows={len(getattr(position_review_result, 'review', pd.DataFrame()))}"
+                f"position_review_summary OK rows={len(getattr(position_review_result, 'review', pd.DataFrame()))}"
             )
         if getattr(position_review_result, "warning", ""):
             messages.append(f"position_review_summary warning {position_review_result.warning}")
@@ -647,9 +632,7 @@ def run_all_daily(
                     trade_date=summary_values["trade_date"],
                 )
             enrichment = getattr(enrichment_result, "enrichment", pd.DataFrame())
-            summary_values["ai_enrichment_status"] = (
-                "WARNING" if getattr(enrichment_result, "warning", "") else "OK"
-            )
+            summary_values["ai_enrichment_status"] = "WARNING" if getattr(enrichment_result, "warning", "") else "OK"
             summary_values["ai_used_count"] = _count_true(enrichment, "ai_used")
             summary_values["rule_based_enrichment_count"] = _count_provider(enrichment, "rule_based")
             summary_values["enrichment_insufficient_data_count"] = _count_status_value(
@@ -684,11 +667,7 @@ def run_all_daily(
         priority = getattr(missing_industry_priority_result, "priority", pd.DataFrame())
         if getattr(missing_industry_priority_result, "output_path", None):
             high_priority = _count_level(priority, "HIGH")
-            messages.append(
-                "missing_industry_priority OK "
-                f"rows={len(priority)} "
-                f"high_priority={high_priority}"
-            )
+            messages.append(f"missing_industry_priority OK rows={len(priority)} high_priority={high_priority}")
         if getattr(missing_industry_priority_result, "warning", ""):
             messages.append(f"missing_industry_priority warning {missing_industry_priority_result.warning}")
     except Exception as exc:
@@ -831,7 +810,9 @@ def run_all_daily(
             "alpha",
         )
         top_drag_frame = (
-            underperformance_frame[underperformance_frame.get("attribution_type", pd.Series(dtype=str)) == "drawdown_contribution"]
+            underperformance_frame[
+                underperformance_frame.get("attribution_type", pd.Series(dtype=str)) == "drawdown_contribution"
+            ]
             if not underperformance_frame.empty
             else pd.DataFrame()
         )
@@ -906,14 +887,20 @@ def run_all_daily(
             f"recommendations={','.join(recommendations) if recommendations else '-'}"
         )
         if getattr(market_regime_threshold_optimization_result, "warning", ""):
-            messages.append(f"market_regime_threshold_optimization warning {market_regime_threshold_optimization_result.warning}")
+            messages.append(
+                f"market_regime_threshold_optimization warning {market_regime_threshold_optimization_result.warning}"
+            )
     except Exception as exc:
         messages.append(f"market_regime_threshold_optimization warning {type(exc).__name__}: {exc}")
 
-    summary_values["decision_dashboard_status"] = "OK" if summary_values.get("trading_decisions_status") != "FAILED" else "WARNING"
+    summary_values["decision_dashboard_status"] = (
+        "OK" if summary_values.get("trading_decisions_status") != "FAILED" else "WARNING"
+    )
     summary_values["config_summary_status"] = "OK"
     summary_values["enrichment_evidence_status"] = (
-        "OK" if summary_values.get("ai_enrichment_status") in {"OK", "WARNING"} else summary_values.get("ai_enrichment_status", "")
+        "OK"
+        if summary_values.get("ai_enrichment_status") in {"OK", "WARNING"}
+        else summary_values.get("ai_enrichment_status", "")
     )
 
     _refresh_fallback_status(summary_values)
@@ -953,7 +940,11 @@ def _resolve_trade_date(
     if trade_date is not None:
         requested_date = pd.to_datetime(trade_date, errors="coerce")
         calendar_path = Path(config_path).resolve().parent / "data" / "trading_calendar.csv"
-        if allow_fallback_latest and not pd.isna(requested_date) and not is_trading_day(requested_date, calendar_path=calendar_path):
+        if (
+            allow_fallback_latest
+            and not pd.isna(requested_date)
+            and not is_trading_day(requested_date, calendar_path=calendar_path)
+        ):
             config = load_config(config_path)
             engine = create_db_engine(config["database"]["url"])
             init_db(engine)
@@ -1159,9 +1150,7 @@ def _merge_update_summary(summary_values: dict[str, Any], update_summary: pd.Dat
         "time_exit_exits",
     ]:
         summary_values[column] = int(row.get(column, 0))
-    summary_values["realized_pnl_after_cost_today"] = float(
-        row.get("realized_pnl_after_cost_today", 0.0)
-    )
+    summary_values["realized_pnl_after_cost_today"] = float(row.get("realized_pnl_after_cost_today", 0.0))
 
 
 def _merge_loss_attribution_summary(summary_values: dict[str, Any], attribution: pd.DataFrame) -> None:
@@ -1403,9 +1392,7 @@ def _apply_market_intel_freshness_summary(
     if trading_lag is not None:
         summary_values["trading_day_lag"] = trading_lag
     summary_values["market_closed"] = market_closed
-    stale_by_trading_days = (
-        trading_lag is not None and trading_lag > max(int(stale_trading_days_threshold), 0)
-    )
+    stale_by_trading_days = trading_lag is not None and trading_lag > max(int(stale_trading_days_threshold), 0)
     if stale_by_trading_days:
         summary_values["data_freshness_level"] = "STALE"
     elif trading_lag == 0:
@@ -1422,9 +1409,7 @@ def _apply_market_intel_freshness_summary(
     else:
         summary_values["is_stale_data"] = stale_by_trading_days
     summary_values["used_latest_available"] = bool(
-        date_gap > 0
-        or market_closed
-        or _to_bool(summary_values.get("used_latest_available"))
+        date_gap > 0 or market_closed or _to_bool(summary_values.get("used_latest_available"))
     )
 
 
